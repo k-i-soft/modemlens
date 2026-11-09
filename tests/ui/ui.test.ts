@@ -161,17 +161,22 @@ describe('App', () => {
     expect(JSON.parse(dl.mock.calls[0][1]).redacted).toBeUndefined();
   });
 
-  test('network scan and terminal do not leak terminal traffic into export', async () => {
+  test('terminal traffic stays out of default and full export', async () => {
+    const marker = 'AT+QZZTERMTEST?';
     const w = await scanned();
     await w.findAll('nav button')[1].trigger('click');
-    await w.find('input[aria-label="AT command"]').setValue('AT+CSQ');
+    await w.find('input[aria-label="AT command"]').setValue(marker);
     await w.find('form').trigger('submit');
-    await until(() => w.text().includes('[ok]'));
+    await until(() => {
+      const log = w.find('.terminal .log').text();
+      return log.includes(marker) && log.includes('[error]');
+    });
     await w.findAll('nav button')[0].trigger('click');
+    await btn(w, 'Export JSON')!.trigger('click');
     await btn(w, 'Full export')!.trigger('click');
     await btn(w, 'Download full JSON')!.trigger('click');
-    const report = JSON.parse(dl.mock.calls[0][1]);
-    expect(report.items.filter((i: ScanItem) => i.command === 'AT+CSQ')).toHaveLength(1);
+    expect(dl).toHaveBeenCalledTimes(2);
+    for (const call of dl.mock.calls) expect(call[1]).not.toContain('QZZTERMTEST');
   });
 
   test('without connectors the connect button shows a clear error', async () => {
