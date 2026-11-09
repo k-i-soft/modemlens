@@ -90,7 +90,7 @@ function describeDevice(device: USBDevice, id: string): UsbDeviceDescription {
   };
 }
 
-function classifyOpened(device: USBDevice, id: string): DeviceClassification {
+function classify(device: USBDevice, id: string): DeviceClassification {
   const alternates = interfacesOf(device).flatMap((i) => i.alternates);
   return classifyUsbDevice({
     usb: id,
@@ -356,16 +356,18 @@ async function chooseChannel(
 export async function connectUsb(opts: UsbConnectorOptions): Promise<Transport> {
   const device = opts.device ?? (await pickDevice());
   await opts.beforeOpen();
+  // The id and the configurations can be read from a closed device: one without AT is never opened.
+  const id = usbId(device);
+  const description = describeDevice(device, id);
+  const classification = classify(device, id);
+  if (classification.kind !== 'at' && classification.kind !== 'unknown') {
+    if (device.opened) await attempt(() => device.close(), 'close');
+    throw new NoAtChannelError('This device has no AT channel.', false, classification, description);
+  }
   // After a close that failed the device is still open, and open() would fail while a claim is pending.
   if (!device.opened) await withTimeout(device.open(), OPEN_TIMEOUT_MS, 'open');
   try {
     await ensureConfigured(device);
-    const id = usbId(device);
-    const description = describeDevice(device, id);
-    const classification = classifyOpened(device, id);
-    if (classification.kind !== 'at' && classification.kind !== 'unknown') {
-      throw new NoAtChannelError('This device has no AT channel.', false, classification, description);
-    }
     const { channel, pendingClaim } = await chooseChannel(device, opts, description);
     await raiseDtr(device, channel);
     const name = device.productName ? `${device.productName} ` : '';

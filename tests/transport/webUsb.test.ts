@@ -372,8 +372,32 @@ describe('connectUsb', () => {
       expect(err.classification).toMatchObject({ kind: 'storage', usb: '12d1:1f01' });
       expect(err.hadPendingClaim).toBe(false);
       noClaims(d);
-      expect(d.calls).toContain('close');
+      expect(d.calls).not.toContain('open');
+      expect(d.calls).not.toContain('close');
       expect(d.opened).toBe(false);
+    });
+
+    test('a device whose open would fail is still classified', async () => {
+      const d = stick(0x12d1, 0x1f01, [iface(0, 0x08, bulk(1, 2))]);
+      d.open = () => Promise.reject(new DOMException('Access denied.', 'SecurityError'));
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(err.classification).toMatchObject({ kind: 'storage' });
+    });
+
+    test('an unconfigured device is classified from its descriptors, without selecting a configuration', async () => {
+      const d = new FakeDevice([iface(0, 0x08, bulk(1, 2))], { configured: false });
+      d.vendorId = 0x12d1;
+      d.productId = 0x1f01;
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(err.classification).toMatchObject({ kind: 'storage' });
+      expect(d.calls).toEqual([]);
+    });
+
+    test('a device left open by a failed close is closed when it has no AT channel', async () => {
+      const d = stick(0x12d1, 0x1f01, [iface(0, 0x08, bulk(1, 2))]);
+      d.opened = true;
+      await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(d.calls).toEqual(['close']);
     });
 
     test('the error describes the device', async () => {
@@ -414,13 +438,13 @@ describe('connectUsb', () => {
       expect(d.opened).toBe(false);
     });
 
-    test('beforeOpen still runs before the device is classified and opened', async () => {
+    test('beforeOpen still runs for a device that is never opened', async () => {
       const d = stick(0x2ecc, 0x3001, [iface(0, 0x08, bulk(1, 2))]);
       const order: string[] = [];
       const realOpen = d.open.bind(d);
       d.open = async () => { order.push('open'); await realOpen(); };
       await connectUsb({ beforeOpen: async () => { order.push('beforeOpen'); }, device: d.asDevice }).catch(() => {});
-      expect(order).toEqual(['beforeOpen', 'open']);
+      expect(order).toEqual(['beforeOpen']);
     });
 
     test('an unknown device with a CDC ACM interface is probed as an AT candidate', async () => {
