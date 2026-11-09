@@ -201,10 +201,14 @@ const qgmr: Parser = (r) => {
   return line ? [field('firmware_build', 'Firmware build', line)] : [];
 };
 
+/** The modem's way of saying there is no measured cell on this frequency. */
+const NO_NEIGHBOUR_PCI = '65535';
+const NO_NEIGHBOUR_RSRP = '-140';
+
 /**
  * LTE neighbour cells, one line each:
- * "neighbourcell intra"|"neighbourcell inter","LTE",earfcn,pci,rsrq,rsrp,... (further columns are ignored).
- * Lines of another layout or technology are skipped.
+ * "neighbourcell intra"|"neighbourcell inter","LTE",earfcn,pci,rsrp,rsrq,... (further columns are ignored).
+ * Lines of another layout or technology are skipped, and so are placeholders for a frequency without a cell.
  */
 const qengNeighbour: Parser = (r) => {
   const out: Field[] = [];
@@ -213,13 +217,14 @@ const qengNeighbour: Parser = (r) => {
     const kind = /^neighbourcell\s+(intra|inter)$/i.exec(args[0] ?? '')?.[1]?.toLowerCase();
     if (!kind || args[1]?.toUpperCase() !== 'LTE') continue;
     if (![2, 3, 4, 5].every(i => isInt(args[i]))) continue;
+    if (args[3] === NO_NEIGHBOUR_PCI || args[4] === NO_NEIGHBOUR_RSRP) continue;
     const n = out.length / 6 + 1;
     out.push(
       field(`n${n}_kind`, `Neighbour ${n} kind`, kind),
       field(`n${n}_earfcn`, `Neighbour ${n} EARFCN`, args[2]),
       field(`n${n}_pci`, `Neighbour ${n} PCI`, args[3], 'location'),
-      field(`n${n}_rsrq_db`, `Neighbour ${n} RSRQ (dB)`, args[4]),
-      field(`n${n}_rsrp_dbm`, `Neighbour ${n} RSRP (dBm)`, args[5]),
+      field(`n${n}_rsrp_dbm`, `Neighbour ${n} RSRP (dBm)`, args[4]),
+      field(`n${n}_rsrq_db`, `Neighbour ${n} RSRQ (dB)`, args[5]),
       field(`n${n}_rat`, `Neighbour ${n} technology`, 'LTE'),
     );
   }

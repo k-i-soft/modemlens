@@ -219,8 +219,8 @@ describe('parseResponse', () => {
 
   test('qeng_neighbour: one group per LTE neighbour line', () => {
     const f = parseResponse('qeng_neighbour', ok([
-      '+QENG: "neighbourcell intra","LTE",6200,101,-11,-81,-52,8,0,12,6',
-      '+QENG: "neighbourcell inter","LTE",1300,202,-14,-95,-60,3,0,0,0,0',
+      '+QENG: "neighbourcell intra","LTE",6200,101,-81,-11,-52,8,0,12,6',
+      '+QENG: "neighbourcell inter","LTE",1300,202,-95,-14,-60,3,0,0,0,0',
       '+QENG: "neighbourcell","WCDMA",1,2,3',
       '+QENG: "neighbourcell intra","LTE",abc,1,2,3',
     ]))!;
@@ -231,6 +231,35 @@ describe('parseResponse', () => {
     expect(f).toContainEqual(expect.objectContaining({ key: 'n2_rsrp_dbm', value: '-95' }));
     expect(f.filter(x => x.key.endsWith('_pci')).every(x => x.sensitive === 'location')).toBe(true);
     expect(parseResponse('qeng_neighbour', ok(['+QENG: "servingcell","NOCONN","LTE"']))).toBeNull();
+  });
+
+  describe('qeng_neighbour on real output', () => {
+    const INTER = '+QENG: "neighbourcell inter","LTE",1850,65535,-140,-20,-,-,0,20,22,6';
+    const INTRA = '+QENG: "neighbourcell intra","LTE",2850,247,-116,-20,-,-,10,6,9,8,29';
+
+    test('columns after LTE are EARFCN, PCI, RSRP, RSRQ', () => {
+      const f = parseResponse('qeng_neighbour', ok([INTRA]))!;
+      expect(f).toContainEqual(expect.objectContaining({ key: 'n1_earfcn', value: '2850' }));
+      expect(f).toContainEqual(expect.objectContaining({ key: 'n1_pci', value: '247', sensitive: 'location' }));
+      expect(f).toContainEqual(expect.objectContaining({ key: 'n1_rsrp_dbm', value: '-116' }));
+      expect(f).toContainEqual(expect.objectContaining({ key: 'n1_rsrq_db', value: '-20' }));
+    });
+
+    test('a line without a measured cell is left out, and numbering stays continuous', () => {
+      const f = parseResponse('qeng_neighbour', ok([INTER, INTRA]))!;
+      expect(f.filter(x => x.key.endsWith('_kind')).map(x => [x.key, x.value])).toEqual([['n1_kind', 'intra']]);
+    });
+
+    test.each([
+      ['PCI 65535 alone', '+QENG: "neighbourcell intra","LTE",1850,65535,-100,-10'],
+      ['RSRP -140 alone', '+QENG: "neighbourcell intra","LTE",1850,247,-140,-10'],
+    ])('%s is enough to leave a line out', (_, line) => {
+      expect(parseResponse('qeng_neighbour', ok([line]))).toBeNull();
+    });
+
+    test('only placeholders: no fields at all', () => {
+      expect(parseResponse('qeng_neighbour', ok([INTER]))).toBeNull();
+    });
   });
 
   test('qeng_serving: LTE layout, location marking, tolerant of other layouts', () => {

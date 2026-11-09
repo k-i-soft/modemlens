@@ -182,8 +182,8 @@ describe('cell, neighbours and operators', () => {
   });
   test('neighbours, strongest first and rated', () => {
     const d = buildDashboard(report([item('qeng_neighbour', [
-      '+QENG: "neighbourcell intra","LTE",1300,10,-12,-105,0,0',
-      '+QENG: "neighbourcell inter","LTE",6300,20,-9,-78,0,0',
+      '+QENG: "neighbourcell intra","LTE",1300,10,-105,-12,0,0',
+      '+QENG: "neighbourcell inter","LTE",6300,20,-78,-9,0,0',
     ], 'AT+QENG="neighbourcell"', 'qeng-neighbour')]));
     expect(d.neighbours).toEqual([
       { kind: 'inter', earfcn: '6300', pci: '20', rsrp: -78, rsrq: -9, rating: 'excellent', word: 'Excellent' },
@@ -247,13 +247,30 @@ describe('sim, data and device', () => {
   });
 });
 
+describe('neighbours from a real answer', () => {
+  const INTER = '+QENG: "neighbourcell inter","LTE",1850,65535,-140,-20,-,-,0,20,22,6';
+  const INTRA = '+QENG: "neighbourcell intra","LTE",2850,247,-116,-20,-,-,10,6,9,8,29';
+  const neighbours = (...lines: string[]) =>
+    buildDashboard(report([item('qeng_neighbour', lines, 'AT+QENG="neighbourcell"', 'qeng-neighbour')])).neighbours;
+
+  test('the measured cell is rated by its RSRP, and the placeholder is left out', () => {
+    expect(neighbours(INTER, INTRA)).toEqual([
+      expect.objectContaining({ kind: 'intra', earfcn: '2850', pci: '247', rsrp: -116, rsrq: -20, rating: 'poor' }),
+    ]);
+  });
+
+  test('with only placeholders there is nothing for the card to show', () => {
+    expect(neighbours(INTER)).toEqual([]);
+  });
+});
+
 describe('radio off', () => {
   const on = (): ScanItem[] => [
     serving(),
     item('csq', ['+CSQ: 21,99'], 'AT+CSQ', 'csq'),
     item('creg', ['+CEREG: 0,1'], 'AT+CEREG?', 'cereg'),
     item('cops', ['+COPS: 0,0,"Demo Mobile",7'], 'AT+COPS?', 'cops'),
-    item('qeng_neighbour', ['+QENG: "neighbourcell intra","LTE",1300,201,-8,-78,-55,14,0,0,0,0'], 'AT+QENG="neighbourcell"', 'qeng-neighbour'),
+    item('qeng_neighbour', ['+QENG: "neighbourcell intra","LTE",1300,201,-78,-8,-55,14,0,0,0,0'], 'AT+QENG="neighbourcell"', 'qeng-neighbour'),
   ];
 
   test.each([['+CFUN: 4'], ['+CFUN: 0']])('%s reads "Radio off", neutrally, whatever the registration says', (line) => {
@@ -366,7 +383,7 @@ describe('hide identifiers', () => {
     item('cimi', ['001010123456789'], 'AT+CIMI', 'cimi'),
     item('qccid', ['+QCCID: 98000000000000000099'], 'AT+QCCID', 'qccid'),
     item('cgpaddr', ['+CGPADDR: 1,"10.0.0.2"'], 'AT+CGPADDR', 'cgpaddr'),
-    item('qeng_neighbour', ['+QENG: "neighbourcell intra","LTE",1300,77,-12,-105,0,0'], 'AT+QENG="neighbourcell"', 'qeng-neighbour'),
+    item('qeng_neighbour', ['+QENG: "neighbourcell intra","LTE",1300,77,-105,-12,0,0'], 'AT+QENG="neighbourcell"', 'qeng-neighbour'),
     serving(),
   ];
 
