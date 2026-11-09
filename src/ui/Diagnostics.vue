@@ -9,6 +9,8 @@ defineProps<{
   autoIncomplete: boolean;
   confirmDeep: boolean;
   hideIdentifiers: boolean;
+  /** Why these scans cannot run at all for this report. */
+  scansUnavailableReason?: string;
 }>();
 defineEmits<{ (e: 'ask-deep'): void; (e: 'cancel-deep'): void; (e: 'start-deep'): void; (e: 'network-scan'): void }>();
 </script>
@@ -26,6 +28,7 @@ defineEmits<{ (e: 'ask-deep'): void; (e: 'cancel-deep'): void; (e: 'start-deep')
           Lists the operators around you (<code>AT+COPS=?</code>). It can take minutes and may interrupt the connection.
         </p>
       </div>
+      <p v-if="scansUnavailableReason" class="hint note">{{ scansUnavailableReason }}</p>
       <p v-if="autoIncomplete" class="hint note">Deep scan is unavailable because the automatic scan did not finish.</p>
       <div v-if="confirmDeep" class="notice warn alert" role="alertdialog" aria-label="Deep scan warning">
         <p>

@@ -5,6 +5,8 @@ import type { ScanItem, ScanReport } from '../../src/scan/scanner';
 import { redactReport, shapeOf } from '../../src/report/redact';
 import { toJson, toMarkdown } from '../../src/report/export';
 import { FakeTransport } from '../helpers/fakeTransport';
+import { importWebCapture } from '../../src/web/importReport';
+import { hilinkCapture, IDENTIFIERS } from '../web/fixtures';
 
 const resp = (command: string, lines: string[], status: 'ok' | 'error' = 'ok') =>
   ({ command, status, lines, durationMs: 1 }) as ScanItem['response'];
@@ -210,5 +212,43 @@ describe('redactReport', () => {
   test('URC-format CREG with a decimal LAC does not leak it through the status', () => {
     const r = leaks([item('creg', 'AT+CREG?', ['+CREG: 1,"4711","00123456",7'], 'creg')], ['4711', '00123456']);
     expect(r.items[0].fields?.find((f) => f.key === 'status')?.value).toBe('unknown');
+  });
+});
+
+describe('an imported web capture', () => {
+  const imported = importWebCapture(hilinkCapture());
+
+  test('imported report redacts like a scan', () => {
+    const shared = redactReport(imported);
+    const out = toJson(shared) + toMarkdown(shared);
+    for (const secret of IDENTIFIERS) expect(out, secret).not.toContain(secret);
+  });
+
+  test('the shared export has parsed fields and no raw XML', () => {
+    const shared = redactReport(imported);
+    const out = toJson(shared) + toMarkdown(shared);
+    expect(out).not.toContain('<response');
+    expect(out).not.toContain('DeviceName');
+    expect(shared.items.every((i) => i.lines === undefined)).toBe(true);
+    expect(shared.items[1].fields?.find((f) => f.key === 'rsrp_dbm')?.value).toBe('-86');
+    expect(shared.items[0].fields?.find((f) => f.key === 'model')?.value).toBe('DEMO-STICK-1');
+    expect(shared.profile).toBe('web-hilink');
+  });
+
+  test('a body no parser understood is reduced to its shape', () => {
+    const r = importWebCapture(hilinkCapture({
+      responses: [
+        { id: 'information', status: 200, body: '<response><DeviceName>A</DeviceName></response>' },
+        { id: 'signal', status: 200, body: '<html>123456789012345</html>' },
+      ],
+    }));
+    const shared = redactReport(r);
+    expect(toJson(shared)).not.toContain('123456789012345');
+    expect(shared.items[1].shape).toBeDefined();
+  });
+
+  test('the full export keeps the raw bodies', () => {
+    expect(toJson(imported)).toContain('FAKESERIAL000001');
+    expect(toMarkdown(imported)).toContain('FAKESERIAL000001');
   });
 });

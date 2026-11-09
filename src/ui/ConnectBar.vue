@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { PickerCancelledError } from '../transport/types';
 import type { Connectors, Transport } from '../transport/types';
 import { DEFAULT_BAUD_RATE, serialUsbId } from '../transport/webSerial';
 import { NoAtChannelError, usbId } from '../transport/webUsb';
 import type { UsbDeviceDescription } from '../transport/types';
 import type { DeviceClassification } from '../profiles/known-devices';
+import type { ScanReport } from '../scan/scanner';
 import NoAtGuidance from './NoAtGuidance.vue';
 
 const props = defineProps<{
@@ -18,8 +19,10 @@ const props = defineProps<{
   reconnect?: boolean;
   /** A slim row for use above the results, instead of the large choices of the start screen. */
   compact?: boolean;
+  /** Counts imported reports: each one replaces what this bar was saying about the last attempt. */
+  importCount?: number;
 }>();
-const emit = defineEmits<{ (e: 'connected', transport: Transport, via: 'serial' | 'usb'): void }>();
+const emit = defineEmits<{ (e: 'connected', transport: Transport, via: 'serial' | 'usb'): void; (e: 'imported', report: ScanReport): void }>();
 
 const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
@@ -79,6 +82,11 @@ function connectUsb(device?: USBDevice): Promise<void> {
   };
   return connect('usb', (beforeOpen) => props.connectors.usb({ beforeOpen, onProbe, ...(device ? { device } : {}) }));
 }
+
+watch(() => props.importCount, () => {
+  guidance.value = null;
+  error.value = '';
+});
 
 /** Failures only mean there are no extra buttons. */
 async function refreshPermitted(): Promise<void> {
@@ -177,7 +185,7 @@ onBeforeUnmount(() => {
       This modem has no known AT channel, so ModemLens is trying its channels with a plain AT: now USB interface
       {{ probing }}.
     </p>
-    <NoAtGuidance v-if="guidance" :classification="guidance.classification" :device="guidance.device" :reason="guidance.reason" />
+    <NoAtGuidance v-if="guidance" :classification="guidance.classification" :device="guidance.device" :reason="guidance.reason" @imported="emit('imported', $event)" />
     <p v-if="error" class="notice warn" role="alert">{{ error }}</p>
     <p v-if="replugNeeded" class="notice warn" role="alert">
       One of the modem's interfaces did not respond and the browser is still waiting for it. Unplug and replug the

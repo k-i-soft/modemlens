@@ -10,6 +10,7 @@ import DonateLink from '../../src/ui/DonateLink.vue';
 import HelpNoModem from '../../src/ui/HelpNoModem.vue';
 import ScanDetails from '../../src/ui/ScanDetails.vue';
 import IdentityHero from '../../src/ui/IdentityHero.vue';
+import Overview from '../../src/ui/Overview.vue';
 import TerminalPane from '../../src/ui/TerminalPane.vue';
 import { FakeTransport } from '../helpers/fakeTransport';
 import { AtEngine } from '../../src/at/engine';
@@ -28,6 +29,13 @@ import { PROFILES } from '../../src/profiles';
 import { Scanner } from '../../src/scan/scanner';
 import * as scannerMod from '../../src/scan/scanner';
 import type { ScanItem } from '../../src/scan/scanner';
+import WebModemPanel from '../../src/ui/WebModemPanel.vue';
+import ImportCapture from '../../src/ui/ImportCapture.vue';
+import { demoHiLinkError, demoWebCapture } from '../../src/ui/demo';
+import { buildBookmarklet } from '../../src/web/bookmarklets';
+import { WEB_DIALECTS } from '../../src/web/dialects';
+import { MAX_CAPTURE_BYTES } from '../../src/web/importReport';
+import { hilinkCapture, IDENTIFIERS } from '../web/fixtures';
 
 const dl = vi.mocked(downloadText);
 const wrappers: VueWrapper[] = [];
@@ -233,18 +241,18 @@ describe('ConnectBar', () => {
       expect(t).not.toContain('usb_modeswitch');
     });
 
-    test('network stick with a fixed address: a link and the planned bookmark tool', async () => {
+    test('network stick with a fixed address: a link and the bookmark', async () => {
       const w = await rejected('12d1:14db', [2, 10]);
       const a = w.find('a');
       expect(a.attributes('href')).toBe('http://192.168.8.1');
       expect(a.attributes('rel')).toBe('noopener');
       expect(w.text()).toContain('network adapter');
-      expect(w.text()).toContain('bookmark tool');
+      expect(w.text()).toContain('Drag this to your bookmarks bar');
     });
 
     test('network stick without a fixed address points to the gateway', async () => {
       const w = await rejected('0e8d:2004', [224, 10, 8]);
-      expect(w.find('a').exists()).toBe(false);
+      expect(w.find('a:not(.bookmarklet)').exists()).toBe(false);
       expect(w.text()).toContain('MediaTek MiFi stick');
       expect(w.text()).toContain('gateway');
     });
@@ -991,7 +999,7 @@ describe('a device without an AT channel', () => {
     const rndis = { ...rndisOnly, usb: '12d1:14db' };
     const w = await rejecting(classified(rndis as typeof device));
     expect(w.text()).toContain('limit of macOS');
-    expect(w.find('.seen a').exists()).toBe(false);
+    expect(w.find('.seen a:not(.bookmarklet)').exists()).toBe(false);
   });
 
   test.each([
@@ -1148,5 +1156,225 @@ describe('HelpNoModem', () => {
     const t = mount(HelpNoModem).text();
     expect(t).toContain('My modem shows up as a disk');
     expect(t).toContain('usb_modeswitch');
+  });
+});
+
+describe('importing a web capture', () => {
+  const fileInput = (w: VueWrapper) => w.find('input[type="file"]');
+
+  async function choose(w: VueWrapper, file: File, input = fileInput(w)): Promise<void> {
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true });
+    await input.trigger('change');
+    await until(() => w.text().includes('Nothing was imported') || w.text().includes('Imported capture'));
+  }
+  const captureFile = (text = hilinkCapture()) => new File([text], 'capture.json', { type: 'application/json' });
+
+  async function imported() {
+    const w = mountApp();
+    await choose(w, captureFile());
+    return w;
+  }
+  const tabBtn = (w: VueWrapper, name: string) => w.findAll('.tabs button').find((b) => b.text() === name)!;
+
+  test('the landing screen offers it under a clear label', () => {
+    const w = mountApp();
+    expect(w.find('label.import').text()).toContain('Import a modem capture');
+    expect(fileInput(w).attributes('accept')).toContain('.json');
+  });
+
+  test('the Overview shows the imported modem', async () => {
+    const w = await imported();
+    const t = w.text();
+    expect(t).toContain('Imported capture');
+    expect(t).toContain('DEMO-STICK-1');
+    expect(t).toContain('Huawei');
+    expect(t).toContain('Demo Mobile');
+    expect(t).toContain('On the network');
+    expect(t).toContain('1850');
+    expect(t).toContain('Verified profile');
+  });
+
+  test('hide identifiers works on it', async () => {
+    const w = await imported();
+    expect(w.text()).toContain('98000000000000000099');
+    await w.find('[role="switch"]').trigger('click');
+    for (const v of ['98000000000000000099', '001010123456789', '7654321', '192.0.2.10']) expect(w.text()).not.toContain(v);
+  });
+
+  test('diagnostics works, and deep and network scans say why they are off', async () => {
+    const w = await imported();
+    await tabBtn(w, 'Diagnostics').trigger('click');
+    expect(w.text()).toContain('GET /api/device/signal');
+    expect(btn(w, 'Deep scan')!.attributes('disabled')).toBeDefined();
+    expect(btn(w, 'Network scan')!.attributes('disabled')).toBeDefined();
+    expect(w.text()).toContain('Deep scan and Network scan need a connected modem');
+  });
+
+  test('terminal and live signal say why they are off', async () => {
+    const w = await imported();
+    expect(w.text()).toContain('Live signal needs a connected modem');
+    expect(w.find('.live input, .live button').attributes('disabled')).toBeDefined();
+    await tabBtn(w, 'Terminal').trigger('click');
+    expect(w.findComponent(TerminalPane).text()).toContain('imported from a file');
+    expect(w.findComponent(TerminalPane).find('input').attributes('disabled')).toBeDefined();
+  });
+
+  test('the shared export goes through the redaction', async () => {
+    const w = await imported();
+    await btn(w, 'Export')!.trigger('click');
+    await btn(w, 'Export JSON')!.trigger('click');
+    const [name, text] = dl.mock.calls[0];
+    expect(name).toBe('modemlens-report.json');
+    expect(text).not.toContain('<response');
+    for (const secret of IDENTIFIERS) expect(text, secret).not.toContain(secret);
+  });
+
+  test('the full export keeps the raw bodies, after the confirmation', async () => {
+    const w = await imported();
+    await btn(w, 'Export')!.trigger('click');
+    await btn(w, 'Full export')!.trigger('click');
+    expect(dl).not.toHaveBeenCalled();
+    await btn(w, 'Download full JSON')!.trigger('click');
+    expect(dl.mock.calls[0][1]).toContain('FAKESERIAL000001');
+  });
+
+  test('an invalid file shows a calm error and stays on the landing screen', async () => {
+    const w = mountApp();
+    await choose(w, captureFile('not a capture <script>alert(1)</script>'));
+    const alert = w.find('.import-error');
+    expect(alert.text()).toContain('Nothing was imported');
+    expect(alert.text()).not.toContain('script');
+    expect(w.find('.topbar').exists()).toBe(false);
+  });
+
+  test('a file over the limit is not even read', async () => {
+    const w = mountApp();
+    const file = captureFile();
+    Object.defineProperty(file, 'size', { value: MAX_CAPTURE_BYTES + 1 });
+    const read = vi.spyOn(file, 'text');
+    await choose(w, file);
+    expect(read).not.toHaveBeenCalled();
+    expect(w.text()).toContain('too large');
+  });
+
+  test('markup from a capture stays text on the page', async () => {
+    const body = '<response><DeviceName>&lt;img src=x onerror=alert(1)&gt;</DeviceName></response>';
+    const w = mountApp();
+    await choose(w, captureFile(hilinkCapture({ responses: [{ id: 'information', status: 200, body }] })));
+    expect(w.text()).toContain('<img src=x onerror=alert(1)>');
+    expect(w.find('.model img').exists()).toBe(false);
+  });
+
+  test('a real connection replaces the imported report and brings the tools back', async () => {
+    const w = await imported();
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.text().includes('Automatic scan finished'));
+    expect(w.text()).not.toContain('Imported capture');
+    expect(w.text()).not.toContain('DEMO-STICK-1');
+    expect(w.text()).not.toContain('Live signal needs a connected modem');
+    expect(btn(w, 'Network scan')!.attributes('disabled')).toBeUndefined();
+  });
+
+  test('importing during a session ends it and clears the old results', async () => {
+    const w = await scanned();
+    expect(w.text()).toContain('EC200A');
+    await choose(w, captureFile(), w.findComponent(HelpNoModem).find('input[type="file"]'));
+    await until(() => w.text().includes('DEMO-STICK-1'));
+    expect(w.text()).toContain('Imported capture');
+    expect(w.findComponent(Overview).text()).not.toContain('EC200A');
+  });
+
+  test('the import in the guidance card replaces the card', async () => {
+    const reject = () => Promise.reject(demoHiLinkError());
+    const w = mountApp({ connectors: { serial: reject, usb: reject } });
+    await btn(w, 'USB direct')!.trigger('click');
+    await until(() => w.find('.seen').exists());
+    await choose(w, captureFile(), w.find('.seen input[type="file"]'));
+    expect(w.find('.seen').exists()).toBe(false);
+    expect(w.text()).toContain('DEMO-STICK-1');
+  });
+
+  test('an import from elsewhere on the page also replaces the card', async () => {
+    const w = mountApp({ demo: true, demoWeb: true, connectors: undefined, demoDelayMs: 0 });
+    await btn(w, 'USB direct')!.trigger('click');
+    await until(() => w.find('.seen').exists());
+    await btn(w, 'Load the demo capture')!.trigger('click');
+    await until(() => w.text().includes('Imported capture'));
+    expect(w.find('.seen').exists()).toBe(false);
+  });
+
+  test('the demo capture goes through the same import, with fake values', async () => {
+    const w = mountApp({ demo: true, demoWeb: true });
+    await btn(w, 'Load the demo capture')!.trigger('click');
+    await until(() => w.text().includes('Imported capture'));
+    expect(w.text()).toContain('DEMO');
+    expect(w.text()).toContain('Demo mode');
+    expect(JSON.parse(demoWebCapture()).format).toBe('modemlens-web-capture');
+    await btn(w, 'Export')!.trigger('click');
+    await btn(w, 'Export JSON')!.trigger('click');
+    expect(dl.mock.calls[0][1]).not.toContain('123456789012345');
+  });
+
+  test('the web demo shows the guidance card of a HiLink stick', async () => {
+    const w = mountApp({ demo: true, demoWeb: true, connectors: undefined, demoDelayMs: 0 });
+    await btn(w, 'USB direct')!.trigger('click');
+    await until(() => w.find('.seen').exists());
+    expect(w.find('.seen').text()).toContain('Huawei HiLink stick');
+    expect(w.find('.seen').text()).toContain('Drag this to your bookmarks bar');
+    expect(w.find('.seen').text()).not.toContain('ZTE');
+  });
+});
+
+describe('WebModemPanel', () => {
+  test('offers a link that cannot run on our own page', async () => {
+    const w = mount(WebModemPanel, { props: { dialect: 'hilink' }, attachTo: document.body });
+    wrappers.push(w);
+    const a = w.find('a.bookmarklet');
+    expect(a.text()).toBe('Drag this to your bookmarks bar');
+    expect(a.attributes('href')).toBe(buildBookmarklet(WEB_DIALECTS[0]));
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    a.element.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+  });
+
+  test('copy puts the bookmarklet on the clipboard and says so', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const w = mount(WebModemPanel, { props: { dialect: 'hilink' } });
+    await btn(w, 'Copy')!.trigger('click');
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith(buildBookmarklet(WEB_DIALECTS[0]));
+    expect(w.text()).toContain('Copied');
+    delete (navigator as any).clipboard;
+  });
+
+  test('a blocked clipboard is explained', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockRejectedValue(new Error('no')) }, configurable: true });
+    const w = mount(WebModemPanel, { props: { dialect: 'hilink' } });
+    await btn(w, 'Copy')!.trigger('click');
+    await flushPromises();
+    expect(w.text()).toContain('copy its address');
+    delete (navigator as any).clipboard;
+  });
+
+  test('without a known dialect both are offered and the ZTE one is marked unverified', () => {
+    const w = mount(WebModemPanel);
+    expect(w.findAll('a.bookmarklet')).toHaveLength(2);
+    const zte = w.findAll('.offer').find((o) => o.text().includes('ZTE'))!;
+    expect(zte.text()).toContain('Unverified');
+    const hilink = w.findAll('.offer').find((o) => o.text().includes('HiLink'))!;
+    expect(hilink.text()).not.toContain('Unverified');
+  });
+
+  test('it has one line of steps and the import', () => {
+    const w = mount(WebModemPanel, { props: { dialect: 'hilink' } });
+    expect(w.find('.steps').text()).toContain('own web page');
+    expect(w.findComponent(ImportCapture).exists()).toBe(true);
+  });
+
+  test('the help panel offers the bookmarklet', () => {
+    const w = mount(HelpNoModem);
+    expect(w.text()).toContain('Drag this to your bookmarks bar');
+    expect(w.findAll('a.bookmarklet').length).toBeGreaterThan(0);
   });
 });

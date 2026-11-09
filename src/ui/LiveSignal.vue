@@ -5,7 +5,14 @@ import { LIVE_MAX_SAMPLES } from './liveSignal';
 import type { LiveSample } from './liveSignal';
 import ToggleSwitch from './ToggleSwitch.vue';
 
-const props = defineProps<{ enabled: boolean; paused: boolean; samples: LiveSample[]; available: boolean }>();
+const props = defineProps<{
+  enabled: boolean;
+  paused: boolean;
+  samples: LiveSample[];
+  available: boolean;
+  /** Why live readings cannot exist at all for this report. */
+  unavailableReason?: string;
+}>();
 defineEmits<{ (e: 'toggle', on: boolean): void }>();
 
 const WIDTH = 600;
@@ -63,6 +70,7 @@ const thresholds = computed(() =>
 const nowStyle = computed(() => (latest.value === null ? undefined : { top: `${(yOf(latest.value) / HEIGHT) * 100}%` }));
 
 const status = computed(() => {
+  if (props.unavailableReason) return props.unavailableReason;
   if (props.paused) return 'Paused while a scan runs.';
   if (!props.available && !props.enabled) return 'Needs a connected modem.';
   return 'Reads AT+CESQ every 2 s. Never part of a report.';

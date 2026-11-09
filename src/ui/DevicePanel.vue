@@ -17,6 +17,7 @@ const rows = computed(() => {
     ['USB mode', d.usbMode],
     ['Function', d.functionMode],
     ['Modem time', d.time],
+    ...(d.details ?? []).map((r) => [r.label, r.value]),
   ].filter((r): r is [string, string] => r[1] !== undefined);
 });
 </script>

@@ -19,7 +19,9 @@ import HelpNoModem from './ui/HelpNoModem.vue';
 import DonateLink from './ui/DonateLink.vue';
 import { connectSerial } from './transport/webSerial';
 import { connectUsb } from './transport/webUsb';
-import { createDemoTransport, demoNoAtError, DEMO_USB } from './ui/demo';
+import { createDemoTransport, demoHiLinkError, demoNoAtError, demoWebCapture, DEMO_USB } from './ui/demo';
+import ImportCapture from './ui/ImportCapture.vue';
+import { importWebCapture } from './web/importReport';
 import { downloadText } from './ui/download';
 import { buildDashboard } from './ui/dashboard';
 import { DONATE_URL } from './config';
@@ -30,11 +32,13 @@ const props = withDefaults(
     demo?: boolean;
     /** Demo of a stick without an AT channel. */
     demoNoAt?: boolean;
+    /** Demo of a stick that is read through its own web page. */
+    demoWeb?: boolean;
     demoDelayMs?: number;
     connectors?: Connectors;
     donateUrl?: string | null;
   }>(),
-  { demo: false, demoNoAt: false, demoDelayMs: 60, connectors: undefined, donateUrl: undefined },
+  { demo: false, demoNoAt: false, demoWeb: false, demoDelayMs: 60, connectors: undefined, donateUrl: undefined },
 );
 
 const connectors = computed<Connectors>(() => {
@@ -43,6 +47,7 @@ const connectors = computed<Connectors>(() => {
     const make: Connector = async ({ beforeOpen }) => {
       await beforeOpen();
       if (props.demoNoAt) throw demoNoAtError();
+      if (props.demoWeb) throw demoHiLinkError();
       return createDemoTransport({ delayMs: props.demoDelayMs });
     };
     return { serial: make, usb: make };
@@ -61,6 +66,9 @@ const TABS = [
   { id: 'diagnostics', label: 'Diagnostics' },
   { id: 'terminal', label: 'Terminal' },
 ] as const;
+const IMPORTED_TERMINAL = 'This report was imported from a file, so there is no modem to send commands to.';
+const IMPORTED_SCANS = 'Deep scan and Network scan need a connected modem. This report was imported from a file.';
+const IMPORTED_LIVE = 'Live signal needs a connected modem. This report was imported from a file.';
 const SCAN_TITLES: Record<ScanKind, string> = {
   auto: 'Scanning (automatic, read-only)',
   deep: 'Scanning (deep scan)',
@@ -91,6 +99,9 @@ const label = ref('');
 const hideIdentifiers = ref(false);
 /** Set only by a scan that ran to its end, so that "finished" can never follow a stopped one. */
 const finished = ref<ScanKind | null>(null);
+/** The report on screen came from a capture file: there is no modem behind it. */
+const imported = ref<ScanReport | null>(null);
+const importCount = ref(0);
 const currentCommand = ref('');
 const progressBase = ref(0);
 const progressTotal = ref<number | undefined>(undefined);
@@ -104,8 +115,10 @@ let generation = 0;
 /** The close in progress, so that a following connect can wait for it. */
 let closing: Promise<void> = Promise.resolve();
 
-function snapshot(): ScanReport {
-  const r = scanner!.report;
+function snapshot(): ScanReport | null {
+  if (imported.value) return imported.value;
+  if (!scanner) return null;
+  const r = scanner.report;
   return { ...r, items: [...items.value], commandList: [...r.commandList] };
 }
 
@@ -200,6 +213,7 @@ async function onConnected(t: Transport): Promise<void> {
     await closeBounded(t);
     return;
   }
+  imported.value = null;
   transport = t;
   label.value = t.label;
   engine = new AtEngine(t);
@@ -264,16 +278,38 @@ function terminalSend(command: string, body?: string): Promise<AtResponse> {
   return engine.send(command, { timeoutMs: 15000, cancelPromptOnTimeout: true, body });
 }
 
+function onImported(report: ScanReport): void {
+  // Ends whatever session there was: nothing of it may reach the imported report.
+  generation++;
+  void teardown();
+  scanner = null;
+  imported.value = report;
+  importCount.value++;
+  items.value = [...report.items];
+  reportMeta.value = { startedAt: report.startedAt, profile: report.profile, commandList: [] };
+  phase.value = 'idle';
+  finished.value = null;
+  lostReason.value = '';
+  autoDone.value = false;
+  autoComplete.value = false;
+  tab.value = 'overview';
+}
+
+function loadDemoCapture(): void {
+  onImported(importWebCapture(demoWebCapture()));
+}
+
 function exportShared(kind: 'json' | 'md'): void {
-  if (!scanner) return;
-  const shared = redactReport(snapshot());
+  const report = snapshot();
+  if (!report) return;
+  const shared = redactReport(report);
   if (kind === 'json') downloadText('modemlens-report.json', toJson(shared), 'application/json');
   else downloadText('modemlens-report.md', toMarkdown(shared), 'text/markdown');
 }
 
 function exportFull(kind: 'json' | 'md'): void {
-  if (!scanner) return;
   const full = snapshot();
+  if (!full) return;
   if (kind === 'json') downloadText('modemlens-report-FULL.json', toJson(full), 'application/json');
   else downloadText('modemlens-report-FULL.md', toMarkdown(full), 'text/markdown');
 }
@@ -322,6 +358,7 @@ onBeforeUnmount(() => {
         <p :data-tone="connected ? 'ok' : 'neutral'">
           <span class="dot" aria-hidden="true" />
           <template v-if="connected">Connected: <span class="mono">{{ label }}</span></template>
+          <template v-else-if="imported">Imported capture: <span class="mono">{{ imported.profile?.label }}, {{ imported.startedAt }}</span></template>
           <template v-else>Not connected</template>
         </p>
         <p v-if="!running && !(reportMeta.interrupted && connected) && finished && connected" class="hint" role="status">{{ FINISHED_TEXT[finished] }}</p>
@@ -330,11 +367,17 @@ onBeforeUnmount(() => {
         :connectors="connectors"
         :force-supported="demo || undefined"
         :busy="connected && running"
-        :reconnect="!connected && hasResults"
+        :reconnect="!connected && hasResults && !imported"
         :compact="started"
         :before-open="teardown"
+        :import-count="importCount"
         @connected="onConnected"
+        @imported="onImported"
       />
+      <div v-if="!started" class="import-row">
+        <ImportCapture @imported="onImported" />
+        <button v-if="demoWeb" type="button" @click="loadDemoCapture">Load the demo capture</button>
+      </div>
     </div>
 
     <p v-if="lostReason" class="notice warn" role="alert">
@@ -362,6 +405,7 @@ onBeforeUnmount(() => {
         :live-paused="livePaused"
         :live-samples="liveSamples"
         :live-available="connected && !running"
+        :live-unavailable-reason="imported ? IMPORTED_LIVE : undefined"
         @live="toggleLive"
       />
       <Diagnostics
@@ -372,6 +416,7 @@ onBeforeUnmount(() => {
         :auto-incomplete="canNetworkScan && !autoComplete"
         :confirm-deep="confirmDeep"
         :hide-identifiers="hideIdentifiers"
+        :scans-unavailable-reason="imported ? IMPORTED_SCANS : undefined"
         @ask-deep="confirmDeep = true"
         @cancel-deep="confirmDeep = false"
         @start-deep="startDeep"
@@ -381,13 +426,13 @@ onBeforeUnmount(() => {
         v-show="tab === 'terminal'"
         :send="terminalSend"
         :disabled="!connected || running"
-        :disabled-reason="running ? 'Sending is off while a scan is running, so that a typed command cannot land between the scan commands.' : ''"
+        :disabled-reason="imported ? IMPORTED_TERMINAL : running ? 'Sending is off while a scan is running, so that a typed command cannot land between the scan commands.' : ''"
         :hide-identifiers="hideIdentifiers"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>
     </template>
 
-    <HelpNoModem :class="{ narrow: !started }" />
+    <HelpNoModem :class="{ narrow: !started }" @imported="onImported" />
 
     <footer>
       <span>ModemLens. Runs only in Chrome or Edge. No tracking, no third-party scripts.</span>
@@ -438,6 +483,7 @@ onBeforeUnmount(() => {
 .landing h1 { font-size: clamp(3.2rem, 9vw, 5.75rem); font-weight: 700; line-height: 0.98; letter-spacing: -0.045em; }
 .lede { margin-top: 1rem; font-size: clamp(1.1rem, 2.2vw, 1.35rem); line-height: 1.4; color: var(--ink-2); }
 .start { max-width: 46rem; margin-top: 0.75rem; }
+.import-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.75rem 1.25rem; margin-top: 1.1rem; }
 .narrow { max-width: 46rem; width: 100%; }
 
 .session { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1.5rem; }

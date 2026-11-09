@@ -10,7 +10,8 @@ export type ItemState = 'done' | 'skipped' | 'unsupported' | 'failed';
 export interface ScanItem {
   id: string;
   command: string;
-  category: Category | 'discovery';
+  /** 'web' marks an answer imported from a modem's own web page. */
+  category: Category | 'discovery' | 'web';
   state: ItemState;
   response?: AtResponse;
   parser?: string;

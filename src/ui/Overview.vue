@@ -19,6 +19,7 @@ const props = defineProps<{
   livePaused: boolean;
   liveSamples: LiveSample[];
   liveAvailable: boolean;
+  liveUnavailableReason?: string;
 }>();
 defineEmits<{ (e: 'live', on: boolean): void }>();
 
@@ -37,6 +38,7 @@ const hasDevice = computed(() => Object.keys(props.dashboard.device).length > 0)
         :live-paused="livePaused"
         :live-samples="liveSamples"
         :live-available="liveAvailable"
+        :live-unavailable-reason="liveUnavailableReason"
         @live="$emit('live', $event)"
       />
     </div>

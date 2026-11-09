@@ -351,7 +351,7 @@ const csca: Parser = (r) => {
 };
 
 const COPS_STAT: Record<string, string> = { '0': 'unknown', '1': 'available', '2': 'current', '3': 'forbidden' };
-const COPS_RAT_SHORT: Record<string, string> = { '0': 'GSM', '2': 'UMTS', '7': 'LTE', '12': 'NB-IoT', '13': 'NR' };
+export const COPS_RAT_SHORT: Record<string, string> = { '0': 'GSM', '2': 'UMTS', '7': 'LTE', '12': 'NB-IoT', '13': 'NR' };
 
 /** Splits "(a,b),(c,d),,(0,1)" into the text of each parenthesised group; quotes may contain parentheses. */
 function groups(s: string): string[] {

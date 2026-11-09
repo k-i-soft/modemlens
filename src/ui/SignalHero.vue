@@ -14,6 +14,7 @@ const props = defineProps<{
   livePaused: boolean;
   liveSamples: LiveSample[];
   liveAvailable: boolean;
+  liveUnavailableReason?: string;
 }>();
 defineEmits<{ (e: 'live', on: boolean): void }>();
 
@@ -44,6 +45,7 @@ const basis = computed(() => props.signal.values.find((v) => v.metric === props.
       :paused="livePaused"
       :samples="liveSamples"
       :available="liveAvailable"
+      :unavailable-reason="liveUnavailableReason"
       @toggle="$emit('live', $event)"
     />
   </section>

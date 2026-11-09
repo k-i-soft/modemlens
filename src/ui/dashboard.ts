@@ -1,5 +1,5 @@
 import type { ScanReport } from '../scan/scanner';
-import { buildSummary, parseResponse } from '../parse';
+import { buildSummary, parseResponse, WEB_PARSER_NAMES } from '../parse';
 import type { Field } from '../parse';
 
 export type Metric = 'rsrp' | 'rsrq' | 'sinr' | 'rssi';
@@ -68,9 +68,9 @@ export interface Dashboard {
   cell: Row[];
   neighbours: Neighbour[];
   operators: Operator[];
-  sim: { state?: string; lock?: string; pinLeft?: number; pukLeft?: number; iccid?: string; imsi?: string };
+  sim: { state?: string; lock?: string; pinLeft?: number; pukLeft?: number; iccid?: string; imsi?: string; msisdn?: string };
   data: DataContext[];
-  device: { temperature?: number; usbMode?: string; functionMode?: string; time?: string };
+  device: { temperature?: number; usbMode?: string; functionMode?: string; time?: string; details?: Row[] };
 }
 
 export interface DashboardOptions {
@@ -96,7 +96,14 @@ function reading(value: string | undefined): number | undefined {
 /** What a temperature sensor reports when it is not there; named sensors reach us unfiltered. */
 const NO_TEMPERATURE_SENSOR = 255;
 const SIGNAL_KEYS: Record<Metric, string> = { rsrp: 'rsrp_dbm', rsrq: 'rsrq_db', sinr: 'sinr_db', rssi: 'rssi_dbm' };
-const SIGNAL_SOURCES = ['qeng_serving', 'qcsq', 'cesq', 'csq'];
+const SIGNAL_SOURCES = ['qeng_serving', 'qcsq', 'cesq', 'csq', ...WEB_PARSER_NAMES];
+/** What only a modem's own web page reports, shown with the label its parser gave. */
+const WEB_CELL_KEYS = ['ul_earfcn', 'lac', 'enodeb_id', 'nei_cellid', 'dl_bandwidth_mhz', 'ul_bandwidth_mhz', 'dl_frequency_khz', 'ul_frequency_khz'];
+const WEB_DEVICE_KEYS = [
+  'hardware', 'webui_version', 'serial', 'mac1', 'mac2', 'wan_ip', 'wan_ipv6', 'wan_dns', 'wan_ipv6_dns',
+  'product_family', 'support_mode', 'work_mode', 'home_plmn', 'uptime',
+];
+const NO_SERVICE = /no\s*service/i;
 const USB_MODES: Record<string, string> = { '0': 'RmNet', '1': 'ECM', '2': 'MBIM', '3': 'RNDIS', '5': 'NCM' };
 const UNUSED_ADDRESS = /^[0.:]*$/;
 const NEIGHBOUR_KEY = /^n(\d+)_(kind|earfcn|pci|rsrq_db|rsrp_dbm)$/;
@@ -138,14 +145,30 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
     return f ? shown(f) : undefined;
   };
 
+  const webFields = parsed.filter((p) => WEB_PARSER_NAMES.includes(p.parser)).flatMap((p) => p.fields);
+  const webField = (key: string): Field | undefined => webFields.find((f) => f.key === key);
+  const web = (key: string): string | undefined => {
+    const f = webField(key);
+    return f ? shown(f) : undefined;
+  };
+  const webRows = (keys: string[]): Row[] =>
+    keys.flatMap((key) => {
+      const f = webField(key);
+      return f ? [{ key, label: f.label, value: shown(f) }] : [];
+    });
+
   const summary = buildSummary({ ...report, items });
 
   // ---- status ----
   const simState = summary.simState === undefined ? undefined : summary.simState === 'READY' ? 'Ready' : capitalise(summary.simState);
-  const technology = summary.rat ?? text('qeng_serving', 'rat');
+  const workMode = webField('work_mode')?.value;
+  const noService = workMode !== undefined && NO_SERVICE.test(workMode);
+  const technology = summary.rat ?? text('qeng_serving', 'rat') ?? (noService ? undefined : workMode);
   const chips: Chip[] = [];
   if (simState) chips.push({ key: 'sim', label: 'SIM', value: simState, tone: simState === 'Ready' ? 'ok' : simState === 'Unavailable' ? 'bad' : 'warn' });
-  const network = networkStatus(summary.registration);
+  // A web answer has no registration state: having an operator is the closest it comes to saying so.
+  const network = networkStatus(summary.registration)
+    ?? (noService ? { word: 'No service', tone: 'bad' as const } : webField('operator') ? { word: 'On the network', tone: 'ok' as const } : undefined);
   if (summary.registration && network) chips.push({ key: 'registration', label: 'Registration', value: capitalise(summary.registration), tone: network.tone });
   if (technology) chips.push({ key: 'technology', label: 'Technology', value: technology, tone: 'neutral' });
   if (summary.operator) chips.push({ key: 'operator', label: 'Operator', value: summary.operator, tone: 'neutral' });
@@ -172,7 +195,7 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   const enabled = find('qcfg', 'lte_bands')?.value.split(',').map(Number).filter((n) => Number.isInteger(n)) ?? [];
   const reportedBand = find('qnwinfo', 'band')?.value;
   const lteBand = reportedBand === undefined ? undefined : /^LTE BAND (\d+)$/i.exec(reportedBand.trim())?.[1];
-  const servingBand = reading(find('qeng_serving', 'band')?.value);
+  const servingBand = reading((find('qeng_serving', 'band') ?? webField('band'))?.value);
   const active = lteBand !== undefined ? Number(lteBand) : reportedBand === undefined ? servingBand : undefined;
   const bandNumbers = [...new Set(active === undefined ? enabled : [...enabled, active])].sort((a, b) => a - b);
   const bands: Dashboard['bands'] = { items: bandNumbers.map((band) => ({ band, active: band === active })) };
@@ -182,14 +205,14 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   const mcc = find('qeng_serving', 'mcc')?.value;
   const mnc = find('qeng_serving', 'mnc')?.value;
   const cellRows: Array<[string, string, string | undefined]> = [
-    ['plmn', 'PLMN', text('qnwinfo', 'plmn') ?? text('qspn', 'plmn') ?? (mcc && mnc ? `${mcc}${mnc}` : undefined)],
-    ['earfcn', 'EARFCN', text('qeng_serving', 'earfcn') ?? text('qnwinfo', 'channel')],
-    ['cell_id', 'Cell ID', text('qeng_serving', 'cell_id') ?? text('creg', 'cell_id')],
-    ['pci', 'PCI', text('qeng_serving', 'pci')],
-    ['tac', 'TAC', text('qeng_serving', 'tac') ?? text('creg', 'tac')],
+    ['plmn', 'PLMN', text('qnwinfo', 'plmn') ?? text('qspn', 'plmn') ?? (mcc && mnc ? `${mcc}${mnc}` : undefined) ?? web('plmn')],
+    ['earfcn', 'EARFCN', text('qeng_serving', 'earfcn') ?? text('qnwinfo', 'channel') ?? web('earfcn')],
+    ['cell_id', 'Cell ID', text('qeng_serving', 'cell_id') ?? text('creg', 'cell_id') ?? web('cell_id')],
+    ['pci', 'PCI', text('qeng_serving', 'pci') ?? web('pci')],
+    ['tac', 'TAC', text('qeng_serving', 'tac') ?? text('creg', 'tac') ?? web('tac')],
     ['state', 'State', text('qeng_serving', 'state')],
   ];
-  const cell = cellRows.flatMap(([key, label, value]) => (value === undefined ? [] : [{ key, label, value }]));
+  const cell = [...cellRows.flatMap(([key, label, value]) => (value === undefined ? [] : [{ key, label, value }])), ...webRows(WEB_CELL_KEYS)];
 
   // ---- neighbours ----
   const byNeighbour = new Map<string, Record<string, Field>>();
@@ -257,8 +280,9 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   const usbnet = find('qcfg', 'usbnet')?.value;
   const usbLabel = usbnet === undefined ? undefined : USB_MODES[usbnet];
 
-  const firstField = (key: string): Field | undefined => find('identity', key);
-  const imei = find('cgsn', 'imei');
+  const firstField = (key: string): Field | undefined => find('identity', key) ?? webField(key);
+  const imei = find('cgsn', 'imei') ?? webField('imei');
+  const deviceDetails = webRows(WEB_DEVICE_KEYS);
   const profile = report.profile;
 
   return {
@@ -284,8 +308,9 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
       lock: text('clck', 'lock_sc'),
       pinLeft: reading(find('qpinc', 'sc_pin_left')?.value),
       pukLeft: reading(find('qpinc', 'sc_puk_left')?.value),
-      iccid: text('qccid', 'iccid') ?? text('crsm_iccid', 'iccid'),
-      imsi: text('cimi', 'imsi'),
+      iccid: text('qccid', 'iccid') ?? text('crsm_iccid', 'iccid') ?? web('iccid'),
+      imsi: text('cimi', 'imsi') ?? web('imsi'),
+      msisdn: web('msisdn'),
     }),
     data,
     device: present({
@@ -293,6 +318,7 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
       usbMode: usbnet === undefined ? undefined : usbLabel ? `${usbLabel} (mode ${usbnet})` : `mode ${usbnet}`,
       functionMode: text('cfun', 'functionality'),
       time: text('cclk', 'time'),
+      details: deviceDetails.length > 0 ? deviceDetails : undefined,
     }),
   };
 }

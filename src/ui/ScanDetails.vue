@@ -10,7 +10,7 @@ const props = defineProps<{ items: ScanItem[]; hideIdentifiers?: boolean }>();
 const TITLES: Record<string, string> = {
   identity: 'Identity', sim: 'SIM', network: 'Network', signal: 'Signal', bands: 'Bands',
   data: 'Data connection', usbmode: 'USB mode', voice: 'Voice', locks: 'Locks', other: 'Other',
-  discovery: 'Discovered commands',
+  discovery: 'Discovered commands', web: 'Modem web page',
 };
 
 const groups = computed(() => {

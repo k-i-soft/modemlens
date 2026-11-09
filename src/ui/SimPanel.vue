@@ -31,9 +31,10 @@ const attempts = computed(() => {
         <span class="count">{{ a.left }} left</span>
       </li>
     </ul>
-    <dl v-if="sim.iccid || sim.imsi">
+    <dl v-if="sim.iccid || sim.imsi || sim.msisdn">
       <template v-if="sim.iccid"><dt>ICCID</dt><dd class="mono">{{ sim.iccid }}</dd></template>
       <template v-if="sim.imsi"><dt>IMSI</dt><dd class="mono">{{ sim.imsi }}</dd></template>
+      <template v-if="sim.msisdn"><dt>Number</dt><dd class="mono">{{ sim.msisdn }}</dd></template>
     </dl>
   </section>
 </template>

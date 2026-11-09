@@ -2,12 +2,14 @@ import type { AtResponse } from '../at/engine';
 import { STANDARD_PARSERS } from './standard';
 import type { Field, Parser } from './standard';
 import { QUECTEL_PARSERS } from './quectel';
+import { WEB_PARSERS } from './web';
 
 export type { Field, Sensitivity } from './standard';
 export { buildSummary } from './summary';
+export { WEB_PARSER_NAMES } from './web';
 export type { Summary } from './summary';
 
-const PARSERS: Record<string, Parser> = { ...STANDARD_PARSERS, ...QUECTEL_PARSERS };
+const PARSERS: Record<string, Parser> = { ...STANDARD_PARSERS, ...QUECTEL_PARSERS, ...WEB_PARSERS };
 
 export const KNOWN_PARSERS: string[] = Object.keys(PARSERS);
 

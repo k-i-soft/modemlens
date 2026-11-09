@@ -1,3 +1,10 @@
+<script setup lang="ts">
+import type { ScanReport } from '../scan/scanner';
+import WebModemPanel from './WebModemPanel.vue';
+
+defineEmits<{ (e: 'imported', report: ScanReport): void }>();
+</script>
+
 <template>
   <details class="help">
     <summary>Can't see your modem?</summary>
@@ -44,6 +51,12 @@
         software is acceptable), or a Linux machine with <code>usb_modeswitch</code>.
       </li>
     </ul>
+    <h3>My modem has its own web page and no AT channel</h3>
+    <p>
+      Many network sticks can only be read from their own web page. A browser bookmark reads that page for you and
+      saves a file, and ModemLens shows it in the same view.
+    </p>
+    <WebModemPanel @imported="$emit('imported', $event)" />
     <h3>3. Zadig (WinUSB driver)</h3>
     <ol>
       <li>

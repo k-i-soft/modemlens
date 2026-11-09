@@ -2,9 +2,12 @@
 import { computed } from 'vue';
 import type { DeviceClassification } from '../profiles/known-devices';
 import type { UsbDeviceDescription } from '../transport/types';
+import type { ScanReport } from '../scan/scanner';
 import { interfaceCode, interfaceLabel, operatingSystemLimit } from './usbInterfaces';
+import WebModemPanel from './WebModemPanel.vue';
 
 const props = defineProps<{ classification?: DeviceClassification; device?: UsbDeviceDescription; reason: string }>();
+defineEmits<{ (e: 'imported', report: ScanReport): void }>();
 
 const name = computed(() => props.classification?.label ?? 'This USB device');
 const usb = computed(() => props.device?.usb ?? props.classification?.usb);
@@ -61,7 +64,6 @@ const osLimit = computed(() => operatingSystemLimit(props.device, kind.value, na
           <p v-if="osLimit">On Windows or Linux, the address of its web page is the gateway shown in the settings of the new network adapter.</p>
           <p v-else-if="href">Its web page is at <a :href="href" target="_blank" rel="noopener">{{ classification?.webAddress }}</a>.</p>
           <p v-else>The address of its web page is the gateway shown in the settings of the new network adapter.</p>
-          <p>A browser bookmark tool for reading these modems is planned.</p>
         </template>
         <ul v-else>
           <li>Unplug the modem, plug it back in and try again.</li>
@@ -70,6 +72,8 @@ const osLimit = computed(() => operatingSystemLimit(props.device, kind.value, na
         </ul>
       </div>
     </div>
+
+    <WebModemPanel v-if="kind === 'network-web'" class="web" :dialect="classification?.webDialect" @imported="$emit('imported', $event)" />
   </section>
 </template>
 
@@ -99,4 +103,5 @@ h3 { margin-bottom: 0.3rem; font-size: 0.95rem; font-weight: 600; }
 .text p + p { margin-top: 0.45rem; }
 .text ul { margin: 0; padding-left: 1.1rem; }
 .limit { font-weight: 500; color: var(--ink); }
+.web { margin-top: 1.25rem; padding-top: 1.1rem; border-top: 1px solid var(--line); }
 </style>

@@ -26,6 +26,16 @@ function pick(items: ScanItem[], ids: string[], parser: string, key: string): st
   return undefined;
 }
 
+/** Web answers have no command names, so they are looked up by what they report. */
+function web(items: ScanItem[], key: string): string | undefined {
+  for (const item of items) {
+    if (item.category !== 'web' || !item.parser || !item.response) continue;
+    const v = parseResponse(item.parser, item.response)?.find(f => f.key === key)?.value;
+    if (v) return v;
+  }
+  return undefined;
+}
+
 function simState(items: ScanItem[]): string | undefined {
   const item = items.find(i => i.id === 'cpin');
   const r = item?.response;
@@ -61,12 +71,12 @@ export function buildSummary(report: ScanReport): Summary {
   const items = report.items ?? [];
   const s: Summary = {};
   const set = <K extends keyof Summary>(k: K, v: Summary[K]): void => { if (v) s[k] = v; };
-  set('model', pick(items, ['cgmm', 'gmm', 'ati'], 'identity', 'model'));
-  set('firmware', pick(items, ['cgmr', 'gmr', 'ati'], 'identity', 'firmware'));
+  set('model', pick(items, ['cgmm', 'gmm', 'ati'], 'identity', 'model') ?? web(items, 'model'));
+  set('firmware', pick(items, ['cgmr', 'gmr', 'ati'], 'identity', 'firmware') ?? web(items, 'firmware'));
   set('simState', simState(items));
   set('registration', registration(items));
-  set('operator', pick(items, ['cops'], 'cops', 'operator') ?? pick(items, ['qspn'], 'qspn', 'full_name'));
+  set('operator', pick(items, ['cops'], 'cops', 'operator') ?? pick(items, ['qspn'], 'qspn', 'full_name') ?? web(items, 'operator'));
   set('signal', signal(items));
-  set('rat', pick(items, ['qnwinfo'], 'qnwinfo', 'act') ?? pick(items, ['cops'], 'cops', 'rat'));
+  set('rat', pick(items, ['qnwinfo'], 'qnwinfo', 'act') ?? pick(items, ['cops'], 'cops', 'rat') ?? web(items, 'rat'));
   return s;
 }

@@ -133,6 +133,51 @@ export function createDemoTransport(opts: { delayMs?: number } = {}): DemoTransp
   };
 }
 
+/** A HiLink stick for `?demo=web`: the same guidance a real one gets, under a made-up product name. */
+export function demoHiLinkError(): NoAtChannelError {
+  const device: UsbDeviceDescription = {
+    usb: '12d1:14db',
+    productName: 'Demo stick (fake)',
+    interfaces: [
+      { number: 0, class: 0x02, subclass: 0x06 },
+      { number: 1, class: 0x0a, subclass: 0x00 },
+    ],
+  };
+  const classification = classifyUsbDevice({ usb: device.usb, interfaceClasses: device.interfaces.map((i) => i.class) });
+  return new NoAtChannelError('This device has no AT channel.', false, classification, device);
+}
+
+const xmlResponse = (tags: Record<string, string>): string =>
+  `<?xml version="1.0" encoding="UTF-8"?>\n<response>\n${Object.entries(tags).map(([k, v]) => `<${k}>${v}</${k}>`).join('\n')}\n</response>`;
+
+/** A capture file as the bookmarklet would save it for `?demo=web`, with obviously fake identifiers. */
+export function demoWebCapture(): string {
+  const information = xmlResponse({
+    DeviceName: 'DEMO-HiLink', SerialNumber: 'DEMOFAKESERIAL01', Imei: '123456789012345', Imsi: '001010123456789',
+    Iccid: '98000000000000000099', Msisdn: '+0000000000', HardwareVersion: 'DEMO-HW-1', SoftwareVersion: 'DEMO-FW&#40;FAKE&#41;',
+    WebUIVersion: 'DEMO-UI', MacAddress1: '00:00:5E:00:53:01', MacAddress2: '', WanIPAddress: '192.0.2.10', WanIPv6Address: '2001:db8::10',
+    wan_dns_address: '192.0.2.53', wan_ipv6_dns_address: '', ProductFamily: 'LTE', Classify: 'hilink', supportmode: 'LTE|WCDMA|GSM',
+    workmode: 'LTE', Mccmnc: '00101', uptime: '3600',
+  });
+  const signal = xmlResponse({
+    pci: '201', cell_id: '7654321', tac: '4321', lac: '', enodeb_id: '29900', nei_cellid: '', band: '3', plmn: '00101', mode: '7',
+    rsrp: '-86dBm', rsrq: '-5.0dB', rssi: '-63dBm', sinr: '20dB', dlbandwidth: '20MHz', ulbandwidth: '20MHz',
+    earfcn: 'DL:1300 UL:19300', dlfrequency: '1815000kHz', ulfrequency: '1720000kHz',
+  });
+  const plmn = xmlResponse({ State: '0', FullName: 'Demo Mobile', ShortName: 'Demo', Numeric: '00101', Rat: '7', Spn: '' });
+  return JSON.stringify({
+    format: 'modemlens-web-capture',
+    version: 1,
+    dialect: 'hilink',
+    capturedAt: '2026-01-01T12:00:00.000Z',
+    responses: [
+      { id: 'information', status: 200, body: information },
+      { id: 'signal', status: 200, body: signal },
+      { id: 'current-plmn', status: 200, body: plmn },
+    ],
+  });
+}
+
 /** A made-up stick for `?demo=noat`: it only offers network and storage interfaces, as a modem without AT does. */
 export function demoNoAtError(): NoAtChannelError {
   const device: UsbDeviceDescription = {
