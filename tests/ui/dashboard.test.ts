@@ -132,6 +132,29 @@ describe('identity and status', () => {
     expect(d.chips).toEqual([{ key: 'registration', label: 'Registration', value: 'Unknown', tone: 'neutral' }]);
   });
 
+  test('no SIM is a bad chip that says so', () => {
+    const cpin: ScanItem = {
+      id: 'cpin', command: 'AT+CPIN?', category: 'sim', state: 'unsupported', parser: 'cpin',
+      response: { command: 'AT+CPIN?', status: 'cme_error', errorDetail: '10', lines: [], durationMs: 1 },
+    };
+    const d = buildDashboard(report([cpin]));
+    expect(d.chips[0]).toMatchObject({ value: 'No SIM', tone: 'bad' });
+    expect(d.sim.state).toBe('No SIM');
+  });
+
+  test.each(['+CREG: 0,11', '+CEREG: 0,11'])('%s reads as limited access, neutrally', (line) => {
+    const id = line.startsWith('+CREG') ? 'creg' : 'cereg';
+    const d = buildDashboard(report([item('creg', [line], 'AT+X', id)]));
+    expect(d.network).toEqual({ word: 'Limited access (11)', tone: 'neutral' });
+    expect(d.chips.find((c) => c.key === 'registration')).toMatchObject({ value: 'Limited access (11)', tone: 'neutral' });
+  });
+
+  test('a numeric COPS answer gives a name and a PLMN', () => {
+    const d = buildDashboard(report([item('cops', ['+COPS: 0,2,"22802",7'], 'AT+COPS?', 'cops')]));
+    expect(d.chips.find((c) => c.key === 'operator')!.value).toBe('Sunrise');
+    expect(d.cell.find((r) => r.key === 'plmn')!.value).toBe('22802');
+  });
+
   test('a SIM error is a bad chip, a locked SIM a warning', () => {
     const cpin = { ...failed('cpin', 'AT+CPIN?'), id: 'cpin' };
     expect(buildDashboard(report([cpin])).chips[0]).toMatchObject({ value: 'Unavailable', tone: 'bad' });

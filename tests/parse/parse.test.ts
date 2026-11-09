@@ -311,6 +311,35 @@ describe('buildSummary', () => {
     });
   });
 
+  test('CME ERROR 10 on CPIN means no SIM', () => {
+    const r: AtResponse = { command: 'AT+CPIN?', status: 'cme_error', lines: [], errorDetail: '10', durationMs: 1 };
+    expect(buildSummary(report([item('cpin', 'AT+CPIN?', r, 'unsupported', 'cpin')])).simState).toBe('No SIM');
+  });
+
+  test.each(['13', '14', '100'])('CME ERROR %s on CPIN stays unavailable', (errorDetail) => {
+    const r: AtResponse = { command: 'AT+CPIN?', status: 'cme_error', lines: [], errorDetail, durationMs: 1 };
+    expect(buildSummary(report([item('cpin', 'AT+CPIN?', r, 'unsupported', 'cpin')])).simState).toBe('unavailable');
+  });
+
+  test('registration status 11 is limited access', () => {
+    expect(val('creg', ['+CREG: 0,11'], 'status')).toBe('limited access (11)');
+    expect(val('creg', ['+CEREG: 0,11'], 'status')).toBe('limited access (11)');
+  });
+
+  test.each([
+    ['22801', 'Swisscom'], ['22802', 'Sunrise'], ['22803', 'Salt'], ['00101', '00101'],
+  ])('COPS in numeric format: %s reads as %s, and sets the PLMN', (code, name) => {
+    const line = `+COPS: 0,2,"${code}",7`;
+    expect(val('cops', [line], 'operator')).toBe(name);
+    expect(val('cops', [line], 'plmn')).toBe(code);
+  });
+
+  test('COPS in long format is unchanged', () => {
+    expect(val('cops', ['+COPS: 0,0,"22802",7'], 'operator')).toBe('22802');
+    expect(val('cops', ['+COPS: 0,0,"Demo Mobile",7'], 'operator')).toBe('Demo Mobile');
+    expect(parseResponse('cops', ok(['+COPS: 0,0,"Demo Mobile",7']))!.some((f) => f.key === 'plmn')).toBe(false);
+  });
+
   test('CME ERROR on CPIN gives unavailable', () => {
     const r: AtResponse = { command: 'AT+CPIN?', status: 'cme_error', lines: [], errorDetail: 'SIM not inserted', durationMs: 1 };
     expect(buildSummary(report([item('cpin', 'AT+CPIN?', r, 'unsupported', 'cpin')])).simState).toBe('unavailable');

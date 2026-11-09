@@ -1,4 +1,5 @@
 import type { AtResponse } from '../at/engine';
+import { operatorName } from './operators';
 
 export type Sensitivity = 'none' | 'imei' | 'serial' | 'imsi' | 'iccid' | 'msisdn' | 'ip' | 'smsc' | 'location' | 'credential';
 
@@ -158,15 +159,21 @@ const cops: Parser = (r) => {
   const out: Field[] = [];
   const mode: Record<string, string> = { '0': 'automatic', '1': 'manual', '2': 'deregistered', '3': 'format only', '4': 'manual/automatic' };
   if (isInt(args[0])) out.push(field('mode', 'Selection mode', mode[args[0]] ?? args[0]));
-  if (args[2]) out.push(field('operator', 'Operator', args[2]));
+  // Format 2 is the network's number instead of its name.
+  const code = args[1] === '2' && /^\d{5,6}$/.test(args[2] ?? '') ? args[2] : undefined;
+  if (args[2]) out.push(field('operator', 'Operator', code ? operatorName(code) : args[2]));
+  if (code) out.push(field('plmn', 'PLMN', code));
   if (isInt(args[3])) out.push(field('rat', 'Access technology', RAT_COPS[args[3]] ?? args[3]));
   return out;
 };
+
+export const LIMITED_ACCESS = 'limited access (11)';
 
 const REG_STAT: Record<string, string> = {
   '0': 'not registered', '1': 'registered, home', '2': 'searching', '3': 'denied', '4': 'unknown', '5': 'registered, roaming',
   '6': 'registered, SMS only (home)', '7': 'registered, SMS only (roaming)', '8': 'emergency only',
   '9': 'registered, CSFB not preferred (home)', '10': 'registered, CSFB not preferred (roaming)',
+  '11': LIMITED_ACCESS,
 };
 
 const creg: Parser = (r) => {

@@ -1,6 +1,6 @@
 import { actionById } from '../actions/ec200a';
 import type { ScanReport } from '../scan/scanner';
-import { buildSummary, parseResponse, WEB_PARSER_NAMES } from '../parse';
+import { buildSummary, LIMITED_ACCESS, NO_SIM, parseResponse, WEB_PARSER_NAMES } from '../parse';
 import type { Field } from '../parse';
 
 export type Metric = 'rsrp' | 'rsrq' | 'sinr' | 'rssi';
@@ -122,6 +122,7 @@ function networkStatus(registration: string | undefined): Dashboard['network'] {
   if (registration === 'searching') return { word: 'Searching for a network', tone: 'warn' };
   if (registration === 'denied') return { word: 'Registration denied', tone: 'bad' };
   if (registration === 'unknown') return { word: 'Network state unknown', tone: 'neutral' };
+  if (registration === LIMITED_ACCESS) return { word: capitalise(LIMITED_ACCESS), tone: 'neutral' };
   return { word: 'Not on the network', tone: 'bad' };
 }
 
@@ -172,7 +173,7 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   const functionality = find('cfun', 'functionality')?.value;
   const radioOff = functionality !== undefined && RADIO_OFF_MODES.includes(functionality);
   const chips: Chip[] = [];
-  if (simState) chips.push({ key: 'sim', label: 'SIM', value: simState, tone: simState === 'Ready' ? 'ok' : simState === 'Unavailable' ? 'bad' : 'warn' });
+  if (simState) chips.push({ key: 'sim', label: 'SIM', value: simState, tone: simState === 'Ready' ? 'ok' : simState === 'Unavailable' || simState === NO_SIM ? 'bad' : 'warn' });
   // A web answer has no registration state: having an operator is the closest it comes to saying so.
   const network = radioOff ? { word: 'Radio off', tone: 'neutral' as const } : networkStatus(summary.registration)
     ?? (noService ? { word: 'No service', tone: 'bad' as const } : webField('operator') ? { word: 'On the network', tone: 'ok' as const } : undefined);
@@ -212,7 +213,7 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   const mcc = find('qeng_serving', 'mcc')?.value;
   const mnc = find('qeng_serving', 'mnc')?.value;
   const cellRows: Array<[string, string, string | undefined]> = [
-    ['plmn', 'PLMN', text('qnwinfo', 'plmn') ?? text('qspn', 'plmn') ?? (mcc && mnc ? `${mcc}${mnc}` : undefined) ?? web('plmn')],
+    ['plmn', 'PLMN', text('qnwinfo', 'plmn') ?? text('qspn', 'plmn') ?? (mcc && mnc ? `${mcc}${mnc}` : undefined) ?? text('cops', 'plmn') ?? web('plmn')],
     ['earfcn', 'EARFCN', text('qeng_serving', 'earfcn') ?? text('qnwinfo', 'channel') ?? web('earfcn')],
     ['cell_id', 'Cell ID', text('qeng_serving', 'cell_id') ?? text('creg', 'cell_id') ?? web('cell_id')],
     ['pci', 'PCI', text('qeng_serving', 'pci') ?? web('pci')],
