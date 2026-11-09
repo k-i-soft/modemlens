@@ -22,9 +22,9 @@ If the USB list shows no modem, or the modem has no name, Windows is probably ho
 
 ## Privacy
 
-- Modem data stays in your browser. It is never uploaded; ModemLens has no backend and no analytics, and loads no third-party scripts.
+- Modem data stays in your browser. It is never uploaded; ModemLens has no backend, sets no cookies and loads no tracking or third-party scripts.
 - The shareable export is masked: identifiers such as IMEI, IMSI and ICCID are redacted.
-- Downloading the page itself is an ordinary web request, so the host that serves it may log it, like any website.
+- Downloading the page itself is an ordinary web request, so the host that serves it may log it, like any website. On modemlens.k-i-soft.ch those server logs are evaluated for visitor statistics.
 
 ## Adding a modem profile
 

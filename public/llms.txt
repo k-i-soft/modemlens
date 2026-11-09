@@ -1,0 +1,28 @@
+# ModemLens
+
+> ModemLens is a free, open-source tool (MIT licence) by K-I-Soft that reads a USB cellular modem directly in the browser, over WebUSB or Web Serial in Chrome and Edge. It shows what the modem is, whether it is on the network and how good the signal is. There is no server: modem data stays in the browser.
+
+## What it reads
+
+Model, firmware, SIM state, operator, registration, signal quality (RSRP, RSRQ, SINR, RSSI), serving and neighbouring cells, LTE bands, data connections and USB mode.
+
+## How it works
+
+- The automatic scan sends read commands only and changes nothing on the modem.
+- Settings such as APN, USB mode or NAT change only in the Actions tab, one at a time and after confirmation, currently on the Quectel EC200A and an ASR-based stick.
+- The shareable report masks identifiers such as IMEI, IMSI and ICCID. A full export needs a confirmation.
+- The page sets no cookies and loads no tracking or third-party scripts. Page downloads appear in the server logs, which K-I-Soft evaluates for visitor statistics.
+
+## Which modems work
+
+- Modems that answer AT commands over USB or a serial port. Profiles exist for the Quectel EC200A and an ASR-based stick (USB ID 1286:4e3c). Other AT modems get a standard command set.
+- Sticks without AT commands, such as Huawei HiLink devices, are read through a bookmark on the stick's own admin page.
+- On Windows, USB direct needs the WinUSB driver on the modem's AT interface. With the vendor's driver, use Serial port instead.
+- Firefox and Safari do not offer WebUSB or Web Serial, so ModemLens does not work there.
+
+## Links
+
+- [ModemLens](https://modemlens.k-i-soft.ch/): the tool
+- [Demo with a made-up modem](https://modemlens.k-i-soft.ch/?demo=1): the same interface, no hardware needed
+- [Source code](https://github.com/k-i-soft/modemlens): MIT licence
+- [K-I-Soft](https://www.k-i-soft.ch/en/): the Swiss software company near Bern that builds ModemLens

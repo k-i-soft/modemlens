@@ -20,6 +20,7 @@ import ActionsPanel from './ui/ActionsPanel.vue';
 import AutoRefresh from './ui/AutoRefresh.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
 import LandingContent from './ui/LandingContent.vue';
+import { LEDE } from './ui/landingCopy';
 import DonateLink from './ui/DonateLink.vue';
 import { connectSerial } from './transport/webSerial';
 import { connectUsb } from './transport/webUsb';
@@ -96,6 +97,8 @@ const FINISHED_TEXT: Record<ScanKind, string> = {
   deep: 'Deep scan finished.',
   network: 'Network scan finished.',
 };
+/** A real modem answers a deep scan in about a second: the bar stays this long so that it can be seen at all. */
+const DEEP_PROGRESS_MIN_MS = 1500;
 
 const donate = computed(() => (props.donateUrl === undefined ? DONATE_URL : props.donateUrl));
 
@@ -120,6 +123,11 @@ const label = ref('');
 const hideIdentifiers = ref(false);
 /** Set only by a scan that ran to its end, so that "finished" can never follow a stopped one. */
 const finished = ref<ScanKind | null>(null);
+/** The last deep scan's outcome, which stays on screen after the bar has gone. */
+const deepResult = ref({ tried: 0, answered: 0 });
+/** The bar of a finished deep scan is still in view. The modem is free again by then. */
+const progressHeld = ref(false);
+let progressHoldTimer: ReturnType<typeof setTimeout> | undefined;
 /** The report on screen came from a capture file: there is no modem behind it. */
 const imported = ref<ScanReport | null>(null);
 const importCount = ref(0);
@@ -162,6 +170,14 @@ const dashboard = computed(() =>
 );
 const hasResults = computed(() => items.value.length > 0);
 const running = computed(() => phase.value !== 'idle' && phase.value !== 'finished');
+const progressKind = computed<ScanKind | null>(() => (running.value ? (phase.value as ScanKind) : progressHeld.value ? 'deep' : null));
+const finishedText = computed(() => {
+  if (finished.value !== 'deep') return finished.value ? FINISHED_TEXT[finished.value] : '';
+  const { tried, answered } = deepResult.value;
+  return tried === 0
+    ? 'Deep scan finished: no further commands to try on this modem.'
+    : `Deep scan finished: ${tried} ${tried === 1 ? 'command' : 'commands'} tried, ${answered} answered.`;
+});
 const started = computed(() => hasResults.value || connected.value);
 const canNetworkScan = computed(() => connected.value && autoDone.value && !running.value && !actionBusy.value);
 const canDeep = computed(() => canNetworkScan.value && autoComplete.value);
@@ -248,6 +264,7 @@ function teardown(): Promise<void> {
   transport = null;
   connected.value = false;
   confirmDeep.value = false;
+  releaseProgress();
   if (running.value) phase.value = 'finished';
   if (old) closing = closeBounded(old);
   return closing;
@@ -259,7 +276,20 @@ function plannedCommands(s: Scanner, which: ScanKind): number | undefined {
   return which === 'deep' ? s.plannedDeepCommands() : undefined;
 }
 
+function releaseProgress(): void {
+  clearTimeout(progressHoldTimer);
+  progressHeld.value = false;
+}
+
+function holdProgress(ms: number): void {
+  if (ms <= 0) return;
+  progressHeld.value = true;
+  progressHoldTimer = setTimeout(() => (progressHeld.value = false), ms);
+}
+
 async function runScan(s: Scanner, which: ScanKind, work: () => Promise<unknown>, controller?: AbortController): Promise<void> {
+  releaseProgress();
+  const startedAt = performance.now();
   phase.value = which;
   finished.value = null;
   currentCommand.value = '';
@@ -276,6 +306,11 @@ async function runScan(s: Scanner, which: ScanKind, work: () => Promise<unknown>
       syncMeta();
       phase.value = 'finished';
       if (s.report.interrupted === undefined) finished.value = which;
+      if (finished.value === 'deep') {
+        const rows = items.value.slice(progressBase.value);
+        deepResult.value = { tried: rows.length, answered: rows.filter((i) => i.response?.status === 'ok').length };
+        holdProgress(DEEP_PROGRESS_MIN_MS - (performance.now() - startedAt));
+      }
     }
   }
 }
@@ -330,6 +365,7 @@ async function onConnected(t: Transport): Promise<void> {
     lostReason.value = reason;
     confirmDeep.value = false;
     syncMeta();
+    releaseProgress();
     if (running.value) phase.value = 'finished';
   });
   connected.value = true;
@@ -413,6 +449,7 @@ function onImported(report: ScanReport): void {
   importCount.value++;
   items.value = [...report.items];
   reportMeta.value = { startedAt: report.startedAt, profile: report.profile, commandList: [] };
+  releaseProgress();
   phase.value = 'idle';
   finished.value = null;
   lostReason.value = '';
@@ -444,6 +481,7 @@ function exportFull(kind: 'json' | 'md'): void {
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange);
   clearInterval(clockTimer);
+  clearTimeout(progressHoldTimer);
   void teardown();
 });
 </script>
@@ -476,10 +514,7 @@ onBeforeUnmount(() => {
         <rect x="0" y="80" width="18" height="20" rx="3" /><rect x="26" y="60" width="18" height="40" rx="3" /><rect x="52" y="40" width="18" height="60" rx="3" /><rect x="78" y="20" width="18" height="80" rx="3" /><rect x="104" y="0" width="18" height="100" rx="3" />
       </svg>
       <h1>ModemLens</h1>
-      <p class="lede">
-        See what your USB cellular modem is, whether it is on the network and how good the signal is. It runs in Chrome
-        or Edge, and nothing leaves this page.
-      </p>
+      <p class="lede">{{ LEDE }}</p>
     </div>
 
     <div :class="started ? 'session' : 'start'">
@@ -490,7 +525,7 @@ onBeforeUnmount(() => {
           <template v-else-if="imported">Imported capture: <span class="mono">{{ imported.profile?.label }}, {{ imported.startedAt }}</span></template>
           <template v-else>Not connected</template>
         </p>
-        <p v-if="!running && !(reportMeta.interrupted && connected) && finished && connected" class="hint" role="status">{{ FINISHED_TEXT[finished] }}</p>
+        <p v-if="!running && !(reportMeta.interrupted && connected) && finished && connected" class="hint" role="status">{{ finishedText }}</p>
         <AutoRefresh
           v-if="connected && autoDone && autoComplete"
           :state="refreshState"
@@ -527,13 +562,13 @@ onBeforeUnmount(() => {
 
     <template v-if="started">
       <ScanProgress
-        v-if="running"
-        :title="SCAN_TITLES[phase as ScanKind]"
+        v-if="progressKind"
+        :title="SCAN_TITLES[progressKind]"
         :done="items.length - progressBase"
         :total="progressTotal"
-        :command="currentCommand"
-        :can-stop="phase !== 'network'"
-        :slow-note="phase === 'network' ? 'This can take minutes.' : undefined"
+        :command="running ? currentCommand : undefined"
+        :can-stop="running && progressKind !== 'network'"
+        :slow-note="progressKind === 'network' ? 'This can take minutes.' : undefined"
         @stop="stop"
       />
       <p v-else-if="reportMeta.interrupted && connected" class="notice warn" role="status">{{ interruptedText }}</p>
@@ -597,10 +632,10 @@ onBeforeUnmount(() => {
 
     <HelpNoModem :class="{ narrow: !started }" @imported="onImported" />
 
-    <LandingContent v-if="!started" />
+    <LandingContent v-if="!started" :sponsor-url="donate" />
 
     <footer>
-      <span>ModemLens {{ appVersion }} ({{ gitCommit }}). Runs only in Chrome or Edge. No tracking, no third-party scripts.</span>
+      <span>ModemLens {{ appVersion }} ({{ gitCommit }}). Runs only in Chrome or Edge. No cookies, no tracking or third-party scripts.</span>
       <div class="footer-links">
         <a :href="COMPANY_URL" target="_blank" rel="noopener">By K-I-Soft</a>
         <a :href="COMPANY_IMPRINT_URL" target="_blank" rel="noopener">Imprint</a>

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://modemlens.k-i-soft.ch/sitemap.xml

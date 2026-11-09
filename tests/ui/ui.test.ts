@@ -331,7 +331,23 @@ describe('App', () => {
     expect(progress.find('[role="progressbar"]').attributes('aria-valuemax')).toBe('4');
     h.release();
     await until(() => w.text().includes('Deep scan finished'));
-    expect(w.find('.progress').exists()).toBe(false);
+    await until(() => !w.find('.progress').exists());
+  });
+
+  test('a fast deep scan keeps its bar in view without holding the modem, and says what it found', async () => {
+    const w = await scanned();
+    await w.findAll('nav button')[1].trigger('click');
+    await btn(w, 'Deep scan')!.trigger('click');
+    await btn(w, 'Start deep scan')!.trigger('click');
+    await until(() => w.text().includes('Deep scan finished'));
+    expect(w.text()).toMatch(/Deep scan finished: \d+ commands? tried, \d+ answered\./);
+    const held = w.find('.progress');
+    expect(held.exists()).toBe(true);
+    expect(held.text()).toContain('Scanning (deep scan)');
+    expect(held.find('button.stop').exists()).toBe(false);
+    expect(btn(w, 'Refresh')!.attributes('disabled')).toBeUndefined();
+    await until(() => !w.find('.progress').exists());
+    expect(w.text()).toMatch(/Deep scan finished: \d+ commands? tried/);
   });
 
   test('a network scan shows its progress at once, and honestly has no total', async () => {
@@ -455,6 +471,12 @@ describe('App', () => {
     expect(w.findAll('a.donate').length).toBeGreaterThan(0);
     const w2 = mountApp({ donateUrl: null });
     expect(w2.find('a.donate').exists()).toBe(false);
+  });
+
+  test('the sponsor link is on the landing page itself when there is a url', () => {
+    const w = mountApp({ donateUrl: 'https://example.org/donate' });
+    expect(w.find('.landing-content a.donate').attributes('href')).toBe('https://example.org/donate');
+    expect(mountApp({ donateUrl: null }).find('.landing-content a.donate').exists()).toBe(false);
   });
 });
 

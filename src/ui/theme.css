@@ -191,7 +191,13 @@ select {
   to { opacity: 1; transform: none; }
 }
 
+/* The static copy in index.html is replaced as soon as the app starts. Held back briefly so that
+   nobody sees it flash, and shown after all to a reader whose browser runs no JavaScript. */
+.prerender { max-width: 62rem; margin-inline: auto; padding: 1.5rem; visibility: hidden; animation: prerender-show 0s linear 1.5s forwards; }
+@keyframes prerender-show { to { visibility: visible; } }
+
 @media (prefers-reduced-motion: reduce) {
+  .prerender { visibility: visible; }
   *, *::before, *::after {
     animation: none !important;
     transition: none !important;

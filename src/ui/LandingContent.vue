@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { COMPANY_CONTACT_URL, COMPANY_URL, REPOSITORY_URL } from '../config';
+import { COMPANY_CONTACT_URL, COMPANY_URL, DONATE_URL, REPOSITORY_URL } from '../config';
+import DonateLink from './DonateLink.vue';
+import { FAQ } from './landingCopy';
+
+withDefaults(defineProps<{ sponsorUrl?: string | null }>(), { sponsorUrl: DONATE_URL });
 
 const steps = [
   'Plug in your modem and click USB direct.',
@@ -78,16 +82,27 @@ const steps = [
       <section aria-labelledby="privacy-heading">
         <h2 id="privacy-heading">Your data stays with you</h2>
         <p>
-          ModemLens runs entirely in your browser. What it reads from your modem is not sent anywhere. Our hosting
-          provider logs page downloads, as on any website.
+          ModemLens runs entirely in your browser. What it reads from your modem is not sent anywhere. Page downloads
+          appear in the server logs, as on any website, and K-I-Soft evaluates those logs for visitor statistics.
         </p>
       </section>
       <section aria-labelledby="source-heading">
         <h2 id="source-heading">Open source</h2>
         <p>ModemLens is free and MIT licensed.</p>
         <p><a :href="REPOSITORY_URL" target="_blank" rel="noopener">Source code on GitHub</a></p>
+        <p v-if="sponsorUrl"><DonateLink :url="sponsorUrl" /></p>
       </section>
     </div>
+
+    <section aria-labelledby="faq-heading">
+      <h2 id="faq-heading">Questions and answers</h2>
+      <div class="faq">
+        <div v-for="f in FAQ" :key="f.question">
+          <h3>{{ f.question }}</h3>
+          <p>{{ f.answer }}</p>
+        </div>
+      </div>
+    </section>
 
     <section class="display about" aria-labelledby="about-heading">
       <h2 id="about-heading">Built by K-I-Soft</h2>
@@ -124,6 +139,9 @@ p { color: var(--ink-2); overflow-wrap: anywhere; }
 .notes h2 { font-size: 1.15rem; }
 .notes p { margin-top: 0.4rem; font-size: 0.95rem; }
 
+.faq { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.6rem clamp(1.5rem, 4vw, 3.5rem); margin-top: 1.15rem; }
+.faq p { margin-top: 0.3rem; font-size: 0.95rem; }
+
 .about { padding: clamp(1.5rem, 4vw, 2.75rem); }
 .about h2 { font-size: clamp(1.7rem, 4.5vw, 2.5rem); font-weight: 700; letter-spacing: -0.03em; }
 .pitch { max-width: 42rem; margin-top: 0.75rem; font-size: clamp(1.02rem, 2vw, 1.18rem); line-height: 1.45; }
@@ -133,7 +151,7 @@ p { color: var(--ink-2); overflow-wrap: anywhere; }
 .about a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 640px) {
-  .uses, .steps, .notes { grid-template-columns: minmax(0, 1fr); }
+  .uses, .steps, .notes, .faq { grid-template-columns: minmax(0, 1fr); }
   .steps li { padding-right: 0; }
 }
 </style>

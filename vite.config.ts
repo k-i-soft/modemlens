@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createServer, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -14,6 +15,35 @@ function gitCommit(): string {
   }
 }
 
+/** Puts the landing page and its structured data into index.html, see src/ui/prerender.ts. */
+function prerenderLanding(): Plugin {
+  return {
+    name: 'modemlens-prerender-landing',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'pre',
+      async handler(html) {
+        const server = await createServer({
+          configFile: false,
+          logLevel: 'silent',
+          appType: 'custom',
+          server: { middlewareMode: true, hmr: false, ws: false, watch: null },
+          optimizeDeps: { noDiscovery: true, include: [] },
+          plugins: [vue()],
+        });
+        try {
+          const { landingHtml, structuredData } = await server.ssrLoadModule('/src/ui/prerender.ts');
+          return html
+            .replace('<div id="app"></div>', `<div id="app">${await landingHtml()}</div>`)
+            .replace('</head>', `<script type="application/ld+json">${structuredData()}</script></head>`);
+        } finally {
+          await server.close();
+        }
+      },
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -21,6 +51,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    prerenderLanding(),
     VitePWA({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
@@ -33,7 +64,7 @@ export default defineConfig({
         // touches other origins; workbox routes only same-origin GET requests.
         globPatterns: ['**/*.{js,css,html,svg,webmanifest}'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/404\.html$/],
+        navigateFallbackDenylist: [/^\/404\.html$/, /^\/(robots|llms)\.txt$/, /^\/sitemap\.xml$/, /^\/og-image\.png$/],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
