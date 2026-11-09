@@ -18,13 +18,14 @@ const STANDARD_3GPP = [
   '+CCIOTOPT', '+CRCES', '+CNEC', '+CPNER', '+CABTSR', '+CABTRDP', '+CEUS', '+CATR', '+CPSMRDP',
   // packet domain
   '+CGATT', '+CGACT', '+CGDCONT', '+CGDSCONT', '+CGTFT', '+CGEQREQ', '+CGEQMIN', '+CGEQNEG',
-  '+CGQREQ', '+CGQMIN', '+CGEREP', '+CGPADDR', '+CGCLASS', '+CGSMS', '+CGAUTO',   '+CGEQOS', '+CGEQOSRDP', '+CGCONTRDP', '+CGSCONTRDP', '+CGTFTRDP', '+CGPIAF', '+CGAPNRC',
+  '+CGQREQ', '+CGQMIN', '+CGEREP', '+CGPADDR', '+CGCLASS', '+CGSMS', '+CGAUTO',
+  '+CGEQOS', '+CGEQOSRDP', '+CGCONTRDP', '+CGSCONTRDP', '+CGTFTRDP', '+CGPIAF', '+CGAPNRC',
   '+CGMOD', '+CRTDCP', '+CGDNS', '+CGEVEV',
-  // SIM and phonebook (read forms only)
+  // SIM, SIM toolkit, user-to-user signalling (read forms only)
   '+CSUS', '+CUSATD', '+CUSATP', '+CUSATS', '+CUUS1',
-  
   // SMS settings
-  '+CSMS', '+CPMS', '+CMGF', '+CSCA', '+CSMP', '+CSDH', '+CSCB', '+CNMI', '+CMMS',   // other commonly documented
+  '+CSMS', '+CPMS', '+CMGF', '+CSCA', '+CSMP', '+CSDH', '+CSCB', '+CNMI', '+CMMS',
+  // other commonly documented
   '+CLTS', '+CNTPCID', '+CBC', '+CBAND', '+CPSI', '+CNSMOD', '+CNMP', '+CNBP', '+CRM',
 ];
 
@@ -34,7 +35,8 @@ const QUECTEL = [
   '+QURCCFG', '+QDEVCDC', '+QADC', '+QBLACKCELL', '+QCAINFO', '+QENDC',
   '+QRSRP', '+QRSRQ', '+QSINR', '+QLTS', '+QAUDCFG', '+QAUDMOD', '+QDAI',
   '+QSIDET', '+QMIC', '+QRXGAIN', '+QTONEDET', '+QISTATE', '+QICFG', '+QIDNSCFG',
-  '+QIMUX', '+QIGETERROR', '+QMTCFG', '+QHTTPCFG', '+QFTPCFG', '+QSSLCFG',   '+QGPS', '+QGPSCFG', '+QGPSXTRA', '+QCLCC', '+QSMSCFG', '+QBAND', '+QSCLK',
+  '+QIMUX', '+QIGETERROR', '+QMTCFG', '+QHTTPCFG', '+QFTPCFG', '+QSSLCFG',
+  '+QGPS', '+QGPSCFG', '+QGPSXTRA', '+QCLCC', '+QSMSCFG', '+QBAND', '+QSCLK',
   '+QLEDMODE', '+QLEDCFG', '+QGDCNT', '+QCTCFG', '+QDSIM', '+QTHERMAL', '+QCELLINFO', '+QIND',
   '+QUIMSLOT', '+QSTK', '+QSTKCFG', '+QSIMCFG', '+QPRODNO', '+QDEVINFO', '+QSYSMODE', '+QAPN',
   '+QMAP', '+QUSBCFG', '+QGDEFCONT',
@@ -45,9 +47,10 @@ const OTHER_VENDORS = [
   '^SYSINFO', '^SYSINFOEX', '^SYSCFG', '^SYSCFGEX', '^CARDMODE', '^HCSQ', '^RSSI', '^MODE', '^CURC',
   '^HWVER', '^SIMST', '^SRVST', '^LTERSRP', '^TIME', '^SPN', '^ICCID', '^TEMP', '^PREFMODE',
   // # family
-  '#SERVINFO', '#MONI', '#RFSTS', '#TEMPMON', '#GPIO', '#ADC', '#NITZ', '#SIMDET',   '#BND', '#SELINT', '#CPUMODE', '#USBCFG', '#PORTCFG',
+  '#SERVINFO', '#MONI', '#RFSTS', '#TEMPMON', '#GPIO', '#ADC', '#NITZ', '#SIMDET',
+  '#BND', '#SELINT', '#CPUMODE', '#USBCFG', '#PORTCFG',
   // $ family
-  '$QCSIMSTAT', '$QCBANDPREF', '$QCRSRP', '$QCSYSMODE', '$QCSLOT', '$QCAPNE', '$QCVOLT', 
+  '$QCSIMSTAT', '$QCBANDPREF', '$QCRSRP', '$QCSYSMODE', '$QCSLOT', '$QCAPNE', '$QCVOLT',
   '$MYTYPE', '$MYSYSINFO', '$MYGMR', '$MYCCID', '$MYBAND',
   // ! family
   '!GSTATUS', '!GCAP', '!GMR', '!GBAND', '!GVER', '!GDATAD', '!PCINFO', '!SELRAT', '!BAND', '!LTEINFO',
