@@ -93,6 +93,8 @@ function reading(value: string | undefined): number | undefined {
   return Number.isFinite(n) && Math.abs(n) < MAX_PLAUSIBLE_MAGNITUDE ? n : undefined;
 }
 
+/** What a temperature sensor reports when it is not there; named sensors reach us unfiltered. */
+const NO_TEMPERATURE_SENSOR = 255;
 const SIGNAL_KEYS: Record<Metric, string> = { rsrp: 'rsrp_dbm', rsrq: 'rsrq_db', sinr: 'sinr_db', rssi: 'rssi_dbm' };
 const SIGNAL_SOURCES = ['qeng_serving', 'qcsq', 'cesq', 'csq'];
 const USB_MODES: Record<string, string> = { '0': 'RmNet', '1': 'ECM', '2': 'MBIM', '3': 'RNDIS', '5': 'NCM' };
@@ -107,6 +109,7 @@ function networkStatus(registration: string | undefined): Dashboard['network'] {
   if (registration.startsWith('registered')) return { word: 'On the network', tone: 'ok' };
   if (registration === 'searching') return { word: 'Searching for a network', tone: 'warn' };
   if (registration === 'denied') return { word: 'Registration denied', tone: 'bad' };
+  if (registration === 'unknown') return { word: 'Network state unknown', tone: 'neutral' };
   return { word: 'Not on the network', tone: 'bad' };
 }
 
@@ -250,7 +253,7 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
     }));
 
   // ---- device ----
-  const temperatures = (fieldsOf('qtemp')[0] ?? []).map((f) => reading(f.value)).filter((n): n is number => n !== undefined);
+  const temperatures = (fieldsOf('qtemp')[0] ?? []).map((f) => reading(f.value)).filter((n): n is number => n !== undefined && n !== NO_TEMPERATURE_SENSOR);
   const usbnet = find('qcfg', 'usbnet')?.value;
   const usbLabel = usbnet === undefined ? undefined : USB_MODES[usbnet];
 

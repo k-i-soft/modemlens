@@ -14,7 +14,7 @@ const href = computed(() => (props.classification?.webAddress ? `http://${props.
 const interfaces = computed(() =>
   (props.device?.interfaces ?? []).map((i) => ({ number: i.number, label: interfaceLabel(i), code: interfaceCode(i) })),
 );
-const osLimit = computed(() => operatingSystemLimit(props.device, navigator.platform));
+const osLimit = computed(() => operatingSystemLimit(props.device, kind.value, navigator.platform));
 </script>
 
 <template>
@@ -49,7 +49,7 @@ const osLimit = computed(() => operatingSystemLimit(props.device, navigator.plat
         <p v-if="osLimit" class="limit">{{ osLimit }}</p>
       </div>
 
-      <div v-if="kind === 'storage' || kind === 'transient' || kind === 'network-web'">
+      <div>
         <h3>What to do</h3>
         <ul v-if="kind === 'storage'">
           <li>Eject the disk in your system, then wait a few seconds and connect again.</li>
@@ -57,12 +57,17 @@ const osLimit = computed(() => operatingSystemLimit(props.device, navigator.plat
           <li>On Linux, <code>usb_modeswitch</code> does the same.</li>
         </ul>
         <p v-else-if="kind === 'transient'">Wait a few seconds and connect again.</p>
-        <template v-else>
-          <p v-if="href">Its web page is at <a :href="href" target="_blank" rel="noopener">{{ classification?.webAddress }}</a>.</p>
-          <p v-else-if="osLimit">On Windows or Linux, the address of its web page is the gateway shown in the settings of the new network adapter.</p>
+        <template v-else-if="kind === 'network-web'">
+          <p v-if="osLimit">On Windows or Linux, the address of its web page is the gateway shown in the settings of the new network adapter.</p>
+          <p v-else-if="href">Its web page is at <a :href="href" target="_blank" rel="noopener">{{ classification?.webAddress }}</a>.</p>
           <p v-else>The address of its web page is the gateway shown in the settings of the new network adapter.</p>
           <p>A browser bookmark tool for reading these modems is planned.</p>
         </template>
+        <ul v-else>
+          <li>Unplug the modem, plug it back in and try again.</li>
+          <li>Try the other connection type: Serial port instead of USB direct, or the other way round.</li>
+          <li>Try another computer.</li>
+        </ul>
       </div>
     </div>
   </section>

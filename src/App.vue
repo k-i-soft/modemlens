@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
         :send="terminalSend"
         :disabled="!connected || running"
         :disabled-reason="running ? 'Sending is off while a scan is running, so that a typed command cannot land between the scan commands.' : ''"
-        :hide-output="hideIdentifiers"
+        :hide-identifiers="hideIdentifiers"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>
     </template>

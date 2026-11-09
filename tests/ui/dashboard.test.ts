@@ -121,8 +121,14 @@ describe('identity and status', () => {
     ['2', 'Searching for a network', 'warn'],
     ['3', 'Registration denied', 'bad'],
     ['0', 'Not on the network', 'bad'],
+    ['4', 'Network state unknown', 'neutral'],
   ])('registration %s reads as %s', (stat, word, tone) => {
     expect(buildDashboard(report([item('creg', [`+CEREG: 0,${stat}`], 'AT+CEREG?', 'cereg')])).network).toEqual({ word, tone });
+  });
+
+  test('an unknown registration gives a neutral chip', () => {
+    const d = buildDashboard(report([item('creg', ['+CEREG: 0,4'], 'AT+CEREG?', 'cereg')]));
+    expect(d.chips).toEqual([{ key: 'registration', label: 'Registration', value: 'Unknown', tone: 'neutral' }]);
   });
 
   test('a SIM error is a bad chip, a locked SIM a warning', () => {
@@ -237,6 +243,17 @@ describe('sim, data and device', () => {
       item('qcfg', ['+QCFG: "usbnet",9'], 'AT+QCFG="usbnet"', 'qcfg-usbnet'),
     ]));
     expect(d.device).toEqual({ temperature: 45, usbMode: 'mode 9' });
+  });
+});
+
+describe('temperature without a sensor', () => {
+  test('255 from a named sensor does not count', () => {
+    const d = buildDashboard(report([item('qtemp', ['+QTEMP: "cpu-thermal","45"', '+QTEMP: "pa-thermal","255"'], 'AT+QTEMP', 'qtemp')]));
+    expect(d.device.temperature).toBe(45);
+  });
+  test('only 255 means no temperature at all', () => {
+    const d = buildDashboard(report([item('qtemp', ['+QTEMP: "cpu-thermal","255"'], 'AT+QTEMP', 'qtemp')]));
+    expect(d.device).toEqual({});
   });
 });
 

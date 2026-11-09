@@ -789,6 +789,36 @@ describe('the instrument panel', () => {
       expect(w.find('.terminal .log').text()).not.toContain('123456789012345');
       await toggle(w).setValue(false);
       expect(w.find('.terminal .log').text()).toContain('123456789012345');
+
+      // A typed argument can be a phone number or a PIN: inputs, warning and log hide it too.
+      const number = '+41000000000';
+      const command = w.find('input[aria-label="AT command"]');
+      const body = w.find('input[aria-label="Body for the prompt"]');
+      await toggle(w).setValue(true);
+      expect(command.classes()).toContain('masked');
+      expect(body.classes()).toContain('masked');
+      await command.setValue(`AT+CMGS="${number}"`);
+      await w.find('form').trigger('submit');
+      const alert = w.find('.terminal [role="alert"]');
+      expect(alert.text()).toContain('AT+CMGS does not look like');
+      expect(alert.text()).not.toContain(number);
+      await w.find('form').trigger('submit');
+      await until(() => w.find('.terminal .log').text().includes('AT+CMGS'));
+      expect(w.findAll('.terminal .log code').at(-1)!.text()).toBe('> AT+CMGS');
+      expect(w.text()).not.toContain(number);
+      await toggle(w).setValue(false);
+      expect(command.classes()).not.toContain('masked');
+      expect(body.classes()).not.toContain('masked');
+      expect(w.find('.terminal .log').text()).toContain(number);
+    });
+
+    test('a query keeps only its name while hidden', async () => {
+      const w = await scanned();
+      await toggle(w).setValue(true);
+      await w.find('input[aria-label="AT command"]').setValue('AT+CSQ?');
+      await w.find('form').trigger('submit');
+      await until(() => w.find('.terminal .log code').exists());
+      expect(w.find('.terminal .log code').text()).toBe('> AT+CSQ');
     });
 
     test('exports do not depend on it', async () => {
@@ -842,6 +872,16 @@ describe('the instrument panel', () => {
       finishScan();
       await until(() => polls(send, during) === 1);
       expect(w.find('.live').text()).not.toContain('Paused');
+    });
+
+    test('with Live off, a running scan is not mistaken for a missing modem', async () => {
+      const w = await scanned();
+      vi.spyOn(Scanner.prototype, 'runManual').mockReturnValue(new Promise(() => {}));
+      await btn(w, 'Network scan')!.trigger('click');
+      await flushPromises();
+      expect(w.find('.live').text()).toContain('Paused while a scan runs');
+      expect(w.find('.live').text()).not.toContain('Needs a connected modem');
+      expect(liveSwitch(w).attributes('disabled')).toBeDefined();
     });
 
     test('stops on disconnect and cannot be started again without a modem', async () => {
@@ -918,6 +958,41 @@ describe('a device without an AT channel', () => {
     expect((await rejecting(classified(rndisOnly as typeof device))).text()).not.toContain('macOS');
     Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
     expect((await rejecting(classified())).text()).not.toContain('macOS');
+  });
+
+  const mac = () => Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
+  const cdcOnly = { usb: '12d1:14db', interfaces: [{ number: 0, class: 0x02, subclass: 0x06 }, { number: 1, class: 0x0a, subclass: 0 }] };
+
+  test('a CDC stick on a Mac has no operating-system limit and keeps its link', async () => {
+    mac();
+    const w = await rejecting(classified(cdcOnly as typeof device));
+    expect(w.text()).not.toContain('macOS');
+    expect(w.find('.seen a').attributes('href')).toBe('http://192.168.8.1');
+  });
+
+  test('when macOS is the limit, the web page is not offered as a link', async () => {
+    mac();
+    const rndis = { ...rndisOnly, usb: '12d1:14db' };
+    const w = await rejecting(classified(rndis as typeof device));
+    expect(w.text()).toContain('limit of macOS');
+    expect(w.find('.seen a').exists()).toBe(false);
+  });
+
+  test.each([
+    ['no classification', undefined],
+    ['at', { kind: 'at', usb: '2c7c:6005' }],
+    ['unknown', { kind: 'unknown', usb: '2c7c:6005' }],
+  ] as const)('a probing failure (%s) never blames macOS and says what to do', async (_name, classification) => {
+    mac();
+    const failed = { usb: '2c7c:6005', interfaces: [{ number: 0, class: 0xe0, subclass: 0x01 }, { number: 3, class: 0xff, subclass: 0 }] };
+    const w = await rejecting(new NoAtChannelError('Could not use the AT interface.', false, classification, failed));
+    const card = w.find('.seen').text();
+    expect(card).not.toContain('macOS');
+    expect(card).toContain('Could not use the AT interface.');
+    expect(card).toContain('What to do');
+    expect(card).toContain('plug it back in');
+    expect(card).toContain('other connection type');
+    expect(card).toContain('another computer');
   });
 
   test('a failed probe also shows the card, with the reason', async () => {

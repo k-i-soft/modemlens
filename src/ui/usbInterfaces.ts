@@ -1,4 +1,5 @@
 import type { UsbDeviceDescription } from '../transport/types';
+import type { DeviceKind } from '../profiles/known-devices';
 
 type UsbInterface = UsbDeviceDescription['interfaces'][number];
 
@@ -30,9 +31,16 @@ export function interfaceCode(i: UsbInterface): string {
   return [i.class, i.subclass].map((n) => n.toString(16).padStart(2, '0')).join('/');
 }
 
-/** Says so when what stops the device is the computer's operating system, not the device. */
-export function operatingSystemLimit(device: UsbDeviceDescription | undefined, platform: string): string | undefined {
-  if (!device || !/mac/i.test(platform)) return undefined;
+/**
+ * Says so when what stops the device is the computer's operating system, not the device. Only a network
+ * stick with an RNDIS layout on a Mac qualifies: a CDC stick does come up as a network adapter there.
+ */
+export function operatingSystemLimit(
+  device: UsbDeviceDescription | undefined,
+  kind: DeviceKind | undefined,
+  platform: string,
+): string | undefined {
+  if (!device || kind !== 'network-web' || !/mac/i.test(platform)) return undefined;
   const rndisOnly = device.interfaces.some(isRndis) && !device.interfaces.some((i) => i.class === CDC_COMMUNICATIONS && i.subclass !== SUBCLASS_ACM);
   if (!rndisOnly) return undefined;
   return 'This is a limit of macOS: it has no RNDIS driver, so on this Mac the stick does not become a network adapter and its own web page cannot be reached. It works on Windows and Linux.';

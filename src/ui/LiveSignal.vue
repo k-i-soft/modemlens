@@ -63,8 +63,8 @@ const thresholds = computed(() =>
 const nowStyle = computed(() => (latest.value === null ? undefined : { top: `${(yOf(latest.value) / HEIGHT) * 100}%` }));
 
 const status = computed(() => {
-  if (!props.available && !props.enabled) return 'Needs a connected modem.';
   if (props.paused) return 'Paused while a scan runs.';
+  if (!props.available && !props.enabled) return 'Needs a connected modem.';
   return 'Reads AT+CESQ every 2 s. Never part of a report.';
 });
 

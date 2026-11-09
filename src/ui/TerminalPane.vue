@@ -8,8 +8,8 @@ const props = defineProps<{
   disabled?: boolean;
   /** Why sending is disabled right now, if that needs explaining. */
   disabledReason?: string;
-  /** Answers carry no marks of what is sensitive, so all of them are withheld while identifiers are hidden. */
-  hideOutput?: boolean;
+  /** Terminal text carries no marks of what is sensitive, so answers and typed arguments are withheld. */
+  hideIdentifiers?: boolean;
 }>();
 
 interface Entry { command: string; text: string }
@@ -19,6 +19,11 @@ const body = ref('');
 const log = ref<Entry[]>([]);
 const warnFor = ref<string | null>(null);
 const sending = ref(false);
+
+/** While identifiers are hidden, only the command name is shown: an argument can be a phone number or a PIN. */
+function shownCommand(cmd: string): string {
+  return props.hideIdentifiers ? cmd.split(/[=?]/, 1)[0] : cmd;
+}
 
 async function dispatch(cmd: string): Promise<void> {
   sending.value = true;
@@ -56,21 +61,21 @@ async function submit(): Promise<void> {
     <form @submit.prevent="submit">
       <div class="prompt">
         <span aria-hidden="true">&gt;</span>
-        <input v-model="command" type="text" placeholder="AT+CSQ" autocomplete="off" spellcheck="false" aria-label="AT command" :disabled="disabled" @input="warnFor = null" />
+        <input v-model="command" type="text" placeholder="AT+CSQ" autocomplete="off" spellcheck="false" aria-label="AT command" :class="{ masked: hideIdentifiers }" :disabled="disabled" @input="warnFor = null" />
         <button type="submit" class="primary" :disabled="disabled || sending || !command.trim()">
           {{ warnFor ? 'Send anyway' : 'Send' }}
         </button>
       </div>
-      <input v-model="body" class="body" type="text" placeholder="Optional text for the > prompt (sent followed by Ctrl+Z)" autocomplete="off" aria-label="Body for the prompt" :disabled="disabled" />
+      <input v-model="body" class="body" :class="{ masked: hideIdentifiers }" type="text" placeholder="Optional text for the > prompt (sent followed by Ctrl+Z)" autocomplete="off" aria-label="Body for the prompt" :disabled="disabled" />
     </form>
     <p v-if="warnFor" class="alert" role="alert">
-      {{ warnFor }} does not look like a read-only query. It may change settings or state in the modem. Click "Send
+      {{ shownCommand(warnFor) }} does not look like a read-only query. It may change settings or state in the modem. Click "Send
       anyway" to send it.
     </p>
     <div class="log">
       <div v-for="(e, i) in log" :key="i" class="entry">
-        <code>&gt; {{ e.command }}</code>
-        <pre>{{ hideOutput ? 'Hidden while "Hide identifiers" is on.' : e.text }}</pre>
+        <code>&gt; {{ shownCommand(e.command) }}</code>
+        <pre>{{ hideIdentifiers ? 'Hidden while "Hide identifiers" is on.' : e.text }}</pre>
       </div>
     </div>
   </section>
@@ -94,6 +99,8 @@ input {
 }
 input::placeholder { color: var(--ink-3); }
 input:disabled { opacity: 0.6; }
+input.masked { -webkit-text-security: disc; }
+input.masked::placeholder { -webkit-text-security: none; }
 .body { font-size: 0.82rem; }
 .alert { padding: 0.55rem 0.75rem; font-size: 0.88rem; border: 1px solid var(--r-fair); border-radius: 6px; }
 code, pre { font-size: 0.85rem; }
