@@ -812,6 +812,22 @@ describe('the instrument panel', () => {
       expect(w.find('.terminal .log').text()).toContain(number);
     });
 
+    test.each(['ATD+41000000000;', 'atd+41000000000;', 'AtDt+41000000000'])('dialling with %s shows only ATD while hidden', async (typed) => {
+      const w = await scanned();
+      await toggle(w).setValue(true);
+      await w.find('input[aria-label="AT command"]').setValue(typed);
+      await w.find('form').trigger('submit');
+      const alert = w.find('.terminal [role="alert"]');
+      expect(alert.text()).toContain('ATD does not look like');
+      expect(alert.text()).not.toContain('41000000000');
+      await w.find('form').trigger('submit');
+      await until(() => w.find('.terminal .log code').exists());
+      expect(w.find('.terminal .log code').text()).toBe('> ATD');
+      expect(w.text()).not.toContain('41000000000');
+      await toggle(w).setValue(false);
+      expect(w.find('.terminal .log code').text()).toBe(`> ${typed}`);
+    });
+
     test('a query keeps only its name while hidden', async () => {
       const w = await scanned();
       await toggle(w).setValue(true);

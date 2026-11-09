@@ -22,7 +22,9 @@ const sending = ref(false);
 
 /** While identifiers are hidden, only the command name is shown: an argument can be a phone number or a PIN. */
 function shownCommand(cmd: string): string {
-  return props.hideIdentifiers ? cmd.split(/[=?]/, 1)[0] : cmd;
+  if (!props.hideIdentifiers) return cmd;
+  // A dial command has no separator: everything after ATD is the number.
+  return /^ATD/i.test(cmd) ? 'ATD' : cmd.split(/[=?]/, 1)[0];
 }
 
 async function dispatch(cmd: string): Promise<void> {
