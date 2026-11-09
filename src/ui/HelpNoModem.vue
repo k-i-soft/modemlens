@@ -24,6 +24,14 @@
         driver and use "USB direct".
       </li>
     </ul>
+    <h3>My modem shows up as a disk</h3>
+    <ul>
+      <li>
+        Many modems start as a small USB disk and switch to modem mode afterwards. In disk mode there is no AT
+        channel. Eject the disk, wait a few seconds and connect again.
+      </li>
+      <li>The vendor's installer on the disk also switches it. On Linux, <code>usb_modeswitch</code> does it.</li>
+    </ul>
     <h3>3. Zadig (WinUSB driver)</h3>
     <ol>
       <li>

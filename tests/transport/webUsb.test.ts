@@ -10,7 +10,7 @@ const bytes = (s: string) => new TextEncoder().encode(s);
 const text = (d: AllowSharedBufferSource) => new TextDecoder().decode(d);
 
 interface FakeEndpoint { endpointNumber: number; direction: 'in' | 'out'; type: string; packetSize: number }
-interface FakeAlternate { alternateSetting: number; interfaceClass: number; endpoints: FakeEndpoint[] }
+interface FakeAlternate { alternateSetting: number; interfaceClass: number; interfaceSubclass?: number; endpoints: FakeEndpoint[] }
 interface FakeInterface { interfaceNumber: number; alternates: FakeAlternate[] }
 
 const bulk = (inEp: number, outEp: number, packetSize = 512): FakeEndpoint[] => [
@@ -356,6 +356,69 @@ describe('connectUsb', () => {
     expect(err.message).toBe('gone');
   });
 
+  describe('devices without an AT channel', () => {
+    const noClaims = (d: FakeDevice) => expect(d.calls.filter((c) => /^(claim|release|alt|control)/.test(c))).toEqual([]);
+    const stick = (vendorId: number, productId: number, interfaces: FakeInterface[]) => {
+      const d = new FakeDevice(interfaces);
+      d.vendorId = vendorId;
+      d.productId = productId;
+      return d;
+    };
+
+    test('storage mode rejects with its classification and claims nothing', async () => {
+      const d = stick(0x12d1, 0x1f01, [iface(0, 0x08, bulk(1, 2))]);
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(err).toBeInstanceOf(NoAtChannelError);
+      expect(err.classification).toMatchObject({ kind: 'storage', usb: '12d1:1f01' });
+      expect(err.hadPendingClaim).toBe(false);
+      noClaims(d);
+      expect(d.calls).toContain('close');
+      expect(d.opened).toBe(false);
+    });
+
+    test('a network stick rejects with the address and claims nothing', async () => {
+      const d = stick(0x12d1, 0x14db, [iface(0, 0xe0, []), iface(1, 0x0a, bulk(1, 2))]);
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(err.classification).toMatchObject({ kind: 'network-web', webDialect: 'hilink', webAddress: '192.168.8.1' });
+      noClaims(d);
+      expect(d.opened).toBe(false);
+    });
+
+    test('beforeOpen still runs before the device is classified and opened', async () => {
+      const d = stick(0x2ecc, 0x3001, [iface(0, 0x08, bulk(1, 2))]);
+      const order: string[] = [];
+      const realOpen = d.open.bind(d);
+      d.open = async () => { order.push('open'); await realOpen(); };
+      await connectUsb({ beforeOpen: async () => { order.push('beforeOpen'); }, device: d.asDevice }).catch(() => {});
+      expect(order).toEqual(['beforeOpen', 'open']);
+    });
+
+    test('an unknown device with a CDC ACM interface is probed as an AT candidate', async () => {
+      const d = stick(0x1234, 0xabcd, [
+        { interfaceNumber: 0, alternates: [{ alternateSetting: 0, interfaceClass: 0x02, interfaceSubclass: 0x02, endpoints: [] }] },
+        iface(1, 0x0a, bulk(1, 2)),
+      ]);
+      d.answering.add(1);
+      const t = await connectUsb({ beforeOpen: noop, device: d.asDevice });
+      expect(d.claimCalls()).toEqual(['claim:1']);
+      await t.close();
+    });
+
+    test('an unknown device with only network classes and no ACM does not get probed', async () => {
+      const d = stick(0x1234, 0xabcd, [iface(0, 0x02, []), iface(1, 0x0a, bulk(1, 2))]);
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(err.classification.kind).toBe('network-web');
+      noClaims(d);
+    });
+
+    test('a device with an unrecognised layout is still probed', async () => {
+      const d = stick(0x1234, 0xabcd, [iface(0, 0x03, bulk(1, 2))]);
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(d.claimCalls()).toEqual(['claim:0']);
+      expect(err.classification).toBeUndefined();
+    });
+  });
+
   test('profile says the AT interface is 3', () => {
     expect(PROFILES.find((p) => p.id === 'quectel-ec200a')?.usb).toEqual({ atInterface: 3, avoidInterfaces: [2, 4] });
   });
@@ -530,10 +593,11 @@ describe('connectUsb', () => {
   });
 
   test('DTR on a CDC data interface goes to the preceding communications interface', async () => {
-    const d = new FakeDevice([
-      iface(0, 0x02, [{ endpointNumber: 1, direction: 'in', type: 'interrupt', packetSize: 16 }]),
-      iface(1, 0x0a, bulk(2, 2)),
-    ]);
+    const acm: FakeInterface = {
+      interfaceNumber: 0,
+      alternates: [{ alternateSetting: 0, interfaceClass: 0x02, interfaceSubclass: 0x02, endpoints: [{ endpointNumber: 1, direction: 'in', type: 'interrupt', packetSize: 16 }] }],
+    };
+    const d = new FakeDevice([acm, iface(1, 0x0a, bulk(2, 2))]);
     d.answering.add(1);
     const t = await connectUsb({ beforeOpen: noop, device: d.asDevice });
     expect(d.controls).toHaveLength(1);

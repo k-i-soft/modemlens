@@ -1,0 +1,12 @@
+{
+  "id": "asr-1286-4e3c",
+  "label": "ASR stick (1286:4e3c)",
+  "verified": false,
+  "match": {
+    "usb": [
+      "1286:4e3c"
+    ]
+  },
+  "commands": [],
+  "denyCommands": []
+}

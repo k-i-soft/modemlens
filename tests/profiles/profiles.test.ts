@@ -24,7 +24,7 @@ test('profile commands never denied or unique', () => {
 });
 
 test('profile deny lists and parsers', () => {
-  for (const p of PROFILES) {
+  for (const p of PROFILES.filter(p => p.id.startsWith('quectel-'))) {
     expect(p.denyCommands).toEqual(['+QPRTPARA', '+QNVW', '+QNVFW', '+QCOPS', '+QMGDA', '+QCMGS', '+QCMGR', '+QHUP', '+QIACT', '+QIDEACT']);
     const par = (id: string) => p.commands.find(e => e.id === id)?.parser;
     expect(par('qeng-serving')).toBe('qeng_serving'); expect(par('qcfg-band')).toBe('qcfg'); expect(par('qccid')).toBe('qccid');

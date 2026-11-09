@@ -1,4 +1,6 @@
 import { matchProfile } from '../profiles';
+import { classifyUsbDevice } from '../profiles/known-devices';
+import type { DeviceClassification } from '../profiles/known-devices';
 import { PickerCancelledError } from './types';
 import type { Transport, UsbConnectorOptions } from './types';
 import { errorMessage, errorName, formatUsbId, TransportListeners } from './common';
@@ -11,6 +13,7 @@ const PROBE_REPLY_TIMEOUT_MS = 2000;
 const READ_BUFFER_BYTES = 4096;
 const CLASS_CDC_COMMUNICATIONS = 0x02;
 const CLASS_CDC_DATA = 0x0a;
+const SUBCLASS_CDC_ACM = 0x02;
 const SET_CONTROL_LINE_STATE = 0x22;
 const CONTROL_LINE_DTR = 1;
 const PROBE_COMMAND = Uint8Array.of(0x41, 0x54, 0x0d); // "AT\r", the only bytes a transport sends itself
@@ -34,6 +37,8 @@ export class NoAtChannelError extends Error {
     message: string,
     /** See `Transport.hadPendingClaim`. */
     readonly hadPendingClaim: boolean,
+    /** Set when the device was recognised as one without an AT channel; nothing was claimed. */
+    readonly classification?: DeviceClassification,
   ) {
     super(message);
     this.name = 'NoAtChannelError';
@@ -70,6 +75,15 @@ export function usbId(device: USBDevice): string {
 
 function interfacesOf(device: USBDevice): USBInterface[] {
   return (device.configuration ?? device.configurations[0])?.interfaces ?? [];
+}
+
+function classifyOpened(device: USBDevice, id: string): DeviceClassification {
+  const alternates = interfacesOf(device).flatMap((i) => i.alternates);
+  return classifyUsbDevice({
+    usb: id,
+    interfaceClasses: [...new Set(alternates.map((a) => a.interfaceClass))],
+    hasAcm: alternates.some((a) => a.interfaceClass === CLASS_CDC_COMMUNICATIONS && a.interfaceSubclass === SUBCLASS_CDC_ACM),
+  });
 }
 
 function bulkEndpoint(alternate: USBAlternateInterface, direction: USBDirection): USBEndpoint | undefined {
@@ -330,6 +344,10 @@ export async function connectUsb(opts: UsbConnectorOptions): Promise<Transport> 
   try {
     await ensureConfigured(device);
     const id = usbId(device);
+    const classification = classifyOpened(device, id);
+    if (classification.kind !== 'at' && classification.kind !== 'unknown') {
+      throw new NoAtChannelError('This device has no AT channel.', false, classification);
+    }
     const { channel, pendingClaim } = await chooseChannel(device, opts, id);
     await raiseDtr(device, channel);
     const name = device.productName ? `${device.productName} ` : '';

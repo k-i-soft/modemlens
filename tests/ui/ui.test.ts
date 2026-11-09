@@ -16,6 +16,7 @@ import { AtEngine } from '../../src/at/engine';
 import { PickerCancelledError } from '../../src/transport/types';
 import type { Transport } from '../../src/transport/types';
 import { NoAtChannelError } from '../../src/transport/webUsb';
+import { classifyUsbDevice } from '../../src/profiles/known-devices';
 import { createDemoTransport } from '../../src/ui/demo';
 import type { DemoTransport } from '../../src/ui/demo';
 import { downloadText } from '../../src/ui/download';
@@ -199,6 +200,63 @@ describe('ConnectBar', () => {
     await btn(w, 'USB direct')!.trigger('click');
     await flushPromises();
     expect(w.text()).not.toContain('replug the modem');
+  });
+
+  describe('guidance for devices without an AT channel', () => {
+    async function rejected(usbId: string, classes: number[]) {
+      const err = new NoAtChannelError('This device has no AT channel.', false, classifyUsbDevice({ usb: usbId, interfaceClasses: classes }));
+      const usb = vi.fn().mockRejectedValue(err);
+      const w = mount(ConnectBar, { props: { connectors: { serial: connectors().serial, usb } } });
+      await btn(w, 'USB direct')!.trigger('click');
+      await flushPromises();
+      return w;
+    }
+
+    test('storage mode: eject, installer, usb_modeswitch, and no red alert', async () => {
+      const w = await rejected('12d1:1f01', [8]);
+      const t = w.text();
+      expect(t).toContain('Huawei HiLink stick (storage mode)');
+      expect(t).toContain('Eject');
+      expect(t).toContain('installer');
+      expect(t).toContain('usb_modeswitch');
+      expect(w.find('[role="alert"]').exists()).toBe(false);
+      expect(w.find('.warn').exists()).toBe(false);
+    });
+
+    test('transient: wait and connect again', async () => {
+      const t = (await rejected('2ecc:3001', [8])).text();
+      expect(t).toContain('Wait a few seconds and connect again');
+      expect(t).not.toContain('usb_modeswitch');
+    });
+
+    test('network stick with a fixed address: a link and the planned bookmark tool', async () => {
+      const w = await rejected('12d1:14db', [2, 10]);
+      const a = w.find('a');
+      expect(a.attributes('href')).toBe('http://192.168.8.1');
+      expect(a.attributes('rel')).toBe('noopener');
+      expect(w.text()).toContain('network adapter');
+      expect(w.text()).toContain('bookmark tool');
+    });
+
+    test('network stick without a fixed address points to the gateway', async () => {
+      const w = await rejected('0e8d:2004', [224, 10, 8]);
+      expect(w.find('a').exists()).toBe(false);
+      expect(w.text()).toContain('MediaTek MiFi stick');
+      expect(w.text()).toContain('gateway');
+    });
+
+    test('guidance goes away on the next attempt', async () => {
+      const transport = createDemoTransport({ delayMs: 0 });
+      const err = new NoAtChannelError('x', false, classifyUsbDevice({ usb: '2ecc:3001', interfaceClasses: [8] }));
+      const usb = vi.fn().mockRejectedValueOnce(err).mockResolvedValueOnce(transport);
+      const w = mount(ConnectBar, { props: { connectors: { serial: connectors().serial, usb } } });
+      await btn(w, 'USB direct')!.trigger('click');
+      await flushPromises();
+      expect(w.text()).toContain('Wait a few seconds');
+      await btn(w, 'USB direct')!.trigger('click');
+      await flushPromises();
+      expect(w.text()).not.toContain('Wait a few seconds');
+    });
   });
 
   test('connector failure is displayed', async () => {
@@ -661,5 +719,10 @@ describe('HelpNoModem', () => {
     expect(t).toContain('Zadig');
     expect(t).toContain('roll back');
     expect(t).toContain('administrator');
+  });
+  test('help has an entry for a modem that shows up as a disk', () => {
+    const t = mount(HelpNoModem).text();
+    expect(t).toContain('My modem shows up as a disk');
+    expect(t).toContain('usb_modeswitch');
   });
 });

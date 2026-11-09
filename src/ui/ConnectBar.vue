@@ -4,6 +4,8 @@ import { PickerCancelledError } from '../transport/types';
 import type { Connectors, Transport } from '../transport/types';
 import { DEFAULT_BAUD_RATE, serialUsbId } from '../transport/webSerial';
 import { NoAtChannelError, usbId } from '../transport/webUsb';
+import type { DeviceClassification } from '../profiles/known-devices';
+import NoAtGuidance from './NoAtGuidance.vue';
 
 const props = defineProps<{
   connectors: Connectors;
@@ -22,6 +24,7 @@ const hasSerial = computed(() => props.forceSupported || 'serial' in navigator);
 const hasUsb = computed(() => props.forceSupported || 'usb' in navigator);
 const supported = computed(() => hasSerial.value || hasUsb.value);
 const error = ref('');
+const guidance = ref<DeviceClassification | null>(null);
 const working = ref(false);
 const baudRate = ref(DEFAULT_BAUD_RATE);
 const probing = ref<number | null>(null);
@@ -44,6 +47,7 @@ const previous = computed(() => [
 
 async function connect(via: 'serial' | 'usb', open: (beforeOpen: () => Promise<void>) => Promise<Transport>): Promise<void> {
   error.value = '';
+  guidance.value = null;
   working.value = true;
   try {
     const transport = await open(props.beforeOpen ?? (() => Promise.resolve()));
@@ -52,7 +56,8 @@ async function connect(via: 'serial' | 'usb', open: (beforeOpen: () => Promise<v
   } catch (e) {
     if (e instanceof PickerCancelledError) return;
     replugNeeded.value = e instanceof NoAtChannelError && e.hadPendingClaim;
-    error.value = e instanceof Error ? e.message : String(e);
+    if (e instanceof NoAtChannelError && e.classification) guidance.value = e.classification;
+    else error.value = e instanceof Error ? e.message : String(e);
   } finally {
     working.value = false;
     probing.value = null;
@@ -146,6 +151,7 @@ onBeforeUnmount(() => {
       This modem has no known AT channel, so ModemLens is trying its channels with a plain AT: now USB interface
       {{ probing }}.
     </p>
+    <NoAtGuidance v-if="guidance" :classification="guidance" />
     <p v-if="error" class="note warn" role="alert">{{ error }}</p>
     <p v-if="replugNeeded" class="note warn" role="alert">
       One of the modem's interfaces did not respond and the browser is still waiting for it. Unplug and replug the
