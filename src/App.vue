@@ -27,6 +27,9 @@ import { buildDashboard } from './ui/dashboard';
 import { DONATE_URL } from './config';
 import { LiveSignal } from './ui/liveSignal';
 
+const appVersion = __APP_VERSION__;
+const gitCommit = __GIT_COMMIT__;
+
 const props = withDefaults(
   defineProps<{
     demo?: boolean;
@@ -436,7 +439,7 @@ onBeforeUnmount(() => {
     <HelpNoModem :class="{ narrow: !started }" @imported="onImported" />
 
     <footer>
-      <span>ModemLens. Runs only in Chrome or Edge. No tracking, no third-party scripts.</span>
+      <span>ModemLens {{ appVersion }} ({{ gitCommit }}). Runs only in Chrome or Edge. No tracking, no third-party scripts.</span>
       <DonateLink :url="donate" />
     </footer>
   </main>

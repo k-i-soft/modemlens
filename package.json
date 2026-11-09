@@ -2,6 +2,7 @@
   "name": "modemlens",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +13,7 @@
     "vue": "^3.5.45"
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
     "@types/w3c-web-serial": "^1.0.9",
     "@types/w3c-web-usb": "^1.0.14",
     "@vitejs/plugin-vue": "^6.0.10",
