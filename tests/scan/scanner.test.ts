@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { AtEngine } from '../../src/at/engine';
 import { CLAC_COMMAND, STANDARD_CATALOG } from '../../src/catalog/standard';
 import { PROFILES } from '../../src/profiles';
@@ -187,5 +187,103 @@ describe('Scanner', () => {
     const item = await s.runManual(entry);
     expect(item.state).toBe('done');
     expect(sent().filter((w) => w === 'AT+COPS=?')).toHaveLength(1);
+  });
+
+  describe('silent port', () => {
+    const NO_RESPONSE = 'no response, wrong port?';
+
+    test('stops after two consecutive identity timeouts', async () => {
+      const s = new Scanner(engine, {});
+      await s.runAuto();
+      expect(s.report.interrupted).toBe(NO_RESPONSE);
+      expect(s.report.items.map((i) => i.state)).toEqual(['failed', 'failed']);
+      expect(sent()).toEqual(['ATI', 'AT+GMI']);
+    });
+
+    test('a single identity timeout does not stop the scan', async () => {
+      // Only ATI stays silent, so no two timeouts are consecutive.
+      t.reply('ATI', []);
+      defaultError();
+      const s = new Scanner(engine, {});
+      await s.runAuto();
+      expect(s.report.interrupted).toBeUndefined();
+      expect(sent()).toContain(CLAC_COMMAND);
+    });
+
+    test('an answer resets the count', async () => {
+      t.reply('ATI', []);
+      t.reply('AT+GMM', []);
+      t.reply('AT+CGMI', []);
+      defaultError();
+      const s = new Scanner(engine, {});
+      await s.runAuto();
+      expect(s.report.interrupted).toBeUndefined();
+      expect(sent()).toContain(CLAC_COMMAND);
+    });
+
+    test('timeouts after the identity phase do not stop the scan', async () => {
+      t.reply('AT+CSQ', []);
+      t.reply('AT+CESQ', []);
+      defaultError();
+      const s = new Scanner(engine, {});
+      await s.runAuto();
+      expect(s.report.interrupted).toBeUndefined();
+      expect(sent()).toContain(CLAC_COMMAND);
+    });
+  });
+
+  test('a stalled write ends the scan, even without an abort', async () => {
+    const hung = new FakeTransport();
+    const stalled: string[] = [];
+    hung.write = (d) => {
+      stalled.push(String.fromCharCode(...d));
+      return new Promise<void>(() => {});
+    };
+    const e = new AtEngine(hung, { defaultTimeoutMs: 10, quietAfterTimeoutMs: 1 });
+    const s = new Scanner(e, {});
+    await s.runAuto();
+    expect(s.report.interrupted).toBe('write stalled');
+    expect(stalled).toEqual(['ATI\r']);
+    e.dispose();
+  });
+
+  test('a modem answering > everywhere never triggers an engine write', async () => {
+    const e = new AtEngine(t, { defaultTimeoutMs: 2, quietAfterTimeoutMs: 1 });
+    const send = vi.spyOn(e, 'send');
+    t.reply('ATI', ['\r\nEC25\r\n\r\nOK\r\n']);
+    t.reply('AT+GMI', ['\r\nOK\r\n']);
+    t.reply('AT+GMM', ['\r\nOK\r\n']);
+    t.reply('AT+GMR', ['\r\nOK\r\n']);
+    t.reply('AT+CGMI', ['\r\nOK\r\n']);
+    t.reply('AT+CGMM', ['\r\nOK\r\n']);
+    t.reply('AT+CGMR', ['\r\nOK\r\n']);
+    t.reply('AT+CGSN', ['\r\nOK\r\n']);
+    t.reply('AT+GSN', ['\r\nOK\r\n']);
+    clac('+QXYZ');
+    t.reply(/.*/, ['\r\n> ']);
+    const s = new Scanner(e, {});
+    await s.runAuto();
+    await s.runDeep();
+    expect(sent()).toContain('AT+QXYZ=?');
+    expect(t.written.every((w) => w.endsWith('\r') && !w.includes('\x1b'))).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(t.written.some((w) => w.includes('\x1b'))).toBe(false);
+    await s.runManual({ id: 'm', command: 'AT+QXYZ?', category: 'other', phase: 'manual', timeoutMs: 2 });
+    expect(t.written.some((w) => w.includes('\x1b'))).toBe(false);
+    for (const call of send.mock.calls) expect(call[1]).not.toHaveProperty('cancelPromptOnTimeout');
+    e.dispose();
+  });
+
+  test('a new deep scan clears the mark of a stopped one', async () => {
+    clac('+QXYZ');
+    defaultError();
+    const s = new Scanner(engine, {});
+    await s.runAuto();
+    const ac = new AbortController();
+    ac.abort();
+    await s.runDeep(ac.signal);
+    expect(s.report.interrupted).toBe('aborted');
+    await s.runDeep();
+    expect(s.report.interrupted).toBeUndefined();
   });
 });

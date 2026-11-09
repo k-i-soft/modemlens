@@ -26,6 +26,9 @@ export interface ScanReport {
 
 const IDENTITY_MODEL_COMMANDS = ['ATI', 'AT+GMM', 'AT+CGMM'];
 const CPIN_QUERY = 'AT+CPIN?';
+const NO_RESPONSE = 'no response, wrong port?';
+/** Consecutive identity timeouts after which the port counts as silent. */
+const MAX_IDENTITY_TIMEOUTS = 2;
 
 /** "AT+QENG=\"servingcell\"" -> "+QENG"; undefined for plain commands such as ATI. */
 function commandName(command: string): string | undefined {
@@ -67,11 +70,18 @@ export class Scanner {
 
   async runAuto(signal?: AbortSignal): Promise<ScanReport> {
     const done = new Set<string>();
-    const run = async (entries: CatalogEntry[]): Promise<boolean> => {
+    const run = async (entries: CatalogEntry[], stopIfSilent = false): Promise<boolean> => {
+      let timeouts = 0;
       for (const e of entries) {
         if (done.has(e.command)) continue;
         done.add(e.command);
         if (!(await this.step(e, signal))) return false;
+        const last = this.report.items[this.report.items.length - 1];
+        timeouts = last.response?.status === 'timeout' ? timeouts + 1 : 0;
+        if (stopIfSilent && timeouts >= MAX_IDENTITY_TIMEOUTS) {
+          this.report.interrupted = NO_RESPONSE;
+          return false;
+        }
       }
       return true;
     };
@@ -80,7 +90,8 @@ export class Scanner {
     const cpin = auto.filter(e => e.command === CPIN_QUERY);
     const standardRest = auto.filter(e => e.category !== 'identity' && e.command !== CPIN_QUERY);
 
-    if (!(await run(identity))) return this.report;
+    // A silent port would otherwise cost minutes of timeouts.
+    if (!(await run(identity, true))) return this.report;
     this.detectProfile(identity);
     // CPIN must run before every needsSim row.
     if (!(await run(cpin))) return this.report;
@@ -90,6 +101,7 @@ export class Scanner {
   }
 
   async runDeep(signal?: AbortSignal): Promise<ScanReport> {
+    delete this.report.interrupted;
     const profile = this.report.profile;
     const covered = new Set<string>();
     for (const e of [...STANDARD_CATALOG, ...(profile?.commands ?? [])]) {
