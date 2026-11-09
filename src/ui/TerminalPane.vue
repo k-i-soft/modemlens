@@ -6,6 +6,8 @@ import { classifyTerminalCommand } from '../catalog/safety';
 const props = defineProps<{
   send: (command: string, body?: string) => Promise<AtResponse>;
   disabled?: boolean;
+  /** Why sending is disabled right now, if that needs explaining. */
+  disabledReason?: string;
 }>();
 
 interface Entry { command: string; text: string }
@@ -33,7 +35,7 @@ async function dispatch(cmd: string): Promise<void> {
 
 async function submit(): Promise<void> {
   const cmd = command.value.trim();
-  if (!cmd || sending.value) return;
+  if (!cmd || sending.value || props.disabled) return;
   if (classifyTerminalCommand(cmd) === 'write' && warnFor.value !== cmd) {
     warnFor.value = cmd;
     return;
@@ -48,6 +50,7 @@ async function submit(): Promise<void> {
       Free command input. What you type is sent to the modem as is. Terminal traffic is never part of a report
       or export.
     </p>
+    <p v-if="disabledReason" class="note" role="status">{{ disabledReason }}</p>
     <form @submit.prevent="submit">
       <input v-model="command" type="text" placeholder="AT+CSQ" autocomplete="off" spellcheck="false" aria-label="AT command" :disabled="disabled" @input="warnFor = null" />
       <input v-model="body" type="text" placeholder="Optional text for the > prompt (sent followed by Ctrl+Z)" autocomplete="off" aria-label="Body for the prompt" :disabled="disabled" />

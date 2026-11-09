@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue';
-import type { Transport } from './transport/types';
+import type { Connector, Connectors, Transport } from './transport/types';
 import { AtEngine } from './at/engine';
 import type { AtResponse } from './at/engine';
 import { Scanner } from './scan/scanner';
@@ -21,25 +21,29 @@ const props = withDefaults(
   defineProps<{
     demo?: boolean;
     demoDelayMs?: number;
-    connectors?: { serial: () => Promise<Transport>; usb: () => Promise<Transport> };
+    connectors?: Connectors;
     donateUrl?: string | null;
   }>(),
   { demo: false, demoDelayMs: 60, connectors: undefined, donateUrl: undefined },
 );
 
-const notYet = (): Promise<Transport> =>
+const notYet: Connector = () =>
   Promise.reject(new Error('This connection method is not available yet in this build.'));
 
-const connectors = computed(() => {
+const connectors = computed<Connectors>(() => {
   if (props.connectors) return props.connectors;
   if (props.demo) {
-    const make = (): Promise<Transport> => Promise.resolve(createDemoTransport({ delayMs: props.demoDelayMs }));
+    const make: Connector = async ({ beforeOpen }) => {
+      await beforeOpen();
+      return createDemoTransport({ delayMs: props.demoDelayMs });
+    };
     return { serial: make, usb: make };
   }
   return { serial: notYet, usb: notYet };
 });
 
 const COPS_SCAN = STANDARD_CATALOG.find((e) => e.command === 'AT+COPS=?')!;
+const CLOSE_TIMEOUT_MS = 2000;
 
 type Phase = 'idle' | 'auto' | 'deep' | 'network' | 'finished';
 
@@ -61,6 +65,10 @@ let engine: AtEngine | null = null;
 let scanner: Scanner | null = null;
 let transport: Transport | null = null;
 let abort: AbortController | null = null;
+/** Identifies the latest onConnected call; an older one closes its transport and gives up. */
+let generation = 0;
+/** The close in progress, so that a following connect can wait for it. */
+let closing: Promise<void> = Promise.resolve();
 
 function snapshot(): ScanReport {
   const r = scanner!.report;
@@ -76,22 +84,63 @@ function syncMeta(): void {
 const summary = computed(() => (items.value.length ? buildSummary({ ...reportMeta.value, items: items.value }) : {}));
 const hasResults = computed(() => items.value.length > 0);
 const running = computed(() => phase.value !== 'idle' && phase.value !== 'finished');
-const canDeep = computed(() => connected.value && autoDone.value && !running.value);
+const canNetworkScan = computed(() => connected.value && autoDone.value && !running.value);
+const hasCommandList = computed(() => reportMeta.value.commandList.length > 0);
+const canDeep = computed(() => canNetworkScan.value && hasCommandList.value);
+const interruptedText = computed(() =>
+  reportMeta.value.interrupted === 'aborted'
+    ? 'Scan stopped. The results so far are kept.'
+    : `Scan interrupted: ${reportMeta.value.interrupted}`,
+);
 
-async function teardown(): Promise<void> {
-  abort?.abort();
-  engine?.dispose();
+/** A close that hangs must not block the next connection. */
+async function closeBounded(t: Transport): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await transport?.close();
+    await Promise.race([t.close(), new Promise<void>((r) => (timer = setTimeout(r, CLOSE_TIMEOUT_MS)))]);
   } catch {
     /* already gone */
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+function teardown(): Promise<void> {
+  // Detach synchronously: while the close is pending, nothing may reach the old session.
+  const old = transport;
+  abort?.abort();
+  engine?.dispose();
+  abort = null;
   engine = null;
   transport = null;
+  connected.value = false;
+  confirmDeep.value = false;
+  if (running.value) phase.value = 'finished';
+  if (old) closing = closeBounded(old);
+  return closing;
+}
+
+async function runScan(s: Scanner, which: Phase, work: () => Promise<unknown>): Promise<void> {
+  phase.value = which;
+  try {
+    await work();
+  } catch (e) {
+    s.report.interrupted = e instanceof Error ? e.message : String(e);
+  } finally {
+    if (s === scanner) {
+      syncMeta();
+      phase.value = 'finished';
+    }
+  }
 }
 
 async function onConnected(t: Transport): Promise<void> {
+  const current = ++generation;
   await teardown();
+  if (current !== generation) {
+    await closeBounded(t);
+    return;
+  }
   transport = t;
   label.value = t.label;
   engine = new AtEngine(t);
@@ -101,26 +150,24 @@ async function onConnected(t: Transport): Promise<void> {
     syncMeta();
     if (running.value) phase.value = 'finished';
   });
-  scanner = new Scanner(engine, props.demo ? { usb: DEMO_USB } : {});
-  scanner.onItem((item) => {
+  const s = new Scanner(engine, props.demo ? { usb: DEMO_USB } : {});
+  scanner = s;
+  s.onItem((item) => {
+    if (s !== scanner) return;
     items.value.push(item);
     syncMeta();
   });
   items.value = [];
-  reportMeta.value = { startedAt: scanner.report.startedAt, usb: scanner.report.usb, commandList: [] };
+  reportMeta.value = { startedAt: s.report.startedAt, usb: s.report.usb, commandList: [] };
   connected.value = true;
   lostReason.value = '';
   autoDone.value = false;
   confirmDeep.value = false;
   confirmFull.value = false;
-  abort = new AbortController();
-  phase.value = 'auto';
-  const s = scanner;
-  await s.runAuto(abort.signal);
-  if (s !== scanner) return;
-  syncMeta();
-  autoDone.value = true;
-  phase.value = 'finished';
+  const controller = new AbortController();
+  abort = controller;
+  await runScan(s, 'auto', () => s.runAuto(controller.signal));
+  if (s === scanner) autoDone.value = true;
 }
 
 function stop(): void {
@@ -129,27 +176,23 @@ function stop(): void {
 
 async function startDeep(): Promise<void> {
   confirmDeep.value = false;
-  if (!scanner) return;
+  if (running.value || !scanner) return;
   const s = scanner;
-  abort = new AbortController();
-  phase.value = 'deep';
-  await s.runDeep(abort.signal);
-  syncMeta();
-  if (s === scanner) phase.value = 'finished';
+  const controller = new AbortController();
+  abort = controller;
+  await runScan(s, 'deep', () => s.runDeep(controller.signal));
 }
 
 async function startNetworkScan(): Promise<void> {
-  if (!scanner) return;
+  confirmDeep.value = false;
+  if (running.value || !scanner) return;
   const s = scanner;
-  phase.value = 'network';
-  await s.runManual(COPS_SCAN);
-  syncMeta();
-  if (s === scanner) phase.value = 'finished';
+  await runScan(s, 'network', () => s.runManual(COPS_SCAN));
 }
 
 function terminalSend(command: string, body?: string): Promise<AtResponse> {
   if (!engine) return Promise.resolve({ command, status: 'disconnected', lines: [], durationMs: 0 });
-  return engine.send(command, body === undefined ? { timeoutMs: 15000 } : { timeoutMs: 15000, body });
+  return engine.send(command, { timeoutMs: 15000, cancelPromptOnTimeout: true, body });
 }
 
 function exportShared(kind: 'json' | 'md'): void {
@@ -188,15 +231,13 @@ onBeforeUnmount(() => {
       :force-supported="demo || undefined"
       :busy="connected && running"
       :reconnect="!connected && hasResults"
+      :before-open="teardown"
       @connected="onConnected"
     />
 
     <p v-if="connected" class="note">Connected: {{ label }}</p>
     <p v-if="lostReason" class="note warn" role="alert">
       Connection lost: {{ lostReason }}. The results below are kept. Use the buttons above to reconnect.
-    </p>
-    <p v-if="reportMeta.interrupted && connected === false && !lostReason" class="note warn">
-      Scan interrupted: {{ reportMeta.interrupted }}
     </p>
 
     <template v-if="hasResults || connected">
@@ -211,6 +252,7 @@ onBeforeUnmount(() => {
           {{ items.length }} results so far.
           <button v-if="phase !== 'network'" type="button" @click="stop">Stop</button>
         </p>
+        <p v-else-if="reportMeta.interrupted && connected" class="note warn" role="status">{{ interruptedText }}</p>
         <p v-else-if="autoDone && connected" class="note" role="status">Automatic scan finished.</p>
 
         <SummaryCard :summary="summary" :profile="reportMeta.profile" :usb="reportMeta.usb" />
@@ -219,8 +261,11 @@ onBeforeUnmount(() => {
           <h2>More</h2>
           <div class="row">
             <button type="button" :disabled="!canDeep" @click="confirmDeep = true">Deep scan…</button>
-            <button type="button" :disabled="!canDeep" @click="startNetworkScan">Network scan</button>
+            <button type="button" :disabled="!canNetworkScan" @click="startNetworkScan">Network scan</button>
           </div>
+          <p v-if="canNetworkScan && !hasCommandList" class="hint">
+            Deep scan needs the modem's own command list, which the automatic scan did not get.
+          </p>
           <p class="hint">
             Network scan lists the operators around you (AT+COPS=?). It can take minutes and may interrupt the
             connection.
@@ -266,7 +311,12 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <TerminalPane v-show="tab === 'terminal'" :send="terminalSend" :disabled="!connected" />
+      <TerminalPane
+        v-show="tab === 'terminal'"
+        :send="terminalSend"
+        :disabled="!connected || running"
+        :disabled-reason="running ? 'Sending is off while a scan is running, so that a typed command cannot land between the scan commands.' : ''"
+      />
     </template>
 
     <HelpNoModem />

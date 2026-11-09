@@ -11,6 +11,9 @@ import HelpNoModem from '../../src/ui/HelpNoModem.vue';
 import ScanDetails from '../../src/ui/ScanDetails.vue';
 import SummaryCard from '../../src/ui/SummaryCard.vue';
 import TerminalPane from '../../src/ui/TerminalPane.vue';
+import { FakeTransport } from '../helpers/fakeTransport';
+import { AtEngine } from '../../src/at/engine';
+import type { Transport } from '../../src/transport/types';
 import { createDemoTransport } from '../../src/ui/demo';
 import type { DemoTransport } from '../../src/ui/demo';
 import { downloadText } from '../../src/ui/download';
@@ -79,6 +82,15 @@ describe('ConnectBar', () => {
     expect(btn(w, 'Serial port')).toBeTruthy();
     expect(btn(w, 'USB direct')).toBeTruthy();
     expect(w.text()).not.toContain('only in Chrome or Edge (Chromium');
+  });
+
+  test('connector gets the beforeOpen hook', async () => {
+    const serial = vi.fn().mockResolvedValue(createDemoTransport({ delayMs: 0 }));
+    const beforeOpen = vi.fn().mockResolvedValue(undefined);
+    const w = mount(ConnectBar, { props: { connectors: { serial, usb: connectors().usb }, beforeOpen } });
+    await btn(w, 'Serial port')!.trigger('click');
+    await flushPromises();
+    expect(serial).toHaveBeenCalledWith({ beforeOpen });
   });
 
   test('connector failure is displayed', async () => {
@@ -195,6 +207,239 @@ describe('App', () => {
   });
 });
 
+describe('App session lifecycle', () => {
+  type Tracked = DemoTransport & { writes: number; closed: boolean };
+  /** Demo transports that count writes and take `closeMs` to close; these connectors ignore beforeOpen. */
+  function tracked(closeMs: number) {
+    const made: Tracked[] = [];
+    const make = () => {
+      const t = createDemoTransport({ delayMs: 0 }) as Tracked;
+      const write = t.write.bind(t);
+      const close = t.close.bind(t);
+      t.writes = 0;
+      t.closed = false;
+      t.write = (d) => { t.writes++; return write(d); };
+      t.close = async () => {
+        await new Promise((r) => setTimeout(r, closeMs));
+        t.closed = true;
+        await close();
+      };
+      made.push(t);
+      return Promise.resolve(t as Transport);
+    };
+    return { made, connectors: { serial: make, usb: make } };
+  }
+
+  const scanItems = (w: VueWrapper) => w.findComponent(ScanDetails).props('items') as ScanItem[];
+
+  test('reconnecting during a slow close leaves exactly one session', async () => {
+    const { made, connectors: c } = tracked(40);
+    const w = mountApp({ connectors: c });
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.text().includes('Automatic scan finished'));
+    await btn(w, 'Serial port')!.trigger('click');
+    await flushPromises();
+    await btn(w, 'USB direct')!.trigger('click');
+    await flushPromises();
+    await until(() => made.length === 3 && made[1].closed && w.text().includes('Automatic scan finished'));
+    expect(made[0].closed).toBe(true);
+    expect(made[1].writes).toBe(0);
+    expect(made[2].closed).toBe(false);
+    expect(made[2].writes).toBeGreaterThan(10);
+    expect(scanItems(w).length).toBe(made[2].writes);
+  });
+
+  test('a hanging close stops blocking after 2 seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new FakeTransport();
+      first.reply(/.*/, ['\r\nERROR\r\n']);
+      first.close = () => new Promise<void>(() => {});
+      const second = new FakeTransport();
+      second.reply(/.*/, ['\r\nERROR\r\n']);
+      const queue: Transport[] = [first, second];
+      const make = () => Promise.resolve(queue.shift()!);
+      const w = mountApp({ connectors: { serial: make, usb: make } });
+      await btn(w, 'Serial port')!.trigger('click');
+      await vi.advanceTimersByTimeAsync(10);
+      expect(w.text()).toContain('Automatic scan finished');
+      await btn(w, 'Serial port')!.trigger('click');
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(second.written).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(second.written.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('an item from a replaced scanner is ignored', async () => {
+    const onItem = vi.spyOn(Scanner.prototype, 'onItem');
+    const w = mountApp();
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.text().includes('Automatic scan finished'));
+    const oldListener = onItem.mock.calls[0][0];
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => onItem.mock.calls.length === 2 && w.text().includes('Automatic scan finished'));
+    const before = scanItems(w).length;
+    oldListener({ id: 'stale', command: 'AT+STALE', category: 'other', state: 'done' });
+    await flushPromises();
+    expect(scanItems(w).length).toBe(before);
+    expect(scanItems(w).some((i) => i.id === 'stale')).toBe(false);
+  });
+
+  test('an exception in the scan cannot leave the phase stuck', async () => {
+    vi.spyOn(Scanner.prototype, 'runAuto').mockRejectedValueOnce(new Error('boom'));
+    const w = mountApp();
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.text().includes('Scan interrupted: boom'));
+    expect(w.text()).not.toContain('Scanning (');
+    expect(btn(w, 'Serial port')!.attributes('disabled')).toBeUndefined();
+  });
+
+  describe('connect order', () => {
+    function ordered(open: (log: string[]) => Transport) {
+      const log: string[] = [];
+      let n = 0;
+      const make = async ({ beforeOpen }: { beforeOpen: () => Promise<void> }) => {
+        const id = ++n;
+        log.push(`pick ${id}`);
+        await beforeOpen();
+        log.push(`open ${id}`);
+        const t = open(log);
+        const close = t.close.bind(t);
+        t.close = async () => {
+          log.push(`close ${id}`);
+          await close();
+        };
+        return t;
+      };
+      return { log, connectors: { serial: make, usb: make } };
+    }
+
+    test('picks first, closes the old session, then opens', async () => {
+      const { log, connectors: c } = ordered(() => createDemoTransport({ delayMs: 0 }));
+      const w = mountApp({ connectors: c });
+      await btn(w, 'Serial port')!.trigger('click');
+      await until(() => w.text().includes('Automatic scan finished'));
+      await btn(w, 'Serial port')!.trigger('click');
+      await until(() => log.length >= 5 && w.text().includes('Automatic scan finished'));
+      expect(log).toEqual(['pick 1', 'open 1', 'pick 2', 'close 1', 'open 2']);
+    });
+
+    test('a cancelled picker keeps the running session', async () => {
+      let calls = 0;
+      const make = async ({ beforeOpen }: { beforeOpen: () => Promise<void> }) => {
+        if (++calls > 1) throw new Error('No port selected');
+        await beforeOpen();
+        return createDemoTransport({ delayMs: 0 });
+      };
+      const w = mountApp({ connectors: { serial: make, usb: make } });
+      await btn(w, 'Serial port')!.trigger('click');
+      await until(() => w.text().includes('Automatic scan finished'));
+      await btn(w, 'Serial port')!.trigger('click');
+      await flushPromises();
+      expect(w.text()).toContain('No port selected');
+      expect(w.text()).toContain('Connected:');
+    });
+
+    test('a failed open reads as not connected and keeps the results', async () => {
+      let calls = 0;
+      const make = async ({ beforeOpen }: { beforeOpen: () => Promise<void> }) => {
+        await beforeOpen();
+        if (++calls > 1) throw new Error('Port busy');
+        return createDemoTransport({ delayMs: 0 });
+      };
+      const w = mountApp({ connectors: { serial: make, usb: make } });
+      await btn(w, 'Serial port')!.trigger('click');
+      await until(() => w.text().includes('Automatic scan finished'));
+      await btn(w, 'Serial port')!.trigger('click');
+      await until(() => w.text().includes('Port busy'));
+      expect(w.text()).not.toContain('Connected:');
+      expect(w.text()).toContain('+CSQ: 21,99');
+      expect(btn(w, 'Deep scan')!.attributes('disabled')).toBeDefined();
+      await btn(w, 'Export JSON')!.trigger('click');
+      expect(dl).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test('a silent port stops early and says so', async () => {
+    vi.useFakeTimers();
+    try {
+      const t = new FakeTransport();
+      const make = () => Promise.resolve(t);
+      const w = mountApp({ connectors: { serial: make, usb: make } });
+      await btn(w, 'Serial port')!.trigger('click');
+      await vi.advanceTimersByTimeAsync(10_300);
+      expect(t.written).toEqual(['ATI\r', 'AT+GMI\r']);
+      expect(w.text()).toContain('no response, wrong port?');
+      expect(w.text()).not.toContain('Automatic scan finished');
+      expect(btn(w, 'Deep scan')!.attributes('disabled')).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('only one scan can run on an engine', async () => {
+    const deep = vi.spyOn(Scanner.prototype, 'runDeep');
+    const manual = vi.spyOn(Scanner.prototype, 'runManual').mockReturnValue(new Promise(() => {}));
+    const w = await scanned();
+    await btn(w, 'Deep scan')!.trigger('click');
+    expect(w.find('[aria-label="Deep scan warning"]').exists()).toBe(true);
+    await btn(w, 'Network scan')!.trigger('click');
+    await flushPromises();
+    expect(manual).toHaveBeenCalledTimes(1);
+    expect(w.find('[aria-label="Deep scan warning"]').exists()).toBe(false);
+    const vm = w.vm as unknown as { startDeep(): Promise<void>; startNetworkScan(): Promise<void> };
+    await vm.startDeep();
+    await vm.startNetworkScan();
+    expect(deep).not.toHaveBeenCalled();
+    expect(manual).toHaveBeenCalledTimes(1);
+  });
+
+  test('a stopped scan says so and offers no deep scan', async () => {
+    const make = () => {
+      lastTransport = createDemoTransport({ delayMs: 2 });
+      return Promise.resolve(lastTransport);
+    };
+    const w = mountApp({ connectors: { serial: make, usb: make } });
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.text().includes('results so far') && !w.text().includes('0 results'));
+    await btn(w, 'Stop')!.trigger('click');
+    await until(() => !w.text().includes('Scanning ('));
+    expect(w.text()).toContain('Scan stopped');
+    expect(w.text()).not.toContain('Automatic scan finished');
+    expect(btn(w, 'Deep scan')!.attributes('disabled')).toBeDefined();
+    expect(w.text()).toContain('command list');
+  });
+
+  test('the terminal cannot send while a scan runs, and says why', async () => {
+    const send = vi.spyOn(AtEngine.prototype, 'send');
+    vi.spyOn(Scanner.prototype, 'runManual').mockReturnValue(new Promise(() => {}));
+    const w = await scanned();
+    await btn(w, 'Network scan')!.trigger('click');
+    await flushPromises();
+    await w.findAll('nav button')[1].trigger('click');
+    const before = send.mock.calls.length;
+    expect(w.find('input[aria-label="AT command"]').attributes('disabled')).toBeDefined();
+    expect(w.find('.terminal').text()).toContain('while a scan is running');
+    await w.find('form').trigger('submit');
+    await flushPromises();
+    expect(send.mock.calls.length).toBe(before);
+  });
+
+  test('terminal commands, and only those, may cancel a prompt', async () => {
+    const send = vi.spyOn(AtEngine.prototype, 'send');
+    const w = await scanned();
+    expect(send.mock.calls.some((c) => c[1]?.cancelPromptOnTimeout)).toBe(false);
+    await w.findAll('nav button')[1].trigger('click');
+    await w.find('input[aria-label="AT command"]').setValue('AT+CSQ');
+    await w.find('form').trigger('submit');
+    await flushPromises();
+    expect(send.mock.calls.at(-1)).toEqual(['AT+CSQ', { timeoutMs: 15000, cancelPromptOnTimeout: true, body: undefined }]);
+  });
+});
+
 describe('ScanDetails', () => {
   test('unsupported rows show the raw response, not a claim about the modem', () => {
     const item: ScanItem = {
@@ -228,6 +473,16 @@ describe('SummaryCard', () => {
 });
 
 describe('TerminalPane', () => {
+  test('a disabled terminal shows the reason and sends nothing', async () => {
+    const send = vi.fn();
+    const w = mount(TerminalPane, { props: { send, disabled: true, disabledReason: 'Busy right now.' } });
+    expect(w.text()).toContain('Busy right now.');
+    await w.find('input[aria-label="AT command"]').setValue('AT+CSQ');
+    await w.find('form').trigger('submit');
+    await flushPromises();
+    expect(send).not.toHaveBeenCalled();
+  });
+
   test('terminal warns on write command', async () => {
     const send = vi.fn().mockResolvedValue({ command: 'AT+CFUN=0', status: 'ok', lines: [], durationMs: 1 });
     const w = mount(TerminalPane, { props: { send } });

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { Transport } from '../transport/types';
+import type { Connectors, Transport } from '../transport/types';
 
 const props = defineProps<{
-  connectors: { serial: () => Promise<Transport>; usb: () => Promise<Transport> };
+  connectors: Connectors;
+  /** Ends the previous session; a connector calls it between picking and opening a device. */
+  beforeOpen?: () => Promise<void>;
   /** Overrides browser detection (demo mode). */
   forceSupported?: boolean;
   busy?: boolean;
@@ -21,7 +23,8 @@ async function connect(via: 'serial' | 'usb'): Promise<void> {
   error.value = '';
   working.value = true;
   try {
-    emit('connected', await props.connectors[via](), via);
+    const beforeOpen = props.beforeOpen ?? (() => Promise.resolve());
+    emit('connected', await props.connectors[via]({ beforeOpen }), via);
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
