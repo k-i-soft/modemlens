@@ -79,6 +79,26 @@ const RAW_LINE_PREFIX = new Map([
 const SERIAL_LABEL = /(^|[^a-z0-9])(serial|(?:s\/n|sn|fsn|esn|meid|imei)(?![a-z0-9]))/i;
 const USB_ID = /^[0-9a-f]{4}:[0-9a-f]{4}$/i;
 
+/** The `+` prefix an identity command may answer with: AT+GMR says +GMR or +CGMR, ATI only adds +GCAP. */
+function ownIdentityPrefix(command: string): RegExp | undefined {
+  const c = command.trim().toUpperCase();
+  if (/^ATI\d?$/.test(c)) return /^\+GCAP(?![A-Z0-9_])/;
+  const name = /^AT\+C?(GM[IMR])/.exec(c)?.[1];
+  return name ? new RegExp(`^\\+C?${name}(?![A-Z0-9_])`) : undefined;
+}
+
+/**
+ * The identity parser keeps every line it is given, so a +CMT or an NMEA sentence
+ * that arrived during the command would end up in a field that is not masked.
+ */
+function hasUnsolicitedLine(command: string, lines: string[]): boolean {
+  const own = ownIdentityPrefix(command);
+  return lines.some((raw) => {
+    const l = raw.trim().toUpperCase();
+    return l.startsWith('$') || (l.startsWith('+') && !own?.test(l));
+  });
+}
+
 /**
  * Default-deny: text only survives for items a known parser understood, and
  * only after masking. Everything else is reduced to its shape.
@@ -110,8 +130,9 @@ export function redactReport(report: ScanReport): SharedReport {
     if (!r) return out;
     const fields = parsed[i];
     const isCrsm = /CRSM/i.test(item.command) || /crsm/i.test(item.parser ?? '');
-    const serialLabelled = item.parser === 'identity' && r.lines.some((l) => SERIAL_LABEL.test(l));
-    if (!fields || isCrsm || serialLabelled) {
+    const unsafeIdentity = item.parser === 'identity'
+      && (r.lines.some((l) => SERIAL_LABEL.test(l)) || hasUnsolicitedLine(item.command, r.lines));
+    if (!fields || isCrsm || unsafeIdentity) {
       out.shape = shapeOf(r.lines);
       return out;
     }

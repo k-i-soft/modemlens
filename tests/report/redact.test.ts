@@ -203,6 +203,61 @@ describe('redactReport', () => {
       expect(shared.items.find((i) => i.id === 'csq')!.lines).toEqual(['+CSQ: 21,99']);
     });
 
+    describe('identity answers', () => {
+      const IDENTITY_COMMANDS = ['ATI', 'ATI0', 'AT+GMI', 'AT+GMM', 'AT+GMR', 'AT+CGMI', 'AT+CGMM', 'AT+CGMR'];
+
+      test.each(IDENTITY_COMMANDS)('%s with unsolicited lines is reduced to its shape', (command) => {
+        const r = leaks([item('id', command, [...INJECTED, 'R01A01'], 'identity')], NEEDLES);
+        expect(r.items[0].fields).toBeUndefined();
+        expect(r.items[0].shape).toBeDefined();
+      });
+
+      test.each([
+        ['an SMS header', '+CMT: "+41791234567",,"26/11/09,12:00:00+04"'],
+        ['a stored SMS', '+CMGR: "REC UNREAD","+41791234567"'],
+        ['a GPS sentence', '$GPGGA,123519,4807.038,N,01131.000,E,1,08'],
+        ['a multi-constellation sentence', '$GNRMC,123519,A,4807.038,N,01131.000,E'],
+        ['a BeiDou sentence', '$BDGGA,123519,4807.038,N,01131.000,E,1,08'],
+        ['a lower-case prefix', '+cmt: "+41791234567"'],
+        ['an indented line', '  $GPGGA,123519,4807.038,N'],
+        ['a name that only starts like its own', '+CGMRX: 4807.038'],
+      ])('one line of %s is enough', (_, line) => {
+        const r = redactReport(report([item('cgmr', 'AT+CGMR', ['R01A01', line], 'identity')]));
+        expect(r.items[0].fields).toBeUndefined();
+        expect(toJson(r)).not.toContain(line.trim());
+      });
+
+      test.each([
+        ['AT+GMI', '+GMI: Acme'], ['AT+GMM', '+GMM: M1'], ['AT+GMR', '+GMR: R01A01'],
+        ['AT+CGMI', '+CGMI: Acme'], ['AT+CGMM', '+CGMM: M1'], ['AT+CGMR', '+CGMR: R01A01'],
+        ['AT+GMR', '+CGMR: R01A01'], ['AT+CGMR', 'Revision: R01A01'],
+        ['ATI', '+GCAP: +CGSM'],
+      ])('%s keeps its fields with %j', (command, line) => {
+        expect(redactReport(report([item('id', command, [line], 'identity')])).items[0].fields).toBeDefined();
+      });
+
+      test.each([
+        ['AT+CGMR', '+CGMI: Acme'],
+        ['AT+CGMR', '+GCAP: +CGSM'],
+      ])('%s does not accept the prefix of %j', (command, line) => {
+        expect(redactReport(report([item('id', command, [line], 'identity')])).items[0].fields).toBeUndefined();
+      });
+
+      test('injected lines during AT+GMR do not survive engine, scanner and both export formats', async () => {
+        const t = new FakeTransport();
+        t.reply('AT+GMR', [`AT+GMR\r\r\n${INJECTED.join('\r\n')}\r\n\r\nR01A01\r\n\r\nOK\r\n`]);
+        t.reply(/.*/, ['\r\nERROR\r\n']);
+        const engine = new AtEngine(t);
+        const s = new Scanner(engine, {});
+        await s.runAuto();
+        engine.dispose();
+        const shared = redactReport(s.report);
+        const out = toJson(shared) + toMarkdown(shared);
+        for (const n of NEEDLES) expect(out).not.toContain(n);
+        expect(shared.items.find((i) => i.id === 'gmr')!.fields).toBeUndefined();
+      });
+    });
+
     test('a parser name matching an Object member gets no lines', () => {
       const r = redactReport(report([item('x', 'AT+X', ['+X: 1'], 'constructor')]));
       expect(r.items[0].lines).toBeUndefined();
