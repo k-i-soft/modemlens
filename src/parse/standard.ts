@@ -219,16 +219,16 @@ const cesq: Parser = (r) => {
   // 3GPP TS 27.007 lower-bound mappings:
   //   rsrp_dbm = -141 + n   (n in 0..97, 255 = unknown)
   //   rsrq_db  = -20 + n/2  (n in 0..34, 255 = unknown)
-  // The other three follow the same scheme (rxlev -110+n, rscp -120+n, ecno -24+n/2).
+  // The other three follow the same scheme (rxlev -111+n, rscp -121+n, ecno -24.5+n/2).
   const add = (i: number, key: string, label: string, max: number, conv: (n: number) => number): void => {
     const n = num(i);
     if (n === undefined) return;
     out.push(field(key, label, n >= 0 && n <= max ? String(conv(n)) : 'unknown'));
   };
-  add(0, 'rxlev_dbm', 'RxLev (dBm)', 63, n => -110 + n);
+  add(0, 'rxlev_dbm', 'RxLev (dBm)', 63, n => -111 + n);
   add(1, 'ber', 'Bit error rate', 7, n => n);
-  add(2, 'rscp_dbm', 'RSCP (dBm)', 96, n => -120 + n);
-  add(3, 'ecno_db', 'Ec/No (dB)', 49, n => -24 + n / 2);
+  add(2, 'rscp_dbm', 'RSCP (dBm)', 96, n => -121 + n);
+  add(3, 'ecno_db', 'Ec/No (dB)', 49, n => -24.5 + n / 2);
   add(4, 'rsrq_db', 'RSRQ (dB)', 34, n => -20 + n / 2);
   add(5, 'rsrp_dbm', 'RSRP (dBm)', 97, n => -141 + n);
   return out;

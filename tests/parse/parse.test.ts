@@ -93,6 +93,13 @@ describe('parseResponse', () => {
     expect(val('cesq', ['+CESQ: 99,99,255,255,255,255'], 'rsrp_dbm')).toBe('unknown');
   });
 
+  test('cesq rxlev, rscp, ecno use the lower bound', () => {
+    const f = parseResponse('cesq', ok(['+CESQ: 40,99,60,20,255,255']))!;
+    expect(f).toContainEqual(expect.objectContaining({ key: 'rxlev_dbm', value: '-71' }));
+    expect(f).toContainEqual(expect.objectContaining({ key: 'rscp_dbm', value: '-61' }));
+    expect(f).toContainEqual(expect.objectContaining({ key: 'ecno_db', value: '-14.5' }));
+  });
+
   test('data contexts mark addresses as ip', () => {
     const f = parseResponse('cgdcont', ok(['+CGDCONT: 1,"IPV4V6","internet","10.1.2.3",0,0', '+CGDCONT: 2,"IP","ims"']))!;
     expect(f).toContainEqual(expect.objectContaining({ key: 'ctx1_apn', value: 'internet', sensitive: 'none' }));
