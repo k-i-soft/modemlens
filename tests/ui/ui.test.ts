@@ -13,7 +13,9 @@ import SummaryCard from '../../src/ui/SummaryCard.vue';
 import TerminalPane from '../../src/ui/TerminalPane.vue';
 import { FakeTransport } from '../helpers/fakeTransport';
 import { AtEngine } from '../../src/at/engine';
+import { PickerCancelledError } from '../../src/transport/types';
 import type { Transport } from '../../src/transport/types';
+import { NoAtChannelError } from '../../src/transport/webUsb';
 import { createDemoTransport } from '../../src/ui/demo';
 import type { DemoTransport } from '../../src/ui/demo';
 import { downloadText } from '../../src/ui/download';
@@ -90,7 +92,113 @@ describe('ConnectBar', () => {
     const w = mount(ConnectBar, { props: { connectors: { serial, usb: connectors().usb }, beforeOpen } });
     await btn(w, 'Serial port')!.trigger('click');
     await flushPromises();
-    expect(serial).toHaveBeenCalledWith({ beforeOpen });
+    expect(serial).toHaveBeenCalledWith({ beforeOpen, baudRate: 115200 });
+  });
+
+  test('the speed selector goes to the serial connector', async () => {
+    const serial = vi.fn().mockResolvedValue(createDemoTransport({ delayMs: 0 }));
+    const w = mount(ConnectBar, { props: { connectors: { serial, usb: connectors().usb } } });
+    await w.find('select').setValue('9600');
+    await btn(w, 'Serial port')!.trigger('click');
+    await flushPromises();
+    expect(serial.mock.calls[0][0].baudRate).toBe(9600);
+  });
+
+  test('says how the modem appears in the browser picker', () => {
+    const w = mount(ConnectBar, { props: { connectors: connectors() } });
+    expect(w.text()).toContain('"Android"');
+    expect(w.text()).toContain('no name');
+  });
+
+  test('a cancelled picker shows no error', async () => {
+    const w = mount(ConnectBar, {
+      props: { connectors: { serial: () => Promise.reject(new PickerCancelledError()), usb: connectors().usb } },
+    });
+    await btn(w, 'Serial port')!.trigger('click');
+    await flushPromises();
+    expect(w.find('[role="alert"]').exists()).toBe(false);
+  });
+
+  test('offers previously permitted devices and passes them to the connector', async () => {
+    const port = { getInfo: () => ({ usbVendorId: 0x2c7c, usbProductId: 0x6005 }) };
+    const named = { productName: 'Android', vendorId: 0x2c7c, productId: 0x6005 };
+    const unnamed = { productName: undefined, vendorId: 0x1234, productId: 0x00ab };
+    (navigator as any).serial = { getPorts: vi.fn().mockResolvedValue([port]) };
+    (navigator as any).usb = { getDevices: vi.fn().mockResolvedValue([named, unnamed]) };
+    const serial = vi.fn().mockResolvedValue(createDemoTransport({ delayMs: 0 }));
+    const usb = vi.fn().mockResolvedValue(createDemoTransport({ delayMs: 0 }));
+    const w = mount(ConnectBar, { props: { connectors: { serial, usb } } });
+    await flushPromises();
+    await btn(w, 'Serial: 2c7c:6005')!.trigger('click');
+    await flushPromises();
+    expect(serial.mock.calls[0][0].port).toBe(port);
+    await btn(w, 'USB: Android')!.trigger('click');
+    await flushPromises();
+    expect(usb.mock.calls[0][0].device).toBe(named);
+    await btn(w, 'USB: 1234:00ab')!.trigger('click');
+    await flushPromises();
+    expect(usb.mock.calls[1][0].device).toBe(unnamed);
+  });
+
+  test('no extra buttons when nothing was permitted before', async () => {
+    (navigator as any).serial = { getPorts: vi.fn().mockResolvedValue([]) };
+    (navigator as any).usb = { getDevices: vi.fn().mockResolvedValue([]) };
+    const w = mount(ConnectBar, { props: { connectors: connectors() } });
+    await flushPromises();
+    expect(w.findAll('button')).toHaveLength(2);
+  });
+
+  test('the list follows devices being plugged in, and stops listening on unmount', async () => {
+    const usbApi = Object.assign(new EventTarget(), { getDevices: vi.fn().mockResolvedValue([]) });
+    (navigator as any).usb = usbApi;
+    (navigator as any).serial = {};
+    const w = mount(ConnectBar, { props: { connectors: connectors() } });
+    await flushPromises();
+    usbApi.getDevices.mockResolvedValue([{ productName: 'Android', vendorId: 1, productId: 2 }]);
+    usbApi.dispatchEvent(new Event('connect'));
+    await flushPromises();
+    expect(btn(w, 'USB: Android')).toBeTruthy();
+    w.unmount();
+    const calls = usbApi.getDevices.mock.calls.length;
+    usbApi.dispatchEvent(new Event('connect'));
+    await flushPromises();
+    expect(usbApi.getDevices.mock.calls.length).toBe(calls);
+  });
+
+  test('shows which channel is being tried on an unknown modem', async () => {
+    let probe!: (i: number) => void;
+    const usb = vi.fn((opts: { onProbe?: (i: number) => void }) => {
+      probe = opts.onProbe!;
+      return new Promise<Transport>(() => {});
+    });
+    const w = mount(ConnectBar, { props: { connectors: { serial: connectors().serial, usb } } });
+    await btn(w, 'USB direct')!.trigger('click');
+    probe(2);
+    await flushPromises();
+    expect(w.text()).toContain('trying its channels');
+    expect(w.text()).toContain('interface 2');
+  });
+
+  test('a pending claim asks for a replug, on success and on failure', async () => {
+    const transport = Object.assign(createDemoTransport({ delayMs: 0 }), { hadPendingClaim: true });
+    const usb = vi.fn().mockResolvedValueOnce(transport).mockRejectedValueOnce(new NoAtChannelError('No AT channel found on this modem.', true));
+    const w = mount(ConnectBar, { props: { connectors: { serial: connectors().serial, usb } } });
+    await btn(w, 'USB direct')!.trigger('click');
+    await flushPromises();
+    expect(w.text()).toContain('replug the modem');
+    await btn(w, 'USB direct')!.trigger('click');
+    await flushPromises();
+    expect(w.text()).toContain('No AT channel found');
+    expect(w.text()).toContain('replug the modem');
+  });
+
+  test('no replug note after a clean connection', async () => {
+    const transport = Object.assign(createDemoTransport({ delayMs: 0 }), { hadPendingClaim: false });
+    const usb = vi.fn().mockResolvedValue(transport);
+    const w = mount(ConnectBar, { props: { connectors: { serial: connectors().serial, usb } } });
+    await btn(w, 'USB direct')!.trigger('click');
+    await flushPromises();
+    expect(w.text()).not.toContain('replug the modem');
   });
 
   test('connector failure is displayed', async () => {
@@ -191,12 +299,34 @@ describe('App', () => {
     for (const call of dl.mock.calls) expect(call[1]).not.toContain('QZZTERMTEST');
   });
 
-  test('without connectors the connect button shows a clear error', async () => {
+  test('without injected connectors the real ones are used, and a cancelled picker stays calm', async () => {
+    const requestPort = vi.fn().mockRejectedValue(new DOMException('No port selected', 'NotFoundError'));
+    (navigator as any).serial = { requestPort };
     const w = mount(App, { attachTo: document.body });
     wrappers.push(w);
     await btn(w, 'Serial port')!.trigger('click');
     await flushPromises();
-    expect(w.text()).toContain('not available yet');
+    expect(requestPort).toHaveBeenCalledTimes(1);
+    expect(w.find('[role="alert"]').exists()).toBe(false);
+  });
+
+  test('passes the USB id of the transport to the scan', async () => {
+    const make = () => Promise.resolve(Object.assign(createDemoTransport({ delayMs: 0 }), { usbId: '2c7c:6005' }));
+    const w = await scanned({ connectors: { serial: make, usb: make } });
+    expect(w.findComponent(SummaryCard).props('usb')).toBe('2c7c:6005');
+  });
+
+  test('a transport without a USB id leaves it out of the scan', async () => {
+    const w = await scanned();
+    expect(w.findComponent(SummaryCard).props('usb')).toBeUndefined();
+  });
+
+  test('help panel names the one interface for Zadig', () => {
+    const w = mount(HelpNoModem);
+    expect(w.text()).toContain('Mobile AT Interface');
+    expect(w.text()).toContain('interface 3');
+    expect(w.text()).toContain('Never pick the whole device');
+    expect(w.text()).toContain('"Android"');
   });
 
   test('donate hidden by default config, shown with url', async () => {

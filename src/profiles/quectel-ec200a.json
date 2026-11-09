@@ -8,6 +8,13 @@
     ],
     "modelPattern": "EC200A"
   },
+  "usb": {
+    "atInterface": 3,
+    "avoidInterfaces": [
+      2,
+      4
+    ]
+  },
   "commands": [
     {
       "id": "qccid",

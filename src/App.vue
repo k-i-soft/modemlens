@@ -14,6 +14,8 @@ import ScanDetails from './ui/ScanDetails.vue';
 import TerminalPane from './ui/TerminalPane.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
 import DonateLink from './ui/DonateLink.vue';
+import { connectSerial } from './transport/webSerial';
+import { connectUsb } from './transport/webUsb';
 import { createDemoTransport, DEMO_USB } from './ui/demo';
 import { downloadText } from './ui/download';
 
@@ -27,9 +29,6 @@ const props = withDefaults(
   { demo: false, demoDelayMs: 60, connectors: undefined, donateUrl: undefined },
 );
 
-const notYet: Connector = () =>
-  Promise.reject(new Error('This connection method is not available yet in this build.'));
-
 const connectors = computed<Connectors>(() => {
   if (props.connectors) return props.connectors;
   if (props.demo) {
@@ -39,7 +38,7 @@ const connectors = computed<Connectors>(() => {
     };
     return { serial: make, usb: make };
   }
-  return { serial: notYet, usb: notYet };
+  return { serial: connectSerial, usb: connectUsb };
 });
 
 const COPS_SCAN = STANDARD_CATALOG.find((e) => e.command === 'AT+COPS=?')!;
@@ -150,7 +149,8 @@ async function onConnected(t: Transport): Promise<void> {
     syncMeta();
     if (running.value) phase.value = 'finished';
   });
-  const s = new Scanner(engine, props.demo ? { usb: DEMO_USB } : {});
+  const usb = props.demo ? DEMO_USB : t.usbId;
+  const s = new Scanner(engine, usb ? { usb } : {});
   scanner = s;
   s.onItem((item) => {
     if (s !== scanner) return;
@@ -389,6 +389,7 @@ button:disabled {
 }
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
