@@ -1,0 +1,772 @@
+{
+ "startedAt": "2026-01-01T12:00:00.000Z",
+ "usb": "2c7c:6005",
+ "items": [
+  {
+   "id": "ati",
+   "command": "ATI",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "ATI",
+    "status": "ok",
+    "lines": [
+     "Quectel",
+     "EC200A",
+     "Revision: EC200AEUHAR01A30M16"
+    ],
+    "durationMs": 4
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "gmi",
+   "command": "AT+GMI",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+GMI",
+    "status": "ok",
+    "lines": [
+     "Quectel"
+    ],
+    "durationMs": 2
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "gmm",
+   "command": "AT+GMM",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+GMM",
+    "status": "ok",
+    "lines": [
+     "EC200A"
+    ],
+    "durationMs": 1
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "gmr",
+   "command": "AT+GMR",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+GMR",
+    "status": "ok",
+    "lines": [
+     "EC200AEUHAR01A30M16"
+    ],
+    "durationMs": 1
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "cgmi",
+   "command": "AT+CGMI",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+CGMI",
+    "status": "ok",
+    "lines": [
+     "Quectel"
+    ],
+    "durationMs": 1
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "cgmm",
+   "command": "AT+CGMM",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+CGMM",
+    "status": "ok",
+    "lines": [
+     "EC200A"
+    ],
+    "durationMs": 1
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "cgmr",
+   "command": "AT+CGMR",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+CGMR",
+    "status": "ok",
+    "lines": [
+     "EC200AEUHAR01A30M16"
+    ],
+    "durationMs": 1
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "cgsn",
+   "command": "AT+CGSN",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+CGSN",
+    "status": "ok",
+    "lines": [
+     "123456789012345"
+    ],
+    "durationMs": 6
+   },
+   "parser": "cgsn"
+  },
+  {
+   "id": "gsn",
+   "command": "AT+GSN",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+GSN",
+    "status": "ok",
+    "lines": [
+     "123456789012345"
+    ],
+    "durationMs": 1
+   },
+   "parser": "cgsn"
+  },
+  {
+   "id": "cpin",
+   "command": "AT+CPIN?",
+   "category": "sim",
+   "state": "done",
+   "response": {
+    "command": "AT+CPIN?",
+    "status": "ok",
+    "lines": [
+     "+CPIN: READY"
+    ],
+    "durationMs": 1
+   },
+   "parser": "cpin"
+  },
+  {
+   "id": "cimi",
+   "command": "AT+CIMI",
+   "category": "sim",
+   "state": "done",
+   "response": {
+    "command": "AT+CIMI",
+    "status": "ok",
+    "lines": [
+     "001010123456789"
+    ],
+    "durationMs": 1
+   },
+   "parser": "cimi"
+  },
+  {
+   "id": "crsm-iccid",
+   "command": "AT+CRSM=176,12258,0,0,10",
+   "category": "sim",
+   "state": "done",
+   "response": {
+    "command": "AT+CRSM=176,12258,0,0,10",
+    "status": "ok",
+    "lines": [
+     "+CRSM: 144,0,\"98000000000000000091\""
+    ],
+    "durationMs": 1
+   },
+   "parser": "crsm_iccid"
+  },
+  {
+   "id": "clck-sc",
+   "command": "AT+CLCK=\"SC\",2",
+   "category": "locks",
+   "state": "done",
+   "response": {
+    "command": "AT+CLCK=\"SC\",2",
+    "status": "ok",
+    "lines": [
+     "+CLCK: 0"
+    ],
+    "durationMs": 1
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-pn",
+   "command": "AT+CLCK=\"PN\",2",
+   "category": "locks",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLCK=\"PN\",2",
+    "status": "cme_error",
+    "lines": [],
+    "durationMs": 2,
+    "errorDetail": "100"
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-pu",
+   "command": "AT+CLCK=\"PU\",2",
+   "category": "locks",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLCK=\"PU\",2",
+    "status": "cme_error",
+    "lines": [],
+    "durationMs": 1,
+    "errorDetail": "100"
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-pp",
+   "command": "AT+CLCK=\"PP\",2",
+   "category": "locks",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLCK=\"PP\",2",
+    "status": "cme_error",
+    "lines": [],
+    "durationMs": 2,
+    "errorDetail": "100"
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-ps",
+   "command": "AT+CLCK=\"PS\",2",
+   "category": "locks",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLCK=\"PS\",2",
+    "status": "cme_error",
+    "lines": [],
+    "durationMs": 6,
+    "errorDetail": "100"
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-pf",
+   "command": "AT+CLCK=\"PF\",2",
+   "category": "locks",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLCK=\"PF\",2",
+    "status": "cme_error",
+    "lines": [],
+    "durationMs": 1,
+    "errorDetail": "50"
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "cops",
+   "command": "AT+COPS?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+COPS?",
+    "status": "ok",
+    "lines": [
+     "+COPS: 0,0,\"Demo Mobile\",7"
+    ],
+    "durationMs": 1
+   },
+   "parser": "cops"
+  },
+  {
+   "id": "creg",
+   "command": "AT+CREG?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+CREG?",
+    "status": "ok",
+    "lines": [
+     "+CREG: 0,1"
+    ],
+    "durationMs": 2
+   },
+   "parser": "creg"
+  },
+  {
+   "id": "cgreg",
+   "command": "AT+CGREG?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+CGREG?",
+    "status": "ok",
+    "lines": [
+     "+CGREG: 0,1"
+    ],
+    "durationMs": 1
+   },
+   "parser": "creg"
+  },
+  {
+   "id": "cereg",
+   "command": "AT+CEREG?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+CEREG?",
+    "status": "ok",
+    "lines": [
+     "+CEREG: 0,1"
+    ],
+    "durationMs": 1
+   },
+   "parser": "creg"
+  },
+  {
+   "id": "c5greg",
+   "command": "AT+C5GREG?",
+   "category": "network",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+C5GREG?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 1
+   },
+   "parser": "creg"
+  },
+  {
+   "id": "csq",
+   "command": "AT+CSQ",
+   "category": "signal",
+   "state": "done",
+   "response": {
+    "command": "AT+CSQ",
+    "status": "ok",
+    "lines": [
+     "+CSQ: 23,99"
+    ],
+    "durationMs": 1
+   },
+   "parser": "csq"
+  },
+  {
+   "id": "cesq",
+   "command": "AT+CESQ",
+   "category": "signal",
+   "state": "done",
+   "response": {
+    "command": "AT+CESQ",
+    "status": "ok",
+    "lines": [
+     "+CESQ: 42,99,255,255,25,44"
+    ],
+    "durationMs": 1
+   },
+   "parser": "cesq"
+  },
+  {
+   "id": "cgdcont",
+   "command": "AT+CGDCONT?",
+   "category": "data",
+   "state": "done",
+   "response": {
+    "command": "AT+CGDCONT?",
+    "status": "ok",
+    "lines": [
+     "+CGDCONT: 1,\"IP\",\"internet\",\"0.0.0.0\",0,0,0,0,0,0",
+     "+CGDCONT: 8,\"IPV4V6\",\"IMS\",\"0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0\",0,0,0,0,1,1"
+    ],
+    "durationMs": 9
+   },
+   "parser": "cgdcont"
+  },
+  {
+   "id": "cgact",
+   "command": "AT+CGACT?",
+   "category": "data",
+   "state": "done",
+   "response": {
+    "command": "AT+CGACT?",
+    "status": "ok",
+    "lines": [
+     "+CGACT: 1,1",
+     "+CGACT: 8,1"
+    ],
+    "durationMs": 2
+   },
+   "parser": "cgact"
+  },
+  {
+   "id": "cgatt",
+   "command": "AT+CGATT?",
+   "category": "data",
+   "state": "done",
+   "response": {
+    "command": "AT+CGATT?",
+    "status": "ok",
+    "lines": [
+     "+CGATT: 1"
+    ],
+    "durationMs": 1
+   },
+   "parser": "cgatt"
+  },
+  {
+   "id": "cgpaddr",
+   "command": "AT+CGPADDR",
+   "category": "data",
+   "state": "done",
+   "response": {
+    "command": "AT+CGPADDR",
+    "status": "ok",
+    "lines": [
+     "+CGPADDR: 1,\"10.0.0.2\"",
+     "+CGPADDR: 8,\"10.0.0.3\""
+    ],
+    "durationMs": 2
+   },
+   "parser": "cgpaddr"
+  },
+  {
+   "id": "clcc-test",
+   "command": "AT+CLCC=?",
+   "category": "voice",
+   "state": "done",
+   "response": {
+    "command": "AT+CLCC=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 18
+   }
+  },
+  {
+   "id": "clvl",
+   "command": "AT+CLVL?",
+   "category": "voice",
+   "state": "done",
+   "response": {
+    "command": "AT+CLVL?",
+    "status": "ok",
+    "lines": [
+     "+CLVL: 3"
+    ],
+    "durationMs": 1
+   },
+   "parser": "clvl"
+  },
+  {
+   "id": "crsl",
+   "command": "AT+CRSL?",
+   "category": "voice",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CRSL?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "calm",
+   "command": "AT+CALM?",
+   "category": "voice",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CALM?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "clip",
+   "command": "AT+CLIP?",
+   "category": "voice",
+   "state": "done",
+   "response": {
+    "command": "AT+CLIP?",
+    "status": "ok",
+    "lines": [
+     "+CLIP: 0,2"
+    ],
+    "durationMs": 31
+   },
+   "parser": "clip"
+  },
+  {
+   "id": "cfun",
+   "command": "AT+CFUN?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CFUN?",
+    "status": "ok",
+    "lines": [
+     "+CFUN: 1"
+    ],
+    "durationMs": 2
+   },
+   "parser": "cfun"
+  },
+  {
+   "id": "cmee",
+   "command": "AT+CMEE?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CMEE?",
+    "status": "ok",
+    "lines": [
+     "+CMEE: 1"
+    ],
+    "durationMs": 1
+   },
+   "parser": "cmee"
+  },
+  {
+   "id": "cscs",
+   "command": "AT+CSCS?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CSCS?",
+    "status": "ok",
+    "lines": [
+     "+CSCS: \"GSM\""
+    ],
+    "durationMs": 1
+   },
+   "parser": "cscs"
+  },
+  {
+   "id": "cclk",
+   "command": "AT+CCLK?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CCLK?",
+    "status": "ok",
+    "lines": [
+     "+CCLK: \"26/11/09,18:32:15+04\""
+    ],
+    "durationMs": 3
+   },
+   "parser": "cclk"
+  },
+  {
+   "id": "ctzu",
+   "command": "AT+CTZU?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CTZU?",
+    "status": "ok",
+    "lines": [
+     "+CTZU: 1"
+    ],
+    "durationMs": 1
+   },
+   "parser": "ctzu"
+  },
+  {
+   "id": "csca",
+   "command": "AT+CSCA?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CSCA?",
+    "status": "ok",
+    "lines": [
+     "+CSCA: \"+10000000000\",145"
+    ],
+    "durationMs": 1
+   },
+   "parser": "csca"
+  },
+  {
+   "id": "qccid",
+   "command": "AT+QCCID",
+   "category": "sim",
+   "state": "done",
+   "response": {
+    "command": "AT+QCCID",
+    "status": "ok",
+    "lines": [
+     "+QCCID: 89000000000000000019"
+    ],
+    "durationMs": 1
+   },
+   "parser": "qccid"
+  },
+  {
+   "id": "qspn",
+   "command": "AT+QSPN",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+QSPN",
+    "status": "ok",
+    "lines": [
+     "+QSPN: \"Demo Mobile\",\"Demo Mobile\",\"Demo Mobile\",0,\"00101\""
+    ],
+    "durationMs": 2
+   },
+   "parser": "qspn"
+  },
+  {
+   "id": "qnwinfo",
+   "command": "AT+QNWINFO",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+QNWINFO",
+    "status": "ok",
+    "lines": [
+     "+QNWINFO: \"FDD LTE\",\"00101\",\"LTE BAND 7\",2850"
+    ],
+    "durationMs": 3
+   },
+   "parser": "qnwinfo"
+  },
+  {
+   "id": "qeng-serving",
+   "command": "AT+QENG=\"servingcell\"",
+   "category": "signal",
+   "state": "done",
+   "response": {
+    "command": "AT+QENG=\"servingcell\"",
+    "status": "ok",
+    "lines": [
+     "+QENG: \"servingcell\",\"NOCONN\",\"LTE\",\"FDD\",001,01,0ABCDE,123,2850,7,5,5,FACE,-94,-7,-67,15,33"
+    ],
+    "durationMs": 3
+   },
+   "parser": "qeng_serving"
+  },
+  {
+   "id": "qeng-neighbour",
+   "command": "AT+QENG=\"neighbourcell\"",
+   "category": "signal",
+   "state": "done",
+   "response": {
+    "command": "AT+QENG=\"neighbourcell\"",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 3
+   },
+   "parser": "qeng_neighbour"
+  },
+  {
+   "id": "qcsq",
+   "command": "AT+QCSQ",
+   "category": "signal",
+   "state": "done",
+   "response": {
+    "command": "AT+QCSQ",
+    "status": "ok",
+    "lines": [
+     "+QCSQ: \"LTE\",68,-96,180,-8"
+    ],
+    "durationMs": 1
+   },
+   "parser": "qcsq"
+  },
+  {
+   "id": "qtemp",
+   "command": "AT+QTEMP",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+QTEMP",
+    "status": "ok",
+    "lines": [
+     "+QTEMP: 29,255,255"
+    ],
+    "durationMs": 146
+   },
+   "parser": "qtemp"
+  },
+  {
+   "id": "qcfg-usbnet",
+   "command": "AT+QCFG=\"usbnet\"",
+   "category": "usbmode",
+   "state": "done",
+   "response": {
+    "command": "AT+QCFG=\"usbnet\"",
+    "status": "ok",
+    "lines": [
+     "+QCFG: \"usbnet\",1"
+    ],
+    "durationMs": 1
+   },
+   "parser": "qcfg"
+  },
+  {
+   "id": "qcfg-band",
+   "command": "AT+QCFG=\"band\"",
+   "category": "bands",
+   "state": "done",
+   "response": {
+    "command": "AT+QCFG=\"band\"",
+    "status": "ok",
+    "lines": [
+     "+QCFG: \"band\",0xd3,0x1a0080800d5"
+    ],
+    "durationMs": 1
+   },
+   "parser": "qcfg"
+  },
+  {
+   "id": "qpinc",
+   "command": "AT+QPINC?",
+   "category": "locks",
+   "state": "done",
+   "response": {
+    "command": "AT+QPINC?",
+    "status": "ok",
+    "lines": [
+     "+QPINC: \"SC\",3,10",
+     "+QPINC: \"P2\",3,10"
+    ],
+    "durationMs": 2
+   },
+   "parser": "qpinc"
+  },
+  {
+   "id": "qgmr",
+   "command": "AT+QGMR",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+QGMR",
+    "status": "ok",
+    "lines": [
+     "EC200AEUHAR01A30M16_01.300.01.300"
+    ],
+    "durationMs": 1
+   },
+   "parser": "qgmr"
+  },
+  {
+   "id": "clac",
+   "command": "AT+CLAC",
+   "category": "other",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLAC",
+    "status": "error",
+    "lines": [],
+    "durationMs": 1
+   }
+  }
+ ],
+ "commandList": []
+}

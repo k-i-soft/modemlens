@@ -7,7 +7,8 @@ test('matches by model', () => expect(matchProfile({ model: 'EC25EUFAR' })?.id).
 test.each([['EC200A', 'quectel-ec200a'], ['EG800', 'quectel-eg800'], ['EG800Q-EU', 'quectel-eg800']])('model %s', (m, id) =>
   expect(matchProfile({ model: m })?.id).toBe(id));
 test('unknown', () => expect(matchProfile({ usb: 'dead:beef' })).toBeUndefined());
-test('all starter profiles unverified', () => expect(PROFILES.every(p => p.verified === false)).toBe(true));
+test('the remaining starter profiles are unverified', () =>
+  expect(PROFILES.filter(p => p.id !== 'quectel-ec200a').every(p => p.verified === false)).toBe(true));
 
 // same read-only invariant as the standard catalog, plus the Quectel read forms
 test('every auto profile command is a read form', () => {

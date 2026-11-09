@@ -1,7 +1,7 @@
 {
   "id": "quectel-ec200a",
   "label": "Quectel EC200A",
-  "verified": false,
+  "verified": true,
   "match": {
     "usb": [
       "2c7c:6005"
