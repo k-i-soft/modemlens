@@ -5,3 +5,7 @@ dist/
 .DS_Store
 *.log
 coverage/
+
+# Internal material, never published
+docs/superpowers/
+spike/
