@@ -555,7 +555,7 @@
     "command": "AT+CCLK?",
     "status": "ok",
     "lines": [
-     "+CCLK: \"26/11/09,18:32:15+04\""
+     "+CCLK: \"26/01/01,12:00:00+00\""
     ],
     "durationMs": 3
    },
