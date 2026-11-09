@@ -17,6 +17,21 @@ afterEach(() => {
 });
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
+const ESC = '\x1b';
+
+/** Fails or stalls chosen writes; every other write behaves like FakeTransport. */
+class FlakyTransport extends FakeTransport {
+  private calls = 0;
+  constructor(private readonly how: (call: number) => 'ok' | 'hang' | 'reject') {
+    super();
+  }
+  override write(data: Uint8Array): Promise<void> {
+    const how = this.how(++this.calls);
+    if (how === 'hang') return new Promise<void>(() => {});
+    if (how === 'reject') return Promise.reject(new Error('device lost'));
+    return super.write(data);
+  }
+}
 
 describe('AtEngine', () => {
   test('resolves ok across chunked input', async () => {
@@ -167,5 +182,158 @@ describe('AtEngine', () => {
     t.emit('\r\nRDY\r\n');
     await vi.advanceTimersByTimeAsync(10_000);
     expect(t.written).toEqual([]);
+  });
+
+  test.each(['BUSY', 'NO ANSWER', 'NO DIALTONE'])('maps %s to error with detail', async (word) => {
+    t.reply('ATD1', [`\r\n${word}\r\n`]);
+    const r = await engine.send('ATD1');
+    expect(r.status).toBe('error');
+    expect(r.errorDetail).toBe(word);
+  });
+
+  describe('write failures', () => {
+    test('a stalled write ends the session at the timeout instead of wedging the engine', async () => {
+      const hung = new FlakyTransport(() => 'hang');
+      const e = new AtEngine(hung);
+      const reasons: string[] = [];
+      e.onDisconnect((r) => reasons.push(r));
+      const a = e.send('AT+A', { timeoutMs: 1000 });
+      const b = e.send('AT+B');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await a).toMatchObject({ status: 'disconnected', errorDetail: 'write stalled' });
+      expect((await b).status).toBe('disconnected');
+      expect((await e.send('AT+C')).status).toBe('disconnected');
+      expect(reasons).toEqual(['write stalled']);
+      e.dispose();
+    });
+
+    test('a rejected write marks the transport as gone', async () => {
+      const bad = new FlakyTransport(() => 'reject');
+      const e = new AtEngine(bad);
+      const reasons: string[] = [];
+      e.onDisconnect((r) => reasons.push(r));
+      const r = await e.send('AT+A');
+      expect(r).toMatchObject({ status: 'disconnected', errorDetail: 'device lost' });
+      expect(reasons).toEqual(['device lost']);
+      expect((await e.send('AT+B')).status).toBe('disconnected');
+      e.dispose();
+    });
+
+    test('a write that throws synchronously is a disconnect, not an exception', async () => {
+      const bad = new FakeTransport();
+      bad.write = () => {
+        throw new Error('sync failure');
+      };
+      const e = new AtEngine(bad);
+      expect(await e.send('AT+A')).toMatchObject({ status: 'disconnected', errorDetail: 'sync failure' });
+      e.dispose();
+    });
+
+    test('a rejected body write marks the transport as gone', async () => {
+      const bad = new FlakyTransport((n) => (n === 2 ? 'reject' : 'ok'));
+      bad.reply('AT+CMGS=5', ['\r\n> ']);
+      const e = new AtEngine(bad);
+      const reasons: string[] = [];
+      e.onDisconnect((r) => reasons.push(r));
+      const r = await e.send('AT+CMGS=5', { body: 'hello' });
+      expect(r).toMatchObject({ status: 'disconnected', errorDetail: 'device lost' });
+      expect(reasons).toEqual(['device lost']);
+      e.dispose();
+    });
+
+    test('a stalled body write ends the session at the timeout', async () => {
+      const bad = new FlakyTransport((n) => (n === 2 ? 'hang' : 'ok'));
+      bad.reply('AT+CMGS=5', ['\r\n> ']);
+      const e = new AtEngine(bad);
+      const p = e.send('AT+CMGS=5', { body: 'hello', timeoutMs: 1000 });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await p).toMatchObject({ status: 'disconnected', errorDetail: 'write stalled' });
+      e.dispose();
+    });
+  });
+
+  describe('quiet period', () => {
+    const timeOutFirst = async () => {
+      const a = engine.send('AT+A', { timeoutMs: 100 });
+      await vi.advanceTimersByTimeAsync(100);
+      expect((await a).status).toBe('timeout');
+    };
+
+    test('data restarts the quiet timer', async () => {
+      await timeOutFirst();
+      void engine.send('AT+B');
+      await vi.advanceTimersByTimeAsync(200);
+      t.emit('+QIND: x\r\n');
+      await vi.advanceTimersByTimeAsync(299);
+      expect(t.written).toEqual(['AT+A\r']);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(t.written).toEqual(['AT+A\r', 'AT+B\r']);
+    });
+
+    test('a chatty modem cannot extend the quiet period past 2000 ms', async () => {
+      await timeOutFirst();
+      void engine.send('AT+B');
+      for (let i = 0; i < 9; i++) {
+        await vi.advanceTimersByTimeAsync(200);
+        t.emit('+QIND: x\r\n');
+      }
+      await vi.advanceTimersByTimeAsync(199);
+      expect(t.written).toEqual(['AT+A\r']);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(t.written).toEqual(['AT+A\r', 'AT+B\r']);
+    });
+  });
+
+  test('an endless line is discarded at 64 KiB', async () => {
+    const urcs: string[] = [];
+    engine.onUrc((l) => urcs.push(l));
+    t.emit('x'.repeat(64 * 1024 + 1));
+    t.emit('+CREG: 1\r\n');
+    expect(urcs).toEqual(['+CREG: 1']);
+  });
+
+  describe('cancelling an open > prompt', () => {
+    const terminal = { timeoutMs: 1000, cancelPromptOnTimeout: true };
+
+    test('a terminal command left at the prompt is cancelled on timeout', async () => {
+      t.reply('AT+CMGS="1"', ['\r\n> ']);
+      const r = await (async () => {
+        const p = engine.send('AT+CMGS="1"', terminal);
+        await vi.advanceTimersByTimeAsync(1000);
+        return p;
+      })();
+      expect(r.status).toBe('timeout');
+      expect(t.written).toEqual(['AT+CMGS="1"\r', ESC]);
+    });
+
+    test('nothing is cancelled unless the caller asked for it', async () => {
+      t.reply('AT+CMGS="1"', ['\r\n> ']);
+      const p = engine.send('AT+CMGS="1"', { timeoutMs: 1000 });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect((await p).status).toBe('timeout');
+      expect(t.written).toEqual(['AT+CMGS="1"\r']);
+    });
+
+    test('no cancel without a prompt', async () => {
+      const p = engine.send('AT+SLOW', terminal);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect((await p).status).toBe('timeout');
+      expect(t.written).toEqual(['AT+SLOW\r']);
+    });
+
+    test('no cancel once the body went out', async () => {
+      t.reply('AT+CMGS=5', ['\r\n> ']);
+      const p = engine.send('AT+CMGS=5', { ...terminal, body: 'hello' });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect((await p).status).toBe('timeout');
+      expect(t.written).toEqual(['AT+CMGS=5\r', 'hello\x1a']);
+    });
+
+    test('a response that completes normally is not cancelled', async () => {
+      t.reply('AT+X', ['\r\n> \r\nOK\r\n']);
+      expect((await engine.send('AT+X', terminal)).status).toBe('ok');
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(t.written).toEqual(['AT+X\r']);
+    });
   });
 });

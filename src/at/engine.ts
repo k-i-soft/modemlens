@@ -17,7 +17,12 @@ const URC_PREFIXES = [
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_QUIET_AFTER_TIMEOUT_MS = 300;
+/** A modem that never stops talking must not hold queued commands back for longer than this. */
+const MAX_QUIET_MS = 2000;
+/** A partial line longer than this is noise, not a response. */
+const MAX_LINE_BUFFER = 64 * 1024;
 const CTRL_Z = '\x1a';
+const ESC = '\x1b';
 
 interface Terminal {
   status: AtStatus;
@@ -52,11 +57,23 @@ function encode(text: string): Uint8Array {
   return out;
 }
 
+export interface SendOptions {
+  timeoutMs?: number;
+  /** Text sent after the modem's "> " prompt, followed by Ctrl+Z. */
+  body?: string;
+  /** Only for commands a user typed: on timeout, leave an open "> " prompt with ESC. */
+  cancelPromptOnTimeout?: boolean;
+}
+
 interface Active {
   command: string;
   prefix: string;
   body?: string;
   bodySent: boolean;
+  cancelPrompt: boolean;
+  promptOpen: boolean;
+  /** Writes handed to the transport that have not settled yet. */
+  pendingWrites: number;
   lines: string[];
   startedAt: number;
   timeoutMs: number;
@@ -67,13 +84,18 @@ interface Active {
 
 interface Queued {
   command: string;
-  opts: { timeoutMs?: number; body?: string };
+  opts: SendOptions;
   resolve: (r: AtResponse) => void;
 }
 
 /**
  * Sequential AT command engine. It only ever writes what `send()` is told to:
  * no initialisation, no echo switching, nothing on its own.
+ *
+ * The single exception is one ESC byte, sent when a command with
+ * `cancelPromptOnTimeout` timed out at a "> " prompt, because every later
+ * command would otherwise become message text. Only the terminal sets that
+ * option, so the scans can never cause this byte.
  */
 export class AtEngine {
   private readonly defaultTimeoutMs: number;
@@ -83,6 +105,7 @@ export class AtEngine {
   private buffer = '';
   private quiet = false;
   private quietTimer: ReturnType<typeof setTimeout> | null = null;
+  private quietDeadline = 0;
   private pumping = false;
   private gone = false;
   private urcCbs: Array<(line: string) => void> = [];
@@ -98,7 +121,7 @@ export class AtEngine {
     transport.onDisconnect((reason) => this.handleDisconnect(reason));
   }
 
-  send(command: string, opts: { timeoutMs?: number; body?: string } = {}): Promise<AtResponse> {
+  send(command: string, opts: SendOptions = {}): Promise<AtResponse> {
     return new Promise((resolve) => {
       if (this.gone) {
         resolve({ command, status: 'disconnected', lines: [], durationMs: 0 });
@@ -138,7 +161,8 @@ export class AtEngine {
     }
   }
 
-  private async start(q: Queued): Promise<void> {
+  /** Resolves when the command is finished. A write that never settles cannot hold it up. */
+  private start(q: Queued): Promise<void> {
     const timeoutMs = q.opts.timeoutMs ?? this.defaultTimeoutMs;
     this.buffer = '';
     let done!: () => void;
@@ -148,6 +172,9 @@ export class AtEngine {
       prefix: ownPrefix(q.command),
       body: q.opts.body,
       bodySent: false,
+      cancelPrompt: q.opts.cancelPromptOnTimeout === true,
+      promptOpen: false,
+      pendingWrites: 0,
       lines: [],
       startedAt: Date.now(),
       timeoutMs,
@@ -156,13 +183,25 @@ export class AtEngine {
       timer: setTimeout(() => this.onTimeout(active), timeoutMs),
     };
     this.active = active;
+    this.write(`${q.command}\r`, active);
+    return finished;
+  }
+
+  /** Never waits for the transport. Any write failure means the connection is gone. */
+  private write(text: string, a?: Active): void {
+    if (a) a.pendingWrites++;
+    const settled = (): void => {
+      if (a) a.pendingWrites--;
+    };
+    const failed = (e: unknown): void => {
+      settled();
+      this.handleDisconnect(e instanceof Error ? e.message : String(e));
+    };
     try {
-      await this.transport.write(encode(`${q.command}\r`));
+      this.transport.write(encode(text)).then(settled, failed);
     } catch (e) {
-      if (this.active === active) this.complete(active, 'disconnected', e instanceof Error ? e.message : String(e));
+      failed(e);
     }
-    // Wait until this command is finished before the pump continues.
-    await finished;
   }
 
   private complete(a: Active, status: AtStatus, errorDetail?: string): void {
@@ -182,24 +221,33 @@ export class AtEngine {
 
   private onTimeout(a: Active): void {
     if (this.active !== a) return;
+    if (a.pendingWrites > 0) {
+      this.handleDisconnect('write stalled');
+      return;
+    }
     this.buffer = '';
     this.complete(a, 'timeout');
     this.enterQuiet();
+    if (a.promptOpen) this.write(ESC);
   }
 
   private enterQuiet(): void {
     this.quiet = true;
+    this.quietDeadline = Date.now() + MAX_QUIET_MS;
     this.restartQuietTimer();
   }
 
   private restartQuietTimer(): void {
+    const remaining = this.quietDeadline - Date.now();
+    // At the deadline the running timer is due: replacing it could starve it under a flood of data.
+    if (remaining <= 0 && this.quietTimer) return;
     if (this.quietTimer) clearTimeout(this.quietTimer);
     this.quietTimer = setTimeout(() => {
       this.quietTimer = null;
       this.quiet = false;
       this.buffer = '';
       void this.pump();
-    }, this.quietMs);
+    }, Math.min(this.quietMs, Math.max(0, remaining)));
   }
 
   private clearQuiet(): void {
@@ -239,6 +287,7 @@ export class AtEngine {
     this.buffer += text;
     const parts = this.buffer.split(/[\r\n]/);
     this.buffer = parts.pop() ?? '';
+    if (this.buffer.length > MAX_LINE_BUFFER) this.buffer = '';
     for (const raw of parts) {
       const line = raw.trim();
       if (line === '') continue;
@@ -249,12 +298,14 @@ export class AtEngine {
 
   private checkPrompt(): void {
     const a = this.active;
-    if (!a || a.body === undefined || a.bodySent) return;
-    if (this.buffer.trim() === '>') {
-      a.bodySent = true;
-      this.buffer = '';
-      this.transport.write(encode(a.body + CTRL_Z)).catch(() => {});
+    if (!a || a.bodySent || this.buffer.trim() !== '>') return;
+    if (a.body === undefined) {
+      a.promptOpen = a.cancelPrompt;
+      return;
     }
+    a.bodySent = true;
+    this.buffer = '';
+    this.write(a.body + CTRL_Z, a);
   }
 
   private handleLine(line: string): void {
