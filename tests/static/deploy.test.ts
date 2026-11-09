@@ -18,6 +18,21 @@ describe('deploy script', () => {
     expect(code).not.toMatch(/contains\(DomainName/);
   });
 
+  test('the service worker is left out of the bulk upload and goes up last', () => {
+    const bulk = /s3 cp "\$DIST_DIR" [\s\S]*?--cache-control/.exec(code)![0];
+    expect(bulk).toContain('--exclude "sw.js"');
+    const uploads = [...code.matchAll(/aws_cmd s3 (?:cp|sync) "\$DIST_DIR[^"]*"/g)].map((m) => m[0]);
+    expect(uploads.at(-1)).toContain('/sw.js"');
+    expect(uploads.filter((u) => u.includes('/sw.js"'))).toHaveLength(1);
+  });
+
+  test('refuses to build from a dirty tree', () => {
+    const check = /git -C "\$PROJECT_ROOT" status --porcelain/.exec(code);
+    expect(check).not.toBeNull();
+    expect(check!.index).toBeLessThan(code.indexOf('npm run build'));
+    expect(code).toMatch(/uncommitted changes[\s\S]*?exit 1/);
+  });
+
   test('refuses an origin of the default behaviour that is not S3', () => {
     expect(code.indexOf('is not an S3 origin')).toBeGreaterThan(code.indexOf('DefaultCacheBehavior.TargetOriginId'));
     expect(code.indexOf('is not an S3 origin')).toBeLessThan(code.indexOf('BUCKET_NAME='));

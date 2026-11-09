@@ -29,6 +29,14 @@ aws_cmd() {
   aws --profile "$DEPLOY_AWS_PROFILE" --region "$DEPLOY_AWS_REGION" "$@"
 }
 
+# The footer shows the build's commit, which a build from a dirty tree would not truthfully be.
+TREE_STATE=$(git -C "$PROJECT_ROOT" status --porcelain)
+if [[ -n "$TREE_STATE" ]]; then
+  echo "The working tree has uncommitted changes. Commit or stash them before deploying:" >&2
+  echo "$TREE_STATE" >&2
+  exit 1
+fi
+
 echo "Building..."
 ( cd "$PROJECT_ROOT" && npm run build )
 
@@ -66,12 +74,13 @@ aws_cmd s3 sync "$DIST_DIR/assets" "s3://$BUCKET_NAME/assets" \
   --exclude ".DS_Store" \
   --cache-control "public, max-age=31536000, immutable"
 
-# 2. Everything else (HTML, service worker, manifest, workbox runtime, icons): always revalidate,
+# 2. Everything else (HTML, manifest, workbox runtime, icons): always revalidate,
 #    otherwise an installed app can stay on an old version. cp rewrites the header even for
 #    unchanged files.
 aws_cmd s3 cp "$DIST_DIR" "s3://$BUCKET_NAME" \
   --recursive \
   --exclude "assets/*" \
+  --exclude "sw.js" \
   --exclude ".DS_Store" \
   --exclude "**/.DS_Store" \
   --cache-control "no-cache"
@@ -80,6 +89,9 @@ aws_cmd s3 cp "$DIST_DIR" "s3://$BUCKET_NAME" \
 aws_cmd s3 cp "$DIST_DIR/manifest.webmanifest" "s3://$BUCKET_NAME/manifest.webmanifest" \
   --content-type "application/manifest+json" \
   --cache-control "no-cache"
+
+# 4. The service worker goes last: an installed app must not pick up a new worker
+#    while the files it lists are still being uploaded.
 aws_cmd s3 cp "$DIST_DIR/sw.js" "s3://$BUCKET_NAME/sw.js" \
   --content-type "text/javascript; charset=utf-8" \
   --cache-control "no-cache"
