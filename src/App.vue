@@ -19,6 +19,7 @@ import TerminalPane from './ui/TerminalPane.vue';
 import ActionsPanel from './ui/ActionsPanel.vue';
 import AutoRefresh from './ui/AutoRefresh.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
+import LandingContent from './ui/LandingContent.vue';
 import DonateLink from './ui/DonateLink.vue';
 import { connectSerial } from './transport/webSerial';
 import { connectUsb } from './transport/webUsb';
@@ -27,7 +28,7 @@ import ImportCapture from './ui/ImportCapture.vue';
 import { importWebCapture } from './web/importReport';
 import { downloadText } from './ui/download';
 import { buildDashboard } from './ui/dashboard';
-import { DONATE_URL } from './config';
+import { COMPANY_IMPRINT_URL, COMPANY_PRIVACY_URL, COMPANY_URL, DONATE_URL } from './config';
 import { LiveSignal } from './ui/liveSignal';
 import { StatusRefresher, mergeOverlay, refreshEntries } from './ui/statusRefresh';
 import type { Overlay, RefreshState } from './ui/statusRefresh';
@@ -504,6 +505,7 @@ onBeforeUnmount(() => {
         @imported="onImported"
       />
       <div v-if="!started" class="import-row">
+        <a v-if="!demo" class="try-demo" href="?demo=1">Try the demo</a>
         <ImportCapture @imported="onImported" />
         <button v-if="demoWeb" type="button" @click="loadDemoCapture">Load the demo capture</button>
       </div>
@@ -589,9 +591,16 @@ onBeforeUnmount(() => {
 
     <HelpNoModem :class="{ narrow: !started }" @imported="onImported" />
 
+    <LandingContent v-if="!started" />
+
     <footer>
       <span>ModemLens {{ appVersion }} ({{ gitCommit }}). Runs only in Chrome or Edge. No tracking, no third-party scripts.</span>
-      <DonateLink :url="donate" />
+      <div class="footer-links">
+        <a :href="COMPANY_URL" target="_blank" rel="noopener">By K-I-Soft</a>
+        <a :href="COMPANY_IMPRINT_URL" target="_blank" rel="noopener">Imprint</a>
+        <a :href="COMPANY_PRIVACY_URL" target="_blank" rel="noopener">Privacy</a>
+        <DonateLink :url="donate" />
+      </div>
     </footer>
   </main>
 </template>
@@ -642,6 +651,8 @@ onBeforeUnmount(() => {
 .start { max-width: 46rem; margin-top: 0.75rem; }
 .import-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.75rem 1.25rem; margin-top: 1.1rem; }
 .narrow { max-width: 46rem; width: 100%; }
+.try-demo { align-self: center; font-size: 0.92rem; font-weight: 500; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
 
 .session { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1.5rem; }
 .link { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.1rem 1.25rem; min-width: 0; font-size: 0.85rem; color: var(--ink-2); overflow-wrap: anywhere; }
