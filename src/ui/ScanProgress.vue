@@ -32,7 +32,8 @@ const fillStyle = computed(() => ({ width: `${(fraction.value ?? 0) * 100}%` }))
 </template>
 
 <style scoped>
-.progress { display: grid; gap: 0.55rem; }
+/* A scan can be started from further down the page: this has to be in view either way. */
+.progress { position: sticky; top: 0; z-index: 10; display: grid; gap: 0.55rem; padding-block: 0.5rem; background: var(--bg); }
 .line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.9rem; font-size: 0.92rem; }
 .count { color: var(--ink-3); font-size: 0.85rem; }
 .now { font-size: 0.82rem; color: var(--accent); overflow-wrap: anywhere; min-width: 0; }

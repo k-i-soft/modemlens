@@ -63,6 +63,8 @@ export class Scanner {
   private commandCbs: Array<(command: string) => void> = [];
   private simReady = false;
   private disconnectReason?: string;
+  /** Second forms the running deep scan no longer needs: the name turned out not to exist. */
+  private deepFormsDropped = 0;
 
   constructor(private readonly engine: AtEngine, opts: { usb?: string; profile?: Profile } = {}) {
     this.report = { startedAt: new Date().toISOString(), items: [], commandList: [] };
@@ -84,6 +86,11 @@ export class Scanner {
   plannedAutoCommands(): number {
     const commands = new Set([...STANDARD_CATALOG.filter(e => e.phase === 'auto'), ...this.profileEntries()].map(e => e.command));
     return commands.size + 1; // the closing command-list query
+  }
+
+  /** How many commands the deep scan issues at most, as far as that is known: a name without an answer costs fewer. */
+  plannedDeepCommands(): number {
+    return this.deepNames().reduce((sum, name) => sum + discoveryForms(name).length, 0) - this.deepFormsDropped;
   }
 
   async runAuto(signal?: AbortSignal): Promise<ScanReport> {
@@ -120,6 +127,16 @@ export class Scanner {
 
   async runDeep(signal?: AbortSignal): Promise<ScanReport> {
     delete this.report.interrupted;
+    this.deepFormsDropped = 0;
+    try {
+      return await this.deepScan(signal);
+    } finally {
+      this.deepFormsDropped = 0;
+    }
+  }
+
+  /** The names a deep scan asks about: not covered elsewhere, each once, none on a deny list. */
+  private deepNames(): string[] {
     const profile = this.report.profile;
     const covered = new Set<string>();
     for (const e of [...STANDARD_CATALOG, ...(profile?.commands ?? [])]) {
@@ -129,14 +146,22 @@ export class Scanner {
     // The modem's own list when it gave one, otherwise the built-in candidates.
     const names = this.report.commandList.length > 0 ? this.report.commandList : CANDIDATE_COMMANDS;
     const seen = new Set<string>();
-    let timeouts = 0;
+    const out: string[] = [];
     for (const raw of names) {
       const name = raw.trim().toUpperCase();
       if (seen.has(name) || covered.has(name)) continue;
       seen.add(name);
-      if (!isDiscoverable(name, profile?.denyCommands)) continue;
+      if (isDiscoverable(name, profile?.denyCommands)) out.push(name);
+    }
+    return out;
+  }
+
+  private async deepScan(signal?: AbortSignal): Promise<ScanReport> {
+    let timeouts = 0;
+    for (const name of this.deepNames()) {
       // Ask whether the name exists first; only a modem that answered OK is asked for the current value.
-      for (const command of discoveryForms(name)) {
+      const forms = discoveryForms(name);
+      for (const [i, command] of forms.entries()) {
         const entry: CatalogEntry = { id: `deep:${command.slice(2)}`, command, category: 'other', phase: 'auto', timeoutMs: DEEP_TIMEOUT_MS };
         if (!(await this.step(entry, signal, false, 'discovery'))) return this.report;
         const last = this.report.items[this.report.items.length - 1].response;
@@ -145,7 +170,10 @@ export class Scanner {
           this.report.interrupted = DEEP_SILENT;
           return this.report;
         }
-        if (last?.status !== 'ok') break;
+        if (last?.status !== 'ok') {
+          this.deepFormsDropped += forms.length - i - 1;
+          break;
+        }
       }
     }
     return this.report;

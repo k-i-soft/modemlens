@@ -253,12 +253,18 @@ function teardown(): Promise<void> {
   return closing;
 }
 
+/** A network scan is one command of unknown length, so it has no total to show. */
+function plannedCommands(s: Scanner, which: ScanKind): number | undefined {
+  if (which === 'auto') return s.plannedAutoCommands();
+  return which === 'deep' ? s.plannedDeepCommands() : undefined;
+}
+
 async function runScan(s: Scanner, which: ScanKind, work: () => Promise<unknown>, controller?: AbortController): Promise<void> {
   phase.value = which;
   finished.value = null;
   currentCommand.value = '';
   progressBase.value = items.value.length;
-  progressTotal.value = which === 'auto' ? s.plannedAutoCommands() : undefined;
+  progressTotal.value = plannedCommands(s, which);
   try {
     await work();
   } catch (e) {
@@ -285,7 +291,7 @@ async function scanFromStart(): Promise<void> {
     if (s !== scanner) return;
     items.value.push(item);
     syncMeta();
-    if (phase.value === 'auto') progressTotal.value = s.plannedAutoCommands();
+    if (phase.value !== 'idle' && phase.value !== 'finished') progressTotal.value = plannedCommands(s, phase.value);
   });
   s.onCommand((command) => {
     if (s === scanner) currentCommand.value = command;

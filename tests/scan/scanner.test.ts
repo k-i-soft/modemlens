@@ -30,6 +30,52 @@ const defaultError = () => t.reply(/.*/, ERR);
 const clac = (...names: string[]) =>
   t.reply(CLAC_COMMAND, [`\r\n${names.map((n) => `AT${n}`).join('\r\n')}\r\n\r\nOK\r\n`]);
 
+describe('plannedDeepCommands', () => {
+  async function scannedWith(...names: string[]): Promise<Scanner> {
+    clac(...names);
+    t.reply(/=\?$/, OK);
+    t.reply(/\?$/, OK);
+    defaultError();
+    const s = new Scanner(engine, {});
+    await s.runAuto();
+    return s;
+  }
+
+  test('counts both forms of each name that will be asked, before anything is sent', async () => {
+    const s = await scannedWith('+QAAA', '+QBBB', '+QAAA', '+CSQ');
+    const before = t.written.length;
+    expect(s.plannedDeepCommands()).toBe(4);
+    expect(t.written.length).toBe(before);
+  });
+
+  test('matches what a deep scan issues', async () => {
+    const s = await scannedWith('+QAAA', '+QBBB');
+    const planned = s.plannedDeepCommands();
+    const before = s.report.items.length;
+    await s.runDeep();
+    expect(s.report.items.length - before).toBe(planned);
+  });
+
+  test('shrinks as soon as a name turns out not to exist', async () => {
+    t.reply('AT+QAAA=?', ERR);
+    const s = await scannedWith('+QAAA', '+QBBB');
+    expect(s.plannedDeepCommands()).toBe(4);
+    const seen: number[] = [];
+    s.onItem(() => seen.push(s.plannedDeepCommands()));
+    const before = s.report.items.length;
+    await s.runDeep();
+    expect(s.report.items.length - before).toBe(3);
+    expect(seen.at(-1)).toBe(3);
+  });
+
+  test('starts over for the next deep scan', async () => {
+    t.reply('AT+QAAA=?', ERR);
+    const s = await scannedWith('+QAAA', '+QBBB');
+    await s.runDeep();
+    expect(s.plannedDeepCommands()).toBe(4);
+  });
+});
+
 describe('the scans never write an action', () => {
   const OWN_SOURCES = ['src/scan/scanner.ts', 'src/catalog/standard.ts', 'src/catalog/candidates.ts', 'src/catalog/safety.ts'];
   const WRITES = [...ACTIONS, ...ASR_ACTIONS].flatMap((a) => a.choices.map((c) => c.command));

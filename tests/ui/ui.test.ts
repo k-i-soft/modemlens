@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
@@ -302,6 +303,55 @@ describe('App', () => {
     await btn(w, 'Start deep scan')!.trigger('click');
     await until(() => spy.mock.calls.length > 0 && w.text().includes('AT+QDEMOFAKE=?'));
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  /** Holds the answer to one command, so that a scan can be looked at while it runs. */
+  function holdCommand(command: string): { release: () => void } {
+    const original = AtEngine.prototype.send;
+    let release = (): void => {};
+    const gate = new Promise<void>((r) => (release = r));
+    vi.spyOn(AtEngine.prototype, 'send').mockImplementation(async function (this: AtEngine, c, opts) {
+      if (c === command) await gate;
+      return original.call(this, c, opts);
+    });
+    return { release };
+  }
+
+  test('a deep scan shows its progress at once, with the command and a total, until it ends', async () => {
+    const w = await scanned();
+    const h = holdCommand('AT+QDEMOFAKE=?');
+    await w.findAll('nav button')[1].trigger('click');
+    await btn(w, 'Deep scan')!.trigger('click');
+    await btn(w, 'Start deep scan')!.trigger('click');
+    const progress = w.find('.progress');
+    expect(progress.exists()).toBe(true);
+    expect(progress.text()).toContain('Scanning (deep scan)');
+    expect(progress.text()).toContain('AT+QDEMOFAKE=?');
+    expect(progress.text()).toContain('0 of 4 done');
+    expect(progress.find('[role="progressbar"]').attributes('aria-valuemax')).toBe('4');
+    h.release();
+    await until(() => w.text().includes('Deep scan finished'));
+    expect(w.find('.progress').exists()).toBe(false);
+  });
+
+  test('a network scan shows its progress at once, and honestly has no total', async () => {
+    const w = await scanned();
+    const h = holdCommand('AT+COPS=?');
+    await w.findAll('nav button')[1].trigger('click');
+    await btn(w, 'Network scan')!.trigger('click');
+    const progress = w.find('.progress');
+    expect(progress.exists()).toBe(true);
+    expect(progress.text()).toContain('Scanning (network scan)');
+    expect(progress.text()).toContain('AT+COPS=?');
+    expect(progress.text()).toContain('can take minutes');
+    expect(progress.find('[role="progressbar"]').attributes('aria-valuemax')).toBeUndefined();
+    h.release();
+    await until(() => w.text().includes('Network scan finished'));
+    expect(w.find('.progress').exists()).toBe(false);
+  });
+
+  test('the progress stays in view when the page is scrolled', () => {
+    expect(readFileSync('src/ui/ScanProgress.vue', 'utf8')).toMatch(/\.progress \{[^}]*position: sticky;[^}]*top: 0;/);
   });
 
   test('network scan is a separate button', async () => {
