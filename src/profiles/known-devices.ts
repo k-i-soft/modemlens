@@ -34,6 +34,7 @@ const KNOWN: Record<string, Omit<DeviceClassification, 'usb'>> = {
   '12d1:1f01': { kind: 'storage', label: 'Huawei HiLink stick (storage mode)' },
   '12d1:14db': { kind: 'network-web', label: 'Huawei HiLink stick', webDialect: 'hilink', webAddress: '192.168.8.1' },
   '0e8d:2004': { kind: 'network-web', label: 'MediaTek MiFi stick', webDialect: 'zte' },
+  '1782:4056': { kind: 'network-web', label: 'Unisoc-based stick' },
   '2ecc:3001': { kind: 'transient', label: 'Stick that switches mode by itself' },
   '1286:4e3c': { kind: 'at', label: 'ASR stick' },
   '2c7c:6005': { kind: 'at', label: 'Quectel EC200A' },

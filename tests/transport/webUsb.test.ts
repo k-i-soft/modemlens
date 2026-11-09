@@ -376,6 +376,36 @@ describe('connectUsb', () => {
       expect(d.opened).toBe(false);
     });
 
+    test('the error describes the device', async () => {
+      const d = stick(0x12d1, 0x1f01, [
+        { interfaceNumber: 0, alternates: [{ alternateSetting: 0, interfaceClass: 0xe0, interfaceSubclass: 1, endpoints: [] }] },
+        { interfaceNumber: 1, alternates: [{ alternateSetting: 0, interfaceClass: 0x08, interfaceSubclass: 6, endpoints: bulk(1, 2) }] },
+      ]);
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(err.device).toEqual({
+        usb: '12d1:1f01',
+        productName: 'Test modem',
+        interfaces: [{ number: 0, class: 0xe0, subclass: 1 }, { number: 1, class: 0x08, subclass: 6 }],
+      });
+    });
+
+    test('a device without a name has no productName', async () => {
+      const d = stick(0x12d1, 0x1f01, [iface(0, 0x08, bulk(1, 2))]);
+      d.productName = undefined;
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(err.device).not.toHaveProperty('productName');
+    });
+
+    test('a failed probe also describes the device', async () => {
+      const d = stick(0xdead, 0xbeef, [iface(0, 0xff, bulk(1, 2))]);
+      d.claims.set(0, 'fail');
+      const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+      expect(err).toBeInstanceOf(NoAtChannelError);
+      expect(err.classification).toBeUndefined();
+      expect(err.device.usb).toBe('dead:beef');
+      expect(err.device.interfaces).toHaveLength(1);
+    });
+
     test('a network stick rejects with the address and claims nothing', async () => {
       const d = stick(0x12d1, 0x14db, [iface(0, 0xe0, []), iface(1, 0x0a, bulk(1, 2))]);
       const err = await connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);

@@ -347,3 +347,31 @@ describe('Scanner', () => {
     expect(s.report.interrupted).toBeUndefined();
   });
 });
+
+describe('progress hooks', () => {
+  test('onCommand reports each command before it is sent, and skipped ones not at all', async () => {
+    const t = new FakeTransport();
+    t.reply(/.*/, ['\r\nERROR\r\n']);
+    const engine = new AtEngine(t);
+    const s = new Scanner(engine);
+    const seen: string[] = [];
+    s.onCommand((c) => seen.push(`${c}|${t.written.length}`));
+    await s.runAuto();
+    expect(seen[0]).toBe('ATI|0');
+    const commands = seen.map((x) => x.split('|')[0]);
+    expect(commands).toContain('AT+CPIN?');
+    expect(commands).not.toContain('AT+CIMI');
+  });
+
+  test('plannedAutoCommands matches what a scan issues', async () => {
+    const t = new FakeTransport();
+    t.reply('ATI', ['\r\nQuectel\r\nEC200A\r\n\r\nOK\r\n']);
+    t.reply('AT+CPIN?', ['\r\n+CPIN: READY\r\n\r\nOK\r\n']);
+    t.reply(/.*/, ['\r\nOK\r\n']);
+    const s = new Scanner(new AtEngine(t));
+    const before = s.plannedAutoCommands();
+    await s.runAuto();
+    expect(s.plannedAutoCommands()).toBeGreaterThan(before);
+    expect(s.report.items).toHaveLength(s.plannedAutoCommands());
+  });
+});

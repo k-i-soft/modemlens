@@ -2,7 +2,7 @@ import { matchProfile } from '../profiles';
 import { classifyUsbDevice } from '../profiles/known-devices';
 import type { DeviceClassification } from '../profiles/known-devices';
 import { PickerCancelledError } from './types';
-import type { Transport, UsbConnectorOptions } from './types';
+import type { Transport, UsbConnectorOptions, UsbDeviceDescription } from './types';
 import { errorMessage, errorName, formatUsbId, TransportListeners } from './common';
 
 const CLAIM_TIMEOUT_MS = 3000;
@@ -39,6 +39,8 @@ export class NoAtChannelError extends Error {
     readonly hadPendingClaim: boolean,
     /** Set when the device was recognised as one without an AT channel; nothing was claimed. */
     readonly classification?: DeviceClassification,
+    /** What could be read from the device before giving up. */
+    readonly device?: UsbDeviceDescription,
   ) {
     super(message);
     this.name = 'NoAtChannelError';
@@ -75,6 +77,17 @@ export function usbId(device: USBDevice): string {
 
 function interfacesOf(device: USBDevice): USBInterface[] {
   return (device.configuration ?? device.configurations[0])?.interfaces ?? [];
+}
+
+function describeDevice(device: USBDevice, id: string): UsbDeviceDescription {
+  return {
+    usb: id,
+    ...(device.productName ? { productName: device.productName } : {}),
+    interfaces: interfacesOf(device).flatMap(({ interfaceNumber, alternates }) => {
+      const first = alternates[0];
+      return first ? [{ number: interfaceNumber, class: first.interfaceClass, subclass: first.interfaceSubclass }] : [];
+    }),
+  };
 }
 
 function classifyOpened(device: USBDevice, id: string): DeviceClassification {
@@ -310,29 +323,33 @@ async function ensureConfigured(device: USBDevice): Promise<void> {
 }
 
 /** Only that one interface is touched: claiming any other can leave a claim pending for good. */
-async function claimKnownInterface(device: USBDevice, atInterface: number): Promise<UsbCandidate> {
+async function claimKnownInterface(device: USBDevice, atInterface: number, description: UsbDeviceDescription): Promise<UsbCandidate> {
   const c = listCandidates(device).find((x) => x.interfaceNumber === atInterface);
-  if (!c) throw new NoAtChannelError(`This modem has no usable AT interface ${atInterface}. ${HELP_POINTER}`, false);
+  if (!c) throw new NoAtChannelError(`This modem has no usable AT interface ${atInterface}. ${HELP_POINTER}`, false, undefined, description);
   try {
     await claim(device, c);
   } catch (e) {
     if (e instanceof UsbTimeoutError) {
-      throw new NoAtChannelError(`The modem's AT interface (${atInterface}) does not respond. On Windows it needs the WinUSB driver. ${HELP_POINTER}`, true);
+      throw new NoAtChannelError(`The modem's AT interface (${atInterface}) does not respond. On Windows it needs the WinUSB driver. ${HELP_POINTER}`, true, undefined, description);
     }
-    throw new NoAtChannelError(`Could not use the modem's AT interface (${atInterface}): ${errorMessage(e)}. Another program may be using it. ${HELP_POINTER}`, false);
+    throw new NoAtChannelError(`Could not use the modem's AT interface (${atInterface}): ${errorMessage(e)}. Another program may be using it. ${HELP_POINTER}`, false, undefined, description);
   }
   return c;
 }
 
-async function chooseChannel(device: USBDevice, opts: UsbConnectorOptions, id: string): Promise<{ channel: UsbCandidate; pendingClaim: boolean }> {
-  const usb = matchProfile({ usb: id })?.usb;
-  if (usb?.atInterface !== undefined) return { channel: await claimKnownInterface(device, usb.atInterface), pendingClaim: false };
+async function chooseChannel(
+  device: USBDevice,
+  opts: UsbConnectorOptions,
+  description: UsbDeviceDescription,
+): Promise<{ channel: UsbCandidate; pendingClaim: boolean }> {
+  const usb = matchProfile({ usb: description.usb })?.usb;
+  if (usb?.atInterface !== undefined) return { channel: await claimKnownInterface(device, usb.atInterface, description), pendingClaim: false };
   let pendingClaim = false;
   const channel = await findAtInterface(device, listCandidates(device, usb?.avoidInterfaces), {
     onProbe: opts.onProbe,
     onClaimTimeout: () => (pendingClaim = true),
   });
-  if (!channel) throw new NoAtChannelError(`No AT channel found on this modem. ${HELP_POINTER}`, pendingClaim);
+  if (!channel) throw new NoAtChannelError(`No AT channel found on this modem. ${HELP_POINTER}`, pendingClaim, undefined, description);
   return { channel, pendingClaim };
 }
 
@@ -344,11 +361,12 @@ export async function connectUsb(opts: UsbConnectorOptions): Promise<Transport> 
   try {
     await ensureConfigured(device);
     const id = usbId(device);
+    const description = describeDevice(device, id);
     const classification = classifyOpened(device, id);
     if (classification.kind !== 'at' && classification.kind !== 'unknown') {
-      throw new NoAtChannelError('This device has no AT channel.', false, classification);
+      throw new NoAtChannelError('This device has no AT channel.', false, classification, description);
     }
-    const { channel, pendingClaim } = await chooseChannel(device, opts, id);
+    const { channel, pendingClaim } = await chooseChannel(device, opts, description);
     await raiseDtr(device, channel);
     const name = device.productName ? `${device.productName} ` : '';
     const transport = new WebUsbTransport(device, channel, `${name}(${id}), USB interface ${channel.interfaceNumber}`, id, pendingClaim);

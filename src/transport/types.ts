@@ -38,6 +38,14 @@ export interface Connectors {
   usb: Connector<UsbConnectorOptions>;
 }
 
+/** What the browser can see of a USB device without talking to it. */
+export interface UsbDeviceDescription {
+  /** Plain lowercase "vvvv:pppp". */
+  usb: string;
+  productName?: string;
+  interfaces: Array<{ number: number; class: number; subclass: number }>;
+}
+
 /** The person closed the browser's device picker without choosing anything. Not an error to show. */
 export class PickerCancelledError extends Error {
   constructor() {

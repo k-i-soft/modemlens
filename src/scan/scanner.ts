@@ -59,6 +59,7 @@ function stateOf(r: AtResponse): ItemState {
 export class Scanner {
   readonly report: ScanReport;
   private cbs: Array<(item: ScanItem) => void> = [];
+  private commandCbs: Array<(command: string) => void> = [];
   private simReady = false;
   private disconnectReason?: string;
 
@@ -71,6 +72,17 @@ export class Scanner {
 
   onItem(cb: (item: ScanItem) => void): void {
     this.cbs.push(cb);
+  }
+
+  /** Called with each command just before it is sent. */
+  onCommand(cb: (command: string) => void): void {
+    this.commandCbs.push(cb);
+  }
+
+  /** How many commands the automatic scan issues, as far as that is known yet: a profile adds to it. */
+  plannedAutoCommands(): number {
+    const commands = new Set([...STANDARD_CATALOG.filter(e => e.phase === 'auto'), ...this.profileEntries()].map(e => e.command));
+    return commands.size + 1; // the closing command-list query
   }
 
   async runAuto(signal?: AbortSignal): Promise<ScanReport> {
@@ -140,6 +152,7 @@ export class Scanner {
 
   /** Explicit user action: the only place a 'manual' entry is sent. */
   async runManual(entry: CatalogEntry): Promise<ScanItem> {
+    this.announce(entry.command);
     const r = await this.engine.send(entry.command, entry.timeoutMs ? { timeoutMs: entry.timeoutMs } : {});
     if (r.status === 'disconnected') this.report.interrupted = this.disconnectReason ?? r.errorDetail ?? 'disconnected';
     return this.record(entry, r, stateOf(r));
@@ -178,6 +191,7 @@ export class Scanner {
       this.record(entry, undefined, 'skipped');
       return true;
     }
+    this.announce(entry.command);
     const r = await this.engine.send(entry.command, entry.timeoutMs ? { timeoutMs: entry.timeoutMs } : {});
     if (r.status === 'disconnected') {
       this.report.interrupted = this.disconnectReason ?? r.errorDetail ?? 'disconnected';
@@ -190,6 +204,12 @@ export class Scanner {
     if (isClac && state === 'done') this.report.commandList = parseCommandList(r.lines);
     this.record(entry, r, state, category);
     return true;
+  }
+
+  private announce(command: string): void {
+    for (const cb of this.commandCbs) {
+      try { cb(command); } catch { /* a faulty listener must not stop the scan */ }
+    }
   }
 
   private record(entry: CatalogEntry, response: AtResponse | undefined, state: ItemState, category?: 'discovery'): ScanItem {

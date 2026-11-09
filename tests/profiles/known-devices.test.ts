@@ -25,6 +25,10 @@ test('mediatek mifi has a dialect but no fixed address', () => {
   expect(c.label).toBe('MediaTek MiFi stick');
   expect(c.webAddress).toBeUndefined();
 });
+test('unisoc stick is a network stick without a known address', () => {
+  const c = classifyUsbDevice({ usb: '1782:4056', interfaceClasses: [224, 10] });
+  expect(c).toEqual({ kind: 'network-web', usb: '1782:4056', label: 'Unisoc-based stick' });
+});
 test('transient', () => expect(classifyUsbDevice({ usb: '2ecc:3001', interfaceClasses: [8] }).kind).toBe('transient'));
 test('asr stick is at', () => expect(classifyUsbDevice({ usb: '1286:4e3c', interfaceClasses: [255, 255, 255] }).kind).toBe('at'));
 test('ec200a is at', () => expect(classifyUsbDevice({ usb: '2c7c:6005', interfaceClasses: [2, 10, 255, 255, 255] }).kind).toBe('at'));
