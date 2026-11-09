@@ -891,7 +891,7 @@ describe('the instrument panel', () => {
       await until(() => w.find('.plot .dot').exists());
       await btn(w, 'Network scan')!.trigger('click');
       await flushPromises();
-      expect(w.find('.live').text()).toContain('Paused while a scan runs');
+      expect(w.find('.live').text()).toContain('Paused while a scan or an action runs');
       const during = send.mock.calls.length;
       finishScan();
       await until(() => polls(send, during) === 1);
@@ -903,7 +903,7 @@ describe('the instrument panel', () => {
       vi.spyOn(Scanner.prototype, 'runManual').mockReturnValue(new Promise(() => {}));
       await btn(w, 'Network scan')!.trigger('click');
       await flushPromises();
-      expect(w.find('.live').text()).toContain('Paused while a scan runs');
+      expect(w.find('.live').text()).toContain('Paused while a scan or an action runs');
       expect(w.find('.live').text()).not.toContain('Needs a connected modem');
       expect(liveSwitch(w).attributes('disabled')).toBeDefined();
     });

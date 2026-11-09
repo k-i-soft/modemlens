@@ -71,7 +71,7 @@ const nowStyle = computed(() => (latest.value === null ? undefined : { top: `${(
 
 const status = computed(() => {
   if (props.unavailableReason) return props.unavailableReason;
-  if (props.paused) return 'Paused while a scan runs.';
+  if (props.paused) return 'Paused while a scan or an action runs.';
   if (!props.available && !props.enabled) return 'Needs a connected modem.';
   return 'Reads AT+CESQ every 2 s. Never part of a report.';
 });

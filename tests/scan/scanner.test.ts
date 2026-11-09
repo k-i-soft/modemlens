@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { ACTIONS } from '../../src/actions/ec200a';
 import { AtEngine } from '../../src/at/engine';
 import { CANDIDATE_COMMANDS } from '../../src/catalog/candidates';
 import { isDiscoverable } from '../../src/catalog/safety';
@@ -26,6 +28,39 @@ const sent = () => t.written.map((w) => w.replace(/\r$/, ''));
 const defaultError = () => t.reply(/.*/, ERR);
 const clac = (...names: string[]) =>
   t.reply(CLAC_COMMAND, [`\r\n${names.map((n) => `AT${n}`).join('\r\n')}\r\n\r\nOK\r\n`]);
+
+describe('the scans never write an action', () => {
+  const OWN_SOURCES = ['src/scan/scanner.ts', 'src/catalog/standard.ts', 'src/catalog/candidates.ts', 'src/catalog/safety.ts'];
+  const WRITES = ACTIONS.flatMap((a) => a.choices.map((c) => c.command));
+
+  test.each(OWN_SOURCES)('%s does not reference the actions', (file) => {
+    expect(readFileSync(file, 'utf8')).not.toMatch(/actions\//);
+  });
+
+  test('there are writes to compare against', () => {
+    expect(WRITES).toContain('AT+CFUN=1,1');
+    expect(WRITES.length).toBeGreaterThan(10);
+  });
+
+  test('auto and deep scan send no action write, even when the modem lists those commands', async () => {
+    t.reply('AT+CPIN?', ['\r\n+CPIN: READY\r\n\r\nOK\r\n']);
+    t.reply('ATI', ['\r\nQuectel\r\nEC200A\r\n\r\nOK\r\n']);
+    clac('+CFUN', '+CGDCONT', '+QCFG', '+QNETDEVCTL', '+QDEMO');
+    t.reply(/=\?$/, OK);
+    t.reply(/\?$/, OK);
+    defaultError();
+    const s = new Scanner(engine, {});
+    await s.runAuto();
+    await s.runDeep();
+    expect(sent()).toContain('AT+QDEMO=?');
+    const profile = s.report.profile!;
+    expect(profile.id).toBe('quectel-ec200a');
+    for (const w of sent()) {
+      expect(WRITES, w).not.toContain(w);
+      expect(w).not.toMatch(/^AT\+CGDCONT=\d/i);
+    }
+  });
+});
 
 describe('Scanner', () => {
   test('auto sends only catalogued commands', async () => {

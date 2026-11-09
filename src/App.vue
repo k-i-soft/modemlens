@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { Connector, Connectors, Transport } from './transport/types';
 import './ui/theme.css';
 import { AtEngine } from './at/engine';
-import type { AtResponse } from './at/engine';
+import type { AtResponse, SendOptions } from './at/engine';
 import { Scanner } from './scan/scanner';
 import type { ScanItem, ScanReport } from './scan/scanner';
 import { STANDARD_CATALOG } from './catalog/standard';
@@ -15,11 +15,12 @@ import ScanProgress from './ui/ScanProgress.vue';
 import ExportMenu from './ui/ExportMenu.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
 import TerminalPane from './ui/TerminalPane.vue';
+import ActionsPanel from './ui/ActionsPanel.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
 import DonateLink from './ui/DonateLink.vue';
 import { connectSerial } from './transport/webSerial';
 import { connectUsb } from './transport/webUsb';
-import { createDemoTransport, demoHiLinkError, demoNoAtError, demoWebCapture, DEMO_USB } from './ui/demo';
+import { createDemoSettings, createDemoTransport, demoHiLinkError, demoNoAtError, demoWebCapture, DEMO_USB } from './ui/demo';
 import ImportCapture from './ui/ImportCapture.vue';
 import { importWebCapture } from './web/importReport';
 import { downloadText } from './ui/download';
@@ -44,6 +45,9 @@ const props = withDefaults(
   { demo: false, demoNoAt: false, demoWeb: false, demoDelayMs: 60, connectors: undefined, donateUrl: undefined },
 );
 
+/** One simulated modem per page, so that demo settings survive a simulated restart. */
+const demoSettings = createDemoSettings();
+
 const connectors = computed<Connectors>(() => {
   if (props.connectors) return props.connectors;
   if (props.demo) {
@@ -51,7 +55,7 @@ const connectors = computed<Connectors>(() => {
       await beforeOpen();
       if (props.demoNoAt) throw demoNoAtError();
       if (props.demoWeb) throw demoHiLinkError();
-      return createDemoTransport({ delayMs: props.demoDelayMs });
+      return createDemoTransport({ delayMs: props.demoDelayMs, settings: demoSettings });
     };
     return { serial: make, usb: make };
   }
@@ -69,10 +73,13 @@ const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'diagnostics', label: 'Diagnostics' },
   { id: 'terminal', label: 'Terminal' },
+  { id: 'actions', label: 'Actions' },
 ] as const;
 const IMPORTED_TERMINAL = 'This report was imported from a file, so there is no modem to send commands to.';
 const IMPORTED_SCANS = 'Deep scan and Network scan need a connected modem. This report was imported from a file.';
 const IMPORTED_LIVE = 'Live signal needs a connected modem. This report was imported from a file.';
+const TERMINAL_DURING_SCAN = 'Sending is off while a scan is running, so that a typed command cannot land between the scan commands.';
+const TERMINAL_DURING_ACTION = 'Sending is off while an action is running, so that a typed command cannot land between its steps.';
 const SCAN_TITLES: Record<ScanKind, string> = {
   auto: 'Scanning (automatic, read-only)',
   deep: 'Scanning (deep scan)',
@@ -90,6 +97,10 @@ const tab = ref<(typeof TABS)[number]['id']>('overview');
 const phase = ref<Phase>('idle');
 const connected = ref(false);
 const lostReason = ref('');
+/** The modem went away because of an action: that is not a lost connection. */
+const restarting = ref(false);
+/** An action, or the read of its current values, holds the modem. */
+const actionBusy = ref(false);
 const autoDone = ref(false);
 /** The automatic scan ran to the end (not stopped, not silent, not cut off). */
 const autoComplete = ref(false);
@@ -118,6 +129,10 @@ let abort: AbortController | null = null;
 let generation = 0;
 /** The close in progress, so that a following connect can wait for it. */
 let closing: Promise<void> = Promise.resolve();
+/** The session an action started on: its later steps must never reach a newer one. */
+let actionEngine: AtEngine | null = null;
+/** An action was sent that makes the modem go away. */
+let expectingDrop = false;
 
 function snapshot(): ScanReport | null {
   if (imported.value) return imported.value;
@@ -138,8 +153,16 @@ const dashboard = computed(() =>
 const hasResults = computed(() => items.value.length > 0);
 const running = computed(() => phase.value !== 'idle' && phase.value !== 'finished');
 const started = computed(() => hasResults.value || connected.value);
-const canNetworkScan = computed(() => connected.value && autoDone.value && !running.value);
+const canNetworkScan = computed(() => connected.value && autoDone.value && !running.value && !actionBusy.value);
 const canDeep = computed(() => canNetworkScan.value && autoComplete.value);
+const modemBusy = computed(() => running.value || actionBusy.value);
+/** The serial number from the scan: it tells whether a reconnected modem is the same one. Never shown. */
+const modemKey = computed(() => items.value.find((i) => i.parser === 'cgsn' && i.state === 'done')?.response?.lines.join(''));
+const terminalReason = computed(() => {
+  if (imported.value) return IMPORTED_TERMINAL;
+  if (running.value) return TERMINAL_DURING_SCAN;
+  return actionBusy.value ? TERMINAL_DURING_ACTION : '';
+});
 const interruptedText = computed(() =>
   reportMeta.value.interrupted === 'aborted'
     ? 'Scan stopped. The results so far are kept.'
@@ -154,7 +177,7 @@ const liveEnabled = live.enabled;
 const livePaused = live.paused;
 const liveSamples = live.samples;
 // Synchronous, so that no poll can be issued between the start of a scan and its first command.
-watch(running, (isRunning) => live.setPaused(isRunning), { flush: 'sync' });
+watch(modemBusy, (busy) => live.setPaused(busy), { flush: 'sync' });
 
 function toggleLive(on: boolean): void {
   if (on && connected.value) live.start();
@@ -210,6 +233,34 @@ async function runScan(s: Scanner, which: ScanKind, work: () => Promise<unknown>
   }
 }
 
+/** A fresh report from the automatic scan, on the session that is already open. */
+async function scanFromStart(): Promise<void> {
+  const usb = props.demo ? DEMO_USB : transport?.usbId;
+  const s = new Scanner(engine!, usb ? { usb } : {});
+  scanner = s;
+  s.onItem((item) => {
+    if (s !== scanner) return;
+    items.value.push(item);
+    syncMeta();
+    if (phase.value === 'auto') progressTotal.value = s.plannedAutoCommands();
+  });
+  s.onCommand((command) => {
+    if (s === scanner) currentCommand.value = command;
+  });
+  items.value = [];
+  reportMeta.value = { startedAt: s.report.startedAt, usb: s.report.usb, commandList: [] };
+  autoDone.value = false;
+  autoComplete.value = false;
+  confirmDeep.value = false;
+  const controller = new AbortController();
+  abort = controller;
+  await runScan(s, 'auto', () => s.runAuto(controller.signal), controller);
+  if (s === scanner) {
+    autoDone.value = true;
+    autoComplete.value = s.report.interrupted === undefined;
+  }
+}
+
 async function onConnected(t: Transport): Promise<void> {
   const current = ++generation;
   await teardown();
@@ -224,37 +275,17 @@ async function onConnected(t: Transport): Promise<void> {
   engine.onDisconnect((reason) => {
     live.stop();
     connected.value = false;
-    lostReason.value = reason;
+    if (expectingDrop) restarting.value = true;
+    else lostReason.value = reason;
     confirmDeep.value = false;
     syncMeta();
     if (running.value) phase.value = 'finished';
   });
-  const usb = props.demo ? DEMO_USB : t.usbId;
-  const s = new Scanner(engine, usb ? { usb } : {});
-  scanner = s;
-  s.onItem((item) => {
-    if (s !== scanner) return;
-    items.value.push(item);
-    syncMeta();
-    if (phase.value === 'auto') progressTotal.value = s.plannedAutoCommands();
-  });
-  s.onCommand((command) => {
-    if (s === scanner) currentCommand.value = command;
-  });
-  items.value = [];
-  reportMeta.value = { startedAt: s.report.startedAt, usb: s.report.usb, commandList: [] };
   connected.value = true;
   lostReason.value = '';
-  autoDone.value = false;
-  autoComplete.value = false;
-  confirmDeep.value = false;
-  const controller = new AbortController();
-  abort = controller;
-  await runScan(s, 'auto', () => s.runAuto(controller.signal), controller);
-  if (s === scanner) {
-    autoDone.value = true;
-    autoComplete.value = s.report.interrupted === undefined;
-  }
+  restarting.value = false;
+  expectingDrop = false;
+  await scanFromStart();
 }
 
 function stop(): void {
@@ -263,7 +294,7 @@ function stop(): void {
 
 async function startDeep(): Promise<void> {
   confirmDeep.value = false;
-  if (running.value || !scanner || !connected.value) return;
+  if (modemBusy.value || !scanner || !connected.value) return;
   const s = scanner;
   const controller = new AbortController();
   abort = controller;
@@ -272,7 +303,7 @@ async function startDeep(): Promise<void> {
 
 async function startNetworkScan(): Promise<void> {
   confirmDeep.value = false;
-  if (running.value || !scanner) return;
+  if (modemBusy.value || !scanner) return;
   const s = scanner;
   await runScan(s, 'network', () => s.runManual(COPS_SCAN));
 }
@@ -280,6 +311,36 @@ async function startNetworkScan(): Promise<void> {
 function terminalSend(command: string, body?: string): Promise<AtResponse> {
   if (!engine) return Promise.resolve({ command, status: 'disconnected', lines: [], durationMs: 0 });
   return engine.send(command, { timeoutMs: 15000, cancelPromptOnTimeout: true, body });
+}
+
+/** Takes the modem for an action. False when something else holds it, and then nothing may be sent. */
+function beginAction(): boolean {
+  if (modemBusy.value || !engine || !connected.value) return false;
+  actionBusy.value = true;
+  actionEngine = engine;
+  return true;
+}
+
+function endAction(): void {
+  actionBusy.value = false;
+  actionEngine = null;
+}
+
+function actionSend(command: string, opts: SendOptions = {}): Promise<AtResponse> {
+  if (!actionEngine) return Promise.resolve({ command, status: 'disconnected', lines: [], durationMs: 0 });
+  return actionEngine.send(command, opts);
+}
+
+/** The modem is on its way down: the session ends here, and the reconnect buttons take over. */
+function onRestarted(): void {
+  restarting.value = true;
+  lostReason.value = '';
+  void teardown();
+}
+
+function rescan(): void {
+  if (modemBusy.value || !engine || !connected.value) return;
+  void scanFromStart();
 }
 
 function onImported(report: ScanReport): void {
@@ -294,6 +355,7 @@ function onImported(report: ScanReport): void {
   phase.value = 'idle';
   finished.value = null;
   lostReason.value = '';
+  restarting.value = false;
   autoDone.value = false;
   autoComplete.value = false;
   tab.value = 'overview';
@@ -370,7 +432,7 @@ onBeforeUnmount(() => {
       <ConnectBar
         :connectors="connectors"
         :force-supported="demo || undefined"
-        :busy="connected && running"
+        :busy="connected && modemBusy"
         :reconnect="!connected && hasResults && !imported"
         :compact="started"
         :before-open="teardown"
@@ -386,6 +448,10 @@ onBeforeUnmount(() => {
 
     <p v-if="lostReason" class="notice warn" role="alert">
       Connection lost: {{ lostReason }}. The results are kept. Use the buttons above to reconnect.
+    </p>
+    <p v-else-if="restarting" class="notice warn" role="status">
+      The modem is restarting, reconnect when it is back. Use the buttons above. A new USB mode can change how the modem
+      appears in the device list.
     </p>
 
     <template v-if="started">
@@ -408,7 +474,7 @@ onBeforeUnmount(() => {
         :live-enabled="liveEnabled"
         :live-paused="livePaused"
         :live-samples="liveSamples"
-        :live-available="connected && !running"
+        :live-available="connected && !modemBusy"
         :live-unavailable-reason="imported ? IMPORTED_LIVE : undefined"
         @live="toggleLive"
       />
@@ -430,9 +496,26 @@ onBeforeUnmount(() => {
         :key="importCount"
         v-show="tab === 'terminal'"
         :send="terminalSend"
-        :disabled="!connected || running"
-        :disabled-reason="imported ? IMPORTED_TERMINAL : running ? 'Sending is off while a scan is running, so that a typed command cannot land between the scan commands.' : ''"
+        :disabled="!connected || modemBusy"
+        :disabled-reason="terminalReason"
         :hide-identifiers="hideIdentifiers"
+      />
+      <ActionsPanel
+        :key="`actions-${importCount}`"
+        v-show="tab === 'actions'"
+        :active="tab === 'actions'"
+        :connected="connected"
+        :imported="imported !== null"
+        :profile-id="reportMeta.profile?.id"
+        :scanning="running"
+        :modem-key="modemKey"
+        :hide-identifiers="hideIdentifiers"
+        :send="actionSend"
+        :begin="beginAction"
+        :end="endAction"
+        @expect-drop="expectingDrop = $event"
+        @restarted="onRestarted"
+        @rescan="rescan"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>
     </template>

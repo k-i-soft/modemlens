@@ -17,7 +17,7 @@ If the USB list shows no modem, or the modem has no name, Windows is probably ho
 
 ## Which modems work
 
-- **AT modems.** Modems that answer AT commands over USB or serial work. Profiles describe the exact commands per model; for other modems ModemLens falls back to a standard 3GPP/V.250 command set. The automatic scan only sends read-only commands.
+- **AT modems.** Modems that answer AT commands over USB or serial work. Profiles describe the exact commands per model; for other modems ModemLens falls back to a standard 3GPP/V.250 command set. The automatic scan only sends read-only commands. Settings change only in the Actions tab (Quectel EC200A only), one at a time, after you confirm each change.
 - **Modems without AT** (router-style or HiLink devices that expose a web interface instead). Use the web bookmarklet: it captures what the modem's own admin page shows, saves it to a file, and ModemLens imports that file.
 
 ## Privacy

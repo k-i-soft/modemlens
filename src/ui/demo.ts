@@ -35,7 +35,6 @@ const ANSWERS: Record<string, string[]> = {
   'AT+CEREG?': ['+CEREG: 0,1', OK],
   'AT+C5GREG?': [ERR],
   'AT+CSQ': ['+CSQ: 21,99', OK],
-  'AT+CGDCONT?': ['+CGDCONT: 1,"IP","demo.apn","10.0.0.2",0,0', '+CGDCONT: 2,"IPV4V6","ims.demo","0.0.0.0",0,0', OK],
   'AT+CGACT?': ['+CGACT: 1,1', '+CGACT: 2,0', OK],
   'AT+CGATT?': ['+CGATT: 1', OK],
   'AT+CGPADDR': ['+CGPADDR: 1,"10.0.0.2"', '+CGPADDR: 2,"0.0.0.0"', OK],
@@ -44,7 +43,6 @@ const ANSWERS: Record<string, string[]> = {
   'AT+CRSL?': ['+CRSL: 3', OK],
   'AT+CALM?': ['+CALM: 0', OK],
   'AT+CLIP?': ['+CLIP: 0,1', OK],
-  'AT+CFUN?': ['+CFUN: 1', OK],
   'AT+CMEE?': ['+CMEE: 0', OK],
   'AT+CSCS?': ['+CSCS: "GSM"', OK],
   'AT+CCLK?': ['+CCLK: "26/01/01,12:00:00+04"', OK],
@@ -64,7 +62,6 @@ const ANSWERS: Record<string, string[]> = {
     OK,
   ],
   'AT+QCFG="BAND"': ['+QCFG: "band",0x3,0x80800C5', OK],
-  'AT+QCFG="USBNET"': ['+QCFG: "usbnet",1', OK],
   'AT+QPINC?': ['+QPINC: "SC",2,10', '+QPINC: "P2",3,10', OK],
   'AT+QGMR': ['EC200ADEMOFAKE01_BUILD', OK],
   'AT+COPS=?': ['+COPS: (2,"Demo Mobile","Demo","00101",7),(1,"Other Demo","Other","00102",7),(3,"Barred Demo","Barred","00103",2),,(0-4),(0-2)', OK],
@@ -82,14 +79,78 @@ function demoCesq(now: number): string[] {
   return [`+CESQ: 99,99,255,255,${Math.round((rsrq + 20) * 2)},${Math.round(rsrp + 141)}`, OK];
 }
 
+/** The settings of the demo modem. Keep one object across connections and it survives a restart. */
+export interface DemoSettings {
+  pdpType: string;
+  apn: string;
+  data: boolean;
+  radio: string;
+  qcfg: Record<'usbnet' | 'nat' | 'nwscanmode' | 'roamservice', string>;
+}
+
+export function createDemoSettings(): DemoSettings {
+  return { pdpType: 'IP', apn: 'demo.apn', data: false, radio: '1', qcfg: { usbnet: '1', nat: '0', nwscanmode: '0', roamservice: '2' } };
+}
+
+const qcfgLine = (name: string, value: string): string =>
+  `+QCFG: "${name}",${value}${name === 'roamservice' ? ',1' : ''}`;
+
+/** Answers a command that reads or changes a setting, or undefined for every other command. */
+function settingsAnswer(cmd: string, s: DemoSettings, restart: () => void): string[] | undefined {
+  if (/^AT\+CGDCONT\?$/i.test(cmd)) {
+    return [`+CGDCONT: 1,"${s.pdpType}","${s.apn}","10.0.0.2",0,0`, '+CGDCONT: 2,"IPV4V6","ims.demo","0.0.0.0",0,0', OK];
+  }
+  const apn = /^AT\+CGDCONT=1,"([A-Z0-9]+)","([^"]*)"$/i.exec(cmd);
+  if (apn) {
+    s.pdpType = apn[1].toUpperCase();
+    s.apn = apn[2];
+    return [OK];
+  }
+  if (/^AT\+QNETDEVCTL\?$/i.test(cmd)) {
+    const d = s.data ? 1 : 0;
+    return [`+QNETDEVCTL: ${d},${d},${d},${d}`, OK];
+  }
+  const data = /^AT\+QNETDEVCTL=([01]),1,1$/i.exec(cmd);
+  if (data) {
+    if (s.radio !== '1') return [ERR];
+    s.data = data[1] === '1';
+    return [OK, `+QNETDEVSTATUS: ${data[1]}`];
+  }
+  if (/^AT\+CFUN\?$/i.test(cmd)) return [`+CFUN: ${s.radio}`, OK];
+  if (/^AT\+CFUN=1,1$/i.test(cmd)) {
+    s.radio = '1';
+    s.data = false;
+    restart();
+    return [OK];
+  }
+  const radio = /^AT\+CFUN=([14])$/i.exec(cmd);
+  if (radio) {
+    s.radio = radio[1];
+    if (s.radio !== '1') s.data = false;
+    return [OK];
+  }
+  const qcfg = /^AT\+QCFG="(usbnet|nat|nwscanmode|roamservice)"(?:,(\d)(?:,1)?)?$/i.exec(cmd);
+  if (qcfg) {
+    const name = qcfg[1].toLowerCase() as keyof DemoSettings['qcfg'];
+    if (qcfg[2] === undefined) return [qcfgLine(name, s.qcfg[name]), OK];
+    s.qcfg[name] = qcfg[2];
+    return [OK];
+  }
+  return undefined;
+}
+
+/** How long the simulated modem keeps talking before a restart takes it away. */
+const DEMO_RESTART_MS = 150;
+
 export interface DemoTransport extends Transport {
   /** Simulates a pulled cable. */
   disconnect(reason?: string): void;
 }
 
 /** A scripted, in-page modem for `?demo=1`. It answers every command in the catalog and a few extras. */
-export function createDemoTransport(opts: { delayMs?: number } = {}): DemoTransport {
+export function createDemoTransport(opts: { delayMs?: number; settings?: DemoSettings } = {}): DemoTransport {
   const delayMs = opts.delayMs ?? 60;
+  const settings = opts.settings ?? createDemoSettings();
   let dataCbs: Array<(c: Uint8Array) => void> = [];
   let discCbs: Array<(r: string) => void> = [];
   let closed = false;
@@ -104,11 +165,11 @@ export function createDemoTransport(opts: { delayMs?: number } = {}): DemoTransp
 
   const answer = (cmd: string): void => {
     const name = cmd.toUpperCase();
-    const lines = name === 'AT+CESQ' ? demoCesq(Date.now()) : ANSWERS[name] ?? [ERR];
+    const lines = settingsAnswer(cmd, settings, restart) ?? (name === 'AT+CESQ' ? demoCesq(Date.now()) : ANSWERS[name] ?? [ERR]);
     emit(`\r\n${lines.join('\r\n')}\r\n`);
   };
 
-  return {
+  const self: DemoTransport = {
     kind: 'fake',
     label: 'Demo modem (fake, nothing connected)',
     async write(data) {
@@ -127,10 +188,13 @@ export function createDemoTransport(opts: { delayMs?: number } = {}): DemoTransp
     onDisconnect(cb) { discCbs.push(cb); },
     async close() { closed = true; },
     disconnect(reason = 'Demo cable pulled') {
+      if (closed) return;
       closed = true;
       for (const cb of discCbs) cb(reason);
     },
   };
+  const restart = (): void => void setTimeout(() => self.disconnect('Demo modem restarting'), DEMO_RESTART_MS);
+  return self;
 }
 
 /** A HiLink stick for `?demo=web`: the same guidance a real one gets, under a made-up product name. */
