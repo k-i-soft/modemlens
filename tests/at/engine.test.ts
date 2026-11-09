@@ -146,6 +146,70 @@ describe('AtEngine', () => {
     expect(r.lines).toEqual(['+B: mine']);
   });
 
+  describe('an answer that arrives after its command timed out', () => {
+    const learnEcho = async (): Promise<void> => {
+      t.reply('AT+FIRST', ['AT+FIRST\r\r\nOK\r\n']);
+      await engine.send('AT+FIRST');
+    };
+    const timeOut = async (): Promise<void> => {
+      const slow = engine.send('AT+SLOW', { timeoutMs: 1000 });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect((await slow).status).toBe('timeout');
+      await vi.advanceTimersByTimeAsync(400);
+    };
+
+    test('does not end the next command, and every later command keeps its own answer', async () => {
+      await learnEcho();
+      await timeOut();
+      const next = engine.send('AT+NEXT');
+      await flush();
+      t.emit('\r\nERROR\r\n');
+      await flush();
+      t.emit('AT+NEXT\r\r\n+NEXT: mine\r\n\r\nOK\r\n');
+      const r = await next;
+      expect(r.status).toBe('ok');
+      expect(r.lines).toEqual(['+NEXT: mine']);
+      t.reply('AT+AFTER', ['AT+AFTER\r\r\n+AFTER: 2\r\n\r\nOK\r\n']);
+      expect((await engine.send('AT+AFTER')).lines).toEqual(['+AFTER: 2']);
+    });
+
+    test('a modem without echo is answered as before', async () => {
+      await timeOut();
+      const next = engine.send('AT+NEXT');
+      await flush();
+      t.emit('\r\n+NEXT: 1\r\n\r\nOK\r\n');
+      expect((await next).status).toBe('ok');
+    });
+
+    test('a modem whose echo was switched off is not held up', async () => {
+      await learnEcho();
+      t.reply('ATE0', ['ATE0\r\r\nOK\r\n']);
+      await engine.send('ATE0');
+      t.reply('AT+QUIET', ['\r\nOK\r\n']);
+      await engine.send('AT+QUIET');
+      await timeOut();
+      const next = engine.send('AT+NEXT');
+      await flush();
+      t.emit('\r\n+NEXT: 1\r\n\r\nOK\r\n');
+      expect((await next).status).toBe('ok');
+    });
+
+    test('a modem that stops echoing without saying so costs one timeout at most', async () => {
+      await learnEcho();
+      await timeOut();
+      const next = engine.send('AT+NEXT', { timeoutMs: 1000 });
+      await flush();
+      t.emit('\r\nOK\r\n');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect((await next).status).toBe('timeout');
+      await vi.advanceTimersByTimeAsync(400);
+      const after = engine.send('AT+AFTER');
+      await flush();
+      t.emit('\r\nOK\r\n');
+      expect((await after).status).toBe('ok');
+    });
+  });
+
   test('non-text bytes do not throw', async () => {
     const p = engine.send('AT+X');
     await flush();

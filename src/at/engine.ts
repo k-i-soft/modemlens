@@ -72,6 +72,9 @@ interface Active {
   bodySent: boolean;
   cancelPrompt: boolean;
   promptOpen: boolean;
+  echoSeen: boolean;
+  /** Output was discarded because it arrived ahead of this command's own echo. */
+  droppedAhead: boolean;
   /** Writes handed to the transport that have not settled yet. */
   pendingWrites: number;
   lines: string[];
@@ -108,6 +111,10 @@ export class AtEngine {
   private quietDeadline = 0;
   private pumping = false;
   private gone = false;
+  /** Learned from the last answered command. */
+  private modemEchoes = false;
+  /** A timed-out command can still be answered, ahead of the next command's own echo. */
+  private lateAnswerPossible = false;
   private urcCbs: Array<(line: string) => void> = [];
   private disconnectCbs: Array<(reason: string) => void> = [];
 
@@ -174,6 +181,8 @@ export class AtEngine {
       bodySent: false,
       cancelPrompt: q.opts.cancelPromptOnTimeout === true,
       promptOpen: false,
+      echoSeen: false,
+      droppedAhead: false,
       pendingWrites: 0,
       lines: [],
       startedAt: Date.now(),
@@ -208,6 +217,13 @@ export class AtEngine {
     if (this.active !== a) return;
     clearTimeout(a.timer);
     this.active = null;
+    if (status === 'timeout') {
+      // Output but never the echo: the modem has stopped echoing, so waiting for one would stall every command.
+      if (a.droppedAhead && !a.echoSeen) this.modemEchoes = false;
+      this.lateAnswerPossible = true;
+    } else if (status !== 'disconnected') {
+      this.modemEchoes = a.echoSeen;
+    }
     const res: AtResponse = {
       command: a.command,
       status,
@@ -316,7 +332,17 @@ export class AtEngine {
       this.emitUrc(line);
       return;
     }
-    if (line === a.command.trim()) return; // echo
+    if (line === a.command.trim()) {
+      a.echoSeen = true;
+      this.lateAnswerPossible = false;
+      return;
+    }
+    // A slow modem answers in order: whatever comes before this command's echo belongs to the one that timed out.
+    if (this.lateAnswerPossible && this.modemEchoes && !a.echoSeen) {
+      a.droppedAhead = true;
+      if (this.isUrc(line)) this.emitUrc(line);
+      return;
+    }
     const t = terminal(line);
     if (t) {
       this.complete(a, t.status, t.detail);

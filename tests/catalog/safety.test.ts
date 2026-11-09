@@ -49,6 +49,8 @@ test.each([
 test.each(['AT+CREG?', 'AT+CREG=?', 'AT+QENG=?', 'AT^SYSINFO?', 'AT+CGMR', 'AT+GMR', 'AT+CGPADDR', 'AT'])('terminal query %s stays a read', (c) =>
   expect(classifyTerminalCommand(c)).toBe('read'));
 test('parse clac', () => expect(parseCommandList(['+CSQ', '&F', 'AT+CREG'])).toEqual(['+CSQ', '&F', '+CREG']));
+test('an answer that is no command list gives no names', () =>
+  expect(parseCommandList(['AT+CSCA?', '+CSCA: "+41000000000",145', '+CTZU: 1'])).toEqual([]));
 
 // invariant of the catalog
 const CATALOG_READ_FORM = /^AT(I|\+\w+\?|\+\w+=\?|\+(CSQ|CESQ|CIMI|CGSN|GSN|GMI|GMM|GMR|CGMI|CGMM|CGMR|CGPADDR)|\+CLCK="\w\w",2|\+CRSM=176,\d+,\d+,\d+,\d+)$/;

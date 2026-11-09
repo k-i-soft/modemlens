@@ -35,7 +35,8 @@ export function parseCommandList(lines: string[]): string[] {
   const names: string[] = [];
   for (const raw of lines) {
     const name = raw.trim().replace(/^AT(?=[+$^#!%*&])/i, '');
-    if (name) names.push(name);
+    // Anything else is not a name, for example the answer to another command.
+    if (/^[&+$^#!%*]?[A-Z0-9_]+$/i.test(name)) names.push(name);
   }
   return names;
 }
