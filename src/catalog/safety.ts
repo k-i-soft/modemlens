@@ -3,7 +3,7 @@
 // Substring rules: reset/power/bootloader, firmware/NV, scans, SMS/phonebook, PIN/lock/password families.
 const DENY_PATTERN = new RegExp(
   [
-    'RESET', 'POW', 'OFF', 'DOWN', 'ERASE', 'DEL', 'FOTA', 'UPDATE', 'FLASH', 'FACTORY', 'RST', 'DFU', 'DIAL',
+    'RESET', 'POW', 'PWR', 'OFF', 'DOWN', 'ERASE', 'DEL', 'FOTA', 'UPDATE', 'FLASH', 'FACTORY', 'RST', 'DFU', 'DIAL',
     'BOOT', 'SHDN', 'HALT', 'SMSO', 'FWUPD', 'FWINST', 'FWSWITCH', 'SCAN', 'NVW', 'NVFW', 'PRTPARA',
     'CMG[SDRLWC]', 'CMSS', 'HCMG', 'SMG[RLS]', 'CPB[RWFS]', 'CPIN', 'LOCK', 'CPWD|SPWD',
   ].join('|'),

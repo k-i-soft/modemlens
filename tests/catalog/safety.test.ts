@@ -16,6 +16,7 @@ test.each([
   '^CPIN', '+CPIN2', '^CARDLOCK', '^DATALOCK', '^SPWD', '^SLCK',
   '+CMGDA', '+QMGDA', '+CMGW', '+CMSS', '+QCMGS', '+QCMGR', '^HCMGR', '^HCMGS', '^HCMGL', '^SMGR', '^SMGL',
   '+CPBF', '+CPBS', '+CNUM', '+CUSD',
+  '$QCPWRDN', '+CPWROFF', '^PWRCTL',
 ])('denied family %s', n => expect(isDiscoverable(n)).toBe(false));
 test.each(['+CSQ;Z', '+X;+CFUN=0', '+', '+CSQ=1', '+CSQ?', ' +CSQ', '+CSQ ', '+C SQ', '+CSQ\n', '', 'CSQ'])('malformed %j rejected', n => expect(isDiscoverable(n)).toBe(false));
 test('lowercase is normalised, not rejected', () => expect(isDiscoverable('+qeng')).toBe(true));
@@ -37,10 +38,12 @@ test('terminal write', () => {
 test('parse clac', () => expect(parseCommandList(['+CSQ', '&F', 'AT+CREG'])).toEqual(['+CSQ', '&F', '+CREG']));
 
 // invariant of the catalog
+const CATALOG_READ_FORM = /^AT(I|\+\w+\?|\+\w+=\?|\+(CSQ|CESQ|CIMI|CGSN|GSN|GMI|GMM|GMR|CGMI|CGMM|CGMR|CGPADDR)|\+CLCK="\w\w",2|\+CRSM=176,\d+,\d+,\d+,\d+)$/;
 test('every auto catalog entry is a read form', () => {
-  for (const e of STANDARD_CATALOG.filter(e => e.phase === 'auto'))
-    expect(e.command).toMatch(/^AT(I|\+\w+\?|\+\w+=\?|\+(CSQ|CESQ|CIMI|CGSN|GSN|GMI|GMM|GMR|CGMI|CGMM|CGMR|CGPADDR)$|\+CLCK="\w\w",2$|\+CRSM=176,)/);
+  for (const e of STANDARD_CATALOG.filter(e => e.phase === 'auto')) expect(e.command).toMatch(CATALOG_READ_FORM);
 });
+test.each(['AT+CSQ?;+CFUN=0', 'ATIxyz', 'AT+CSQ;+CFUN=0', 'AT+CLCK="SC",2;+CFUN=0', 'AT+CRSM=176,1,0,0,10;Z'])('read-form check rejects %s', c =>
+  expect(c).not.toMatch(CATALOG_READ_FORM));
 test('no PIN sets in catalog', () => expect(STANDARD_CATALOG.some(e => /CPIN=/.test(e.command))).toBe(false));
 test('catalog ids unique, COPS scan is manual', () => {
   const ids = STANDARD_CATALOG.map(e => e.id);
