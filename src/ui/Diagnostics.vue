@@ -10,6 +10,8 @@ defineProps<{
   autoIncomplete: boolean;
   confirmDeep: boolean;
   hideIdentifiers: boolean;
+  /** How the last deep scan ended, shown next to the button that started it. */
+  deepResult?: string;
   /** Why these scans cannot run at all for this report. */
   scansUnavailableReason?: string;
 }>();
@@ -29,6 +31,7 @@ defineEmits<{ (e: 'ask-deep'): void; (e: 'cancel-deep'): void; (e: 'start-deep')
           Lists the operators around you (<code>AT+COPS=?</code>). It can take minutes and may interrupt the connection.
         </p>
       </div>
+      <p v-if="deepResult" class="notice deep-result" role="status">{{ deepResult }}</p>
       <p v-if="scansUnavailableReason" class="hint note">{{ scansUnavailableReason }}</p>
       <p v-if="autoIncomplete" class="hint note">Deep scan is unavailable because the automatic scan did not finish.</p>
       <div v-if="confirmDeep" class="notice warn alert" role="alertdialog" aria-label="Deep scan warning">
@@ -51,6 +54,6 @@ defineEmits<{ (e: 'ask-deep'): void; (e: 'cancel-deep'): void; (e: 'start-deep')
 .diagnostics { display: flex; flex-direction: column; gap: 1.25rem; }
 .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem 2rem; }
 .choice { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; }
-.note, .alert { grid-column: 1 / -1; }
+.note, .alert, .deep-result { grid-column: 1 / -1; }
 code { font-size: 0.82rem; }
 </style>

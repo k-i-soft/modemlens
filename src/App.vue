@@ -178,6 +178,9 @@ const finishedText = computed(() => {
     ? 'Deep scan finished: no further commands to try on this modem.'
     : `Deep scan finished: ${tried} ${tried === 1 ? 'command' : 'commands'} tried, ${answered} answered.`;
 });
+const deepResultText = computed(() => (!running.value && connected.value && finished.value === 'deep' ? finishedText.value : ''));
+/** On that tab the result stands next to the deep scan button, so the status line need not repeat it. */
+const deepResultInView = computed(() => deepResultText.value !== '' && tab.value === 'diagnostics');
 const started = computed(() => hasResults.value || connected.value);
 const canNetworkScan = computed(() => connected.value && autoDone.value && !running.value && !actionBusy.value);
 const canDeep = computed(() => canNetworkScan.value && autoComplete.value);
@@ -525,7 +528,7 @@ onBeforeUnmount(() => {
           <template v-else-if="imported">Imported capture: <span class="mono">{{ imported.profile?.label }}, {{ imported.startedAt }}</span></template>
           <template v-else>Not connected</template>
         </p>
-        <p v-if="!running && !(reportMeta.interrupted && connected) && finished && connected" class="hint" role="status">{{ finishedText }}</p>
+        <p v-if="!running && !(reportMeta.interrupted && connected) && finished && connected && !deepResultInView" class="hint" role="status">{{ finishedText }}</p>
         <AutoRefresh
           v-if="connected && autoDone && autoComplete"
           :state="refreshState"
@@ -563,7 +566,7 @@ onBeforeUnmount(() => {
     <template v-if="started">
       <ScanProgress
         v-if="progressKind"
-        :title="SCAN_TITLES[progressKind]"
+        :title="running ? SCAN_TITLES[progressKind] : 'Deep scan finished'"
         :done="items.length - progressBase"
         :total="progressTotal"
         :command="running ? currentCommand : undefined"
@@ -596,6 +599,7 @@ onBeforeUnmount(() => {
         :can-network-scan="canNetworkScan"
         :auto-incomplete="canNetworkScan && !autoComplete"
         :confirm-deep="confirmDeep"
+        :deep-result="deepResultText"
         :hide-identifiers="hideIdentifiers"
         :scans-unavailable-reason="imported ? IMPORTED_SCANS : undefined"
         @ask-deep="confirmDeep = true"

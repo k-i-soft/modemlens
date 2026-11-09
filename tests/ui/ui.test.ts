@@ -343,10 +343,15 @@ describe('App', () => {
     expect(w.text()).toMatch(/Deep scan finished: \d+ commands? tried, \d+ answered\./);
     const held = w.find('.progress');
     expect(held.exists()).toBe(true);
-    expect(held.text()).toContain('Scanning (deep scan)');
+    expect(held.text()).toContain('Deep scan finished');
+    expect(held.text()).not.toContain('Scanning');
     expect(held.find('button.stop').exists()).toBe(false);
     expect(btn(w, 'Refresh')!.attributes('disabled')).toBeUndefined();
     await until(() => !w.find('.progress').exists());
+    // It stays next to the button that started it, once and not twice.
+    expect(w.find('.deep-result').text()).toMatch(/^Deep scan finished: \d+ commands? tried, \d+ answered\.$/);
+    expect(w.text().match(/Deep scan finished/g)).toHaveLength(1);
+    await w.findAll('nav button')[0].trigger('click');
     expect(w.text()).toMatch(/Deep scan finished: \d+ commands? tried/);
   });
 
