@@ -117,6 +117,48 @@ describe('connectSerial', () => {
     await expect(connectSerial({ beforeOpen: noop, port: asPort })).rejects.toBe(failure);
   });
 
+  describe('calls that never settle', () => {
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    test('an open that hangs rejects instead of blocking the buttons for good', async () => {
+      const { port, asPort } = makePort();
+      port.open.mockReturnValue(new Promise(() => {}));
+      let settled: unknown;
+      const result = connectSerial({ beforeOpen: noop, port: asPort }).catch((e) => { settled = e; });
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(settled).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      await result;
+      expect(settled).toBeInstanceOf(Error);
+      expect(settled).not.toBeInstanceOf(PortBusyError);
+      expect((settled as Error).message).toContain('did not open');
+    });
+
+    test('an open that succeeds after the timeout does not leave the port open', async () => {
+      const { port, asPort } = makePort();
+      let finish!: () => void;
+      port.open.mockReturnValue(new Promise<void>((r) => { finish = r; }));
+      const result = connectSerial({ beforeOpen: noop, port: asPort }).catch((e) => e);
+      await vi.advanceTimersByTimeAsync(5000);
+      await result;
+      expect(port.close).not.toHaveBeenCalled();
+      finish();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(port.close).toHaveBeenCalledTimes(1);
+    });
+
+    test('a DTR request that hangs does not stop the connection', async () => {
+      const { port, asPort } = makePort();
+      port.setSignals.mockReturnValue(new Promise(() => {}));
+      const result = connectSerial({ beforeOpen: noop, port: asPort });
+      await vi.advanceTimersByTimeAsync(2000);
+      const t = await result;
+      expect(t.kind).toBe('serial');
+      await t.close();
+    });
+  });
+
   test('a failing DTR request is not fatal', async () => {
     const { port, asPort } = makePort();
     port.setSignals.mockRejectedValue(new DOMException('no', 'NetworkError'));

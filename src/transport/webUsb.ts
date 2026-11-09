@@ -3,7 +3,7 @@ import { classifyUsbDevice } from '../profiles/known-devices';
 import type { DeviceClassification } from '../profiles/known-devices';
 import { PickerCancelledError } from './types';
 import type { Transport, UsbConnectorOptions, UsbDeviceDescription } from './types';
-import { errorMessage, errorName, formatUsbId, TransportListeners } from './common';
+import { errorMessage, errorName, formatUsbId, TransportListeners, withTimeout } from './common';
 
 const CLAIM_TIMEOUT_MS = 3000;
 const USB_CALL_TIMEOUT_MS = 2000;
@@ -54,18 +54,14 @@ class UsbTimeoutError extends Error {
   }
 }
 
-function withTimeout<T>(call: Promise<T>, ms: number, operation: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const expired = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new UsbTimeoutError(operation)), ms);
-  });
-  return Promise.race([call, expired]).finally(() => clearTimeout(timer));
+function usbCall<T>(call: Promise<T>, ms: number, operation: string): Promise<T> {
+  return withTimeout(call, ms, () => new UsbTimeoutError(operation));
 }
 
 /** For calls whose failure changes nothing, such as a close while a claim is pending. */
 async function attempt(call: () => Promise<unknown>, operation: string): Promise<void> {
   try {
-    await withTimeout(call(), USB_CALL_TIMEOUT_MS, operation);
+    await usbCall(call(), USB_CALL_TIMEOUT_MS, operation);
   } catch {
     /* measured on Windows: InvalidStateError while another claim is pending */
   }
@@ -140,13 +136,13 @@ function bytesOf(view: DataView): Uint8Array {
  */
 async function claim(device: USBDevice, c: UsbCandidate): Promise<void> {
   try {
-    await withTimeout(device.claimInterface(c.interfaceNumber), CLAIM_TIMEOUT_MS, 'claimInterface');
+    await usbCall(device.claimInterface(c.interfaceNumber), CLAIM_TIMEOUT_MS, 'claimInterface');
   } catch (e) {
     throw errorName(e) === 'InvalidStateError' ? new UsbTimeoutError('claimInterface') : e;
   }
   if (c.alternateSetting === 0) return;
   try {
-    await withTimeout(device.selectAlternateInterface(c.interfaceNumber, c.alternateSetting), USB_CALL_TIMEOUT_MS, 'selectAlternateInterface');
+    await usbCall(device.selectAlternateInterface(c.interfaceNumber, c.alternateSetting), USB_CALL_TIMEOUT_MS, 'selectAlternateInterface');
   } catch (e) {
     await attempt(() => device.releaseInterface(c.interfaceNumber), 'releaseInterface');
     throw e;
@@ -174,7 +170,7 @@ async function answersAt(device: USBDevice, c: UsbCandidate, timeoutMs: number):
   };
   read().catch(() => finish(false));
   try {
-    const written = await withTimeout(device.transferOut(c.outEndpoint, PROBE_COMMAND), USB_CALL_TIMEOUT_MS, 'transferOut');
+    const written = await usbCall(device.transferOut(c.outEndpoint, PROBE_COMMAND), USB_CALL_TIMEOUT_MS, 'transferOut');
     if (written.status !== 'ok') finish(false);
   } catch {
     finish(false);
@@ -251,7 +247,7 @@ class WebUsbTransport implements Transport {
     for (let offset = 0; offset < data.length; offset += packetSize) {
       if (this.closing) throw new Error('The USB connection is closed.');
       const chunk = data.slice(offset, offset + packetSize);
-      const r = await withTimeout(this.device.transferOut(outEndpoint, chunk), USB_CALL_TIMEOUT_MS, 'transferOut');
+      const r = await usbCall(this.device.transferOut(outEndpoint, chunk), USB_CALL_TIMEOUT_MS, 'transferOut');
       if (r.status !== 'ok') throw new Error(`USB write failed: ${r.status}`);
     }
   }
@@ -319,7 +315,7 @@ async function ensureConfigured(device: USBDevice): Promise<void> {
   if (device.configuration) return;
   const first = device.configurations[0];
   if (!first) throw new Error('This USB device has no configuration.');
-  await withTimeout(device.selectConfiguration(first.configurationValue), USB_CALL_TIMEOUT_MS, 'selectConfiguration');
+  await usbCall(device.selectConfiguration(first.configurationValue), USB_CALL_TIMEOUT_MS, 'selectConfiguration');
 }
 
 /** Only that one interface is touched: claiming any other can leave a claim pending for good. */
@@ -365,7 +361,7 @@ export async function connectUsb(opts: UsbConnectorOptions): Promise<Transport> 
     throw new NoAtChannelError('This device has no AT channel.', false, classification, description);
   }
   // After a close that failed the device is still open, and open() would fail while a claim is pending.
-  if (!device.opened) await withTimeout(device.open(), OPEN_TIMEOUT_MS, 'open');
+  if (!device.opened) await usbCall(device.open(), OPEN_TIMEOUT_MS, 'open');
   try {
     await ensureConfigured(device);
     const { channel, pendingClaim } = await chooseChannel(device, opts, description);

@@ -1,8 +1,11 @@
 import { PickerCancelledError } from './types';
 import type { SerialConnectorOptions, Transport } from './types';
-import { errorMessage, errorName, formatUsbId, TransportListeners } from './common';
+import { errorMessage, errorName, formatUsbId, TransportListeners, withTimeout } from './common';
 
 export const DEFAULT_BAUD_RATE = 115200;
+/** A hang in either call would disable the connect buttons for good. */
+const OPEN_TIMEOUT_MS = 5000;
+const SIGNALS_TIMEOUT_MS = 2000;
 /** Errors after which the browser hands out a new readable stream on the same port. */
 const RECOVERABLE_READ_ERRORS = new Set(['BufferOverrunError', 'BreakError', 'FramingError', 'ParityError']);
 
@@ -10,6 +13,13 @@ export class PortBusyError extends Error {
   constructor() {
     super('Another program is using the modem. Close that program and try again.');
     this.name = 'PortBusyError';
+  }
+}
+
+class PortOpenTimeoutError extends Error {
+  constructor() {
+    super('The serial port did not open in time. Unplug the modem, plug it back in and try again.');
+    this.name = 'PortOpenTimeoutError';
   }
 }
 
@@ -128,14 +138,20 @@ export async function connectSerial(opts: SerialConnectorOptions): Promise<Trans
   const port = opts.port ?? (await pickPort());
   await opts.beforeOpen();
   const baudRate = opts.baudRate ?? DEFAULT_BAUD_RATE;
+  const opening = port.open({ baudRate });
   try {
-    await port.open({ baudRate });
+    await withTimeout(opening, OPEN_TIMEOUT_MS, () => new PortOpenTimeoutError());
   } catch (e) {
+    if (e instanceof PortOpenTimeoutError) {
+      // Nobody is left to use a port that opens after all, and it would refuse the next open.
+      void opening.then(() => port.close()).catch(() => {});
+      throw e;
+    }
     if (errorName(e) === 'NetworkError' || errorName(e) === 'InvalidStateError') throw new PortBusyError();
     throw e;
   }
   try {
-    await port.setSignals({ dataTerminalReady: true });
+    await withTimeout(port.setSignals({ dataTerminalReady: true }), SIGNALS_TIMEOUT_MS, () => new Error('setSignals timed out'));
   } catch {
     /* not every port has the line, and a modem that needs it stays silent, which the scan reports */
   }

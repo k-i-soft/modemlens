@@ -25,6 +25,15 @@ export class TransportListeners {
   }
 }
 
+/** Settles like `call`, or rejects with `timeoutError()` once `ms` have passed. */
+export function withTimeout<T>(call: Promise<T>, ms: number, timeoutError: () => Error): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(timeoutError()), ms);
+  });
+  return Promise.race([call, expired]).finally(() => clearTimeout(timer));
+}
+
 export function errorName(e: unknown): string {
   return (e as { name?: string } | null)?.name ?? '';
 }
