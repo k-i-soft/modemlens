@@ -153,6 +153,7 @@ export class Scanner {
 
   /** Explicit user action: the only place a 'manual' entry is sent. */
   async runManual(entry: CatalogEntry): Promise<ScanItem> {
+    delete this.report.interrupted;
     this.announce(entry.command);
     const r = await this.engine.send(entry.command, entry.timeoutMs ? { timeoutMs: entry.timeoutMs } : {});
     if (r.status === 'disconnected') this.report.interrupted = this.disconnectReason ?? r.errorDetail ?? 'disconnected';

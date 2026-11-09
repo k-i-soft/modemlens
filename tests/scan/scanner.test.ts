@@ -249,6 +249,29 @@ describe('Scanner', () => {
     expect(sent().filter((w) => w === 'AT+COPS=?')).toHaveLength(1);
   });
 
+  test('a manual command that follows a stopped scan clears the stop', async () => {
+    t.reply('AT+COPS=?', ['\r\n+COPS: (1,"X","X","22801")\r\n\r\nOK\r\n']);
+    defaultError();
+    const s = new Scanner(engine, {});
+    const ac = new AbortController();
+    ac.abort();
+    await s.runAuto(ac.signal);
+    expect(s.report.interrupted).toBe('aborted');
+    await s.runManual(STANDARD_CATALOG.find((e) => e.phase === 'manual')!);
+    expect(s.report.interrupted).toBeUndefined();
+  });
+
+  test('a manual command cut off by a disconnect still reports it', async () => {
+    defaultError();
+    const s = new Scanner(engine, {});
+    const ac = new AbortController();
+    ac.abort();
+    await s.runAuto(ac.signal);
+    t.disconnect('usb unplugged');
+    await s.runManual({ id: 'm', command: 'AT+QXYZ?', category: 'other', phase: 'manual', timeoutMs: 2 });
+    expect(s.report.interrupted).toBe('usb unplugged');
+  });
+
   describe('silent port', () => {
     const NO_RESPONSE = 'no response, wrong port?';
 
