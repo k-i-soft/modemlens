@@ -9,11 +9,20 @@ export function toJson(report: SharedReport | ScanReport): string {
   return JSON.stringify(report, null, 2);
 }
 
-/** Modem text is data: neutralise HTML and Markdown structure characters. */
+const ZERO_WIDTH_SPACE = '\u200b';
+
+/**
+ * Modem text is data: neutralise HTML and Markdown structure characters, and whatever
+ * a renderer would turn into a link on its own. Mention and e-mail detection can run on the
+ * rendered text, where a backslash is gone, so `@` also gets a character that splits it from the name.
+ */
 function esc(s: string): string {
   return s
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/[`|\\]/g, (c) => `\\${c}`)
+    .replace(/[`|\\[\]*_~#]/g, (c) => `\\${c}`)
+    .replace(/@/g, `\\@${ZERO_WIDTH_SPACE}`)
+    .replace(/:\/\//g, '\\://')
+    .replace(/\bwww\./gi, (m) => `${m.slice(0, -1)}\\.`)
     .replace(/\r?\n/g, ' ');
 }
 

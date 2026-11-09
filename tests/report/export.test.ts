@@ -29,6 +29,38 @@ describe('export', () => {
     expect(md).not.toContain('<img');
   });
 
+  describe('markdown planted in modem text stays inert', () => {
+    const CRAFTED = '[click](https://evil.example/x) ![img](http://evil.example/i) @attacker a@evil.example *bold* _em_ ~gone~ www.evil.example `code` a|b';
+    const crafted: ScanReport = {
+      startedAt: CRAFTED,
+      usb: CRAFTED,
+      items: [
+        { id: 'ati', command: `AT${CRAFTED}`, category: 'identity', state: 'done', parser: 'identity',
+          response: { command: 'ATI', status: 'ok', lines: [CRAFTED, CRAFTED], durationMs: 1 } },
+        { id: 'csq', command: 'AT+CSQ', category: 'signal', state: 'done', parser: 'csq',
+          response: { command: 'AT+CSQ', status: 'ok', lines: [`+CSQ: 21,99 ${CRAFTED}`], durationMs: 1 } },
+      ],
+      commandList: ['# Injected heading', CRAFTED],
+    };
+
+    test.each([
+      ['full', () => toMarkdown(crafted)],
+      ['shared', () => toMarkdown({ ...redactReport(crafted), startedAt: CRAFTED, usb: CRAFTED, commandList: ['# Injected heading', CRAFTED] })],
+    ])('%s report', (_, render) => {
+      const md = render();
+      expect(md).toContain('click');
+      expect(md).not.toMatch(/(?<!\\)[[\]*_~`|]/);
+      expect(md).not.toMatch(/https?:\/\//);
+      expect(md).not.toMatch(/\bwww\./i);
+      expect(md).not.toMatch(/@[a-z0-9]/i);
+      expect(md).not.toMatch(/^# Injected/m);
+    });
+
+    test('a masked value reads as plain text once rendered', () => {
+      expect(toMarkdown(redactReport(full))).toContain('\\[redacted\\]');
+    });
+  });
+
   test('full export is unmasked and marked', () => {
     const out = toJson(full);
     expect(out).toContain('123456789012345');
