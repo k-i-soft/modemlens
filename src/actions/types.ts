@@ -16,6 +16,8 @@ export interface ActionChoice {
   warning?: string;
   /** Show the warning prominently: it changes how exposed the computer is. */
   strongWarning?: boolean;
+  /** Added to the outcome once this value is confirmed. */
+  afterSuccess?: string;
 }
 
 export interface ActionRead {

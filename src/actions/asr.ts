@@ -33,7 +33,7 @@ export const ASR_ACTIONS: ActionDefinition[] = [
     read: { command: 'AT+CGACT?', parse: parseContext },
     choices: [
       { value: 'on', label: 'On', command: 'AT+CGACT=1,1', warning: 'The modem activates data context 1.' },
-      { value: 'off', label: 'Off', command: 'AT+CGACT=0,1', warning: 'This modem connects by itself, so it may turn data back on after you switch it off.' },
+      { value: 'off', label: 'Off', command: 'AT+CGACT=0,1', warning: 'This modem connects by itself, so it may turn data back on after you switch it off.', afterSuccess: 'This modem may reconnect by itself shortly.' },
     ],
     needsRestart: false,
     verified: false,

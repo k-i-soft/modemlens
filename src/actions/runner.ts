@@ -96,7 +96,8 @@ export async function runAction(
     if (r.status === 'disconnected') return goneOutcome(action, command, answer, 'while reading the value back');
     read = action.read.parse(r);
     if (read === value) {
-      return { kind: 'confirmed', message: `Confirmed: the modem now reads ${valueLabel(action, read)}.`, command, answer };
+      const next = action.choices.find((c) => c.value === value)?.afterSuccess;
+      return { kind: 'confirmed', message: `Confirmed: the modem now reads ${valueLabel(action, read)}.${next ? ` ${next}` : ''}`, command, answer };
     }
   }
   const message = read === null

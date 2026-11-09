@@ -65,7 +65,8 @@ describe('plannedDeepCommands', () => {
     const before = s.report.items.length;
     await s.runDeep();
     expect(s.report.items.length - before).toBe(3);
-    expect(seen.at(-1)).toBe(3);
+    // Already lower when the item that caused it is announced.
+    expect(seen).toEqual([3, 3, 3]);
   });
 
   test('starts over for the next deep scan', async () => {

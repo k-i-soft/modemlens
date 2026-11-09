@@ -194,8 +194,22 @@ describe('runAction on the ASR stick', () => {
 
   test('a data connection that is off when read back is confirmed', async () => {
     const { send, sent } = scripted({ 'AT+CGACT=0,1': ok(), 'AT+CGACT?': ok('+CGACT: 1,0') });
-    expect((await runAction(send, asr('data-context'), 'off')).kind).toBe('confirmed');
+    const o = await runAction(send, asr('data-context'), 'off');
+    expect(o.kind).toBe('confirmed');
+    expect(o.message).toContain('may reconnect by itself shortly');
     expect(sent).toEqual(['AT+CGACT=0,1', 'AT+CGACT?']);
+  });
+
+  test('switching data on carries no such note', async () => {
+    const { send } = scripted({ 'AT+CGACT=1,1': ok(), 'AT+CGACT?': ok('+CGACT: 1,1') });
+    const o = await runAction(send, asr('data-context'), 'on');
+    expect(o.kind).toBe('confirmed');
+    expect(o.message).not.toContain('reconnect');
+  });
+
+  test('a read-back that does not confirm carries no such note', async () => {
+    const { send } = scripted({ 'AT+CGACT=0,1': ok(), 'AT+CGACT?': ok('+CGACT: 1,1') });
+    expect((await runAction(send, asr('data-context'), 'off')).message).not.toContain('reconnect by itself');
   });
 
   test('a data connection that came back by itself is a plain mismatch', async () => {

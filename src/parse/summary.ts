@@ -37,15 +37,15 @@ function web(items: ScanItem[], key: string): string | undefined {
 }
 
 export const NO_SIM = 'No SIM';
-/** The CME error number for a missing SIM. */
-const SIM_NOT_INSERTED = '10';
+/** CME error 10, as a number or in words depending on the modem's error setting. */
+const SIM_NOT_INSERTED = /^(10|sim not inserted)$/i;
 
 function simState(items: ScanItem[]): string | undefined {
   const item = items.find(i => i.id === 'cpin');
   const r = item?.response;
   if (!r) return undefined;
   if (r.status === 'ok') return parseResponse('cpin', r)?.find(f => f.key === 'state')?.value;
-  if (r.status === 'cme_error' && r.errorDetail === SIM_NOT_INSERTED) return NO_SIM;
+  if (r.status === 'cme_error' && SIM_NOT_INSERTED.test(r.errorDetail ?? '')) return NO_SIM;
   // +CME ERROR (SIM failure and the like) or plain ERROR: the SIM cannot be queried.
   if (r.status === 'cme_error' || r.status === 'error' || r.status === 'cms_error') return 'unavailable';
   return undefined;

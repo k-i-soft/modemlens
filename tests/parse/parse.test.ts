@@ -311,8 +311,8 @@ describe('buildSummary', () => {
     });
   });
 
-  test('CME ERROR 10 on CPIN means no SIM', () => {
-    const r: AtResponse = { command: 'AT+CPIN?', status: 'cme_error', lines: [], errorDetail: '10', durationMs: 1 };
+  test.each(['10', 'SIM not inserted', 'sim NOT inserted'])('CME ERROR %s on CPIN means no SIM', (errorDetail) => {
+    const r: AtResponse = { command: 'AT+CPIN?', status: 'cme_error', lines: [], errorDetail, durationMs: 1 };
     expect(buildSummary(report([item('cpin', 'AT+CPIN?', r, 'unsupported', 'cpin')])).simState).toBe('No SIM');
   });
 
@@ -341,7 +341,7 @@ describe('buildSummary', () => {
   });
 
   test('CME ERROR on CPIN gives unavailable', () => {
-    const r: AtResponse = { command: 'AT+CPIN?', status: 'cme_error', lines: [], errorDetail: 'SIM not inserted', durationMs: 1 };
+    const r: AtResponse = { command: 'AT+CPIN?', status: 'cme_error', lines: [], errorDetail: 'SIM failure', durationMs: 1 };
     expect(buildSummary(report([item('cpin', 'AT+CPIN?', r, 'unsupported', 'cpin')])).simState).toBe('unavailable');
   });
 

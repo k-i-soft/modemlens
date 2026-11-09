@@ -163,17 +163,14 @@ export class Scanner {
       const forms = discoveryForms(name);
       for (const [i, command] of forms.entries()) {
         const entry: CatalogEntry = { id: `deep:${command.slice(2)}`, command, category: 'other', phase: 'auto', timeoutMs: DEEP_TIMEOUT_MS };
-        if (!(await this.step(entry, signal, false, 'discovery'))) return this.report;
+        if (!(await this.step(entry, signal, false, 'discovery', forms.length - i - 1))) return this.report;
         const last = this.report.items[this.report.items.length - 1].response;
         timeouts = last?.status === 'timeout' ? timeouts + 1 : 0;
         if (timeouts >= MAX_DEEP_TIMEOUTS) {
           this.report.interrupted = DEEP_SILENT;
           return this.report;
         }
-        if (last?.status !== 'ok') {
-          this.deepFormsDropped += forms.length - i - 1;
-          break;
-        }
+        if (last?.status !== 'ok') break;
       }
     }
     return this.report;
@@ -212,7 +209,7 @@ export class Scanner {
   }
 
   /** Returns false when the scan has to stop (abort or disconnect). */
-  private async step(entry: CatalogEntry, signal?: AbortSignal, isClac = false, category?: 'discovery'): Promise<boolean> {
+  private async step(entry: CatalogEntry, signal?: AbortSignal, isClac = false, category?: 'discovery', formsAfter = 0): Promise<boolean> {
     if (signal?.aborted) {
       this.report.interrupted = 'aborted';
       return false;
@@ -232,6 +229,8 @@ export class Scanner {
     }
     const state = stateOf(r);
     if (isClac && state === 'done') this.report.commandList = parseCommandList(r.lines);
+    // Before the item is announced, so that whoever shows the total never lags behind it.
+    if (r.status !== 'ok') this.deepFormsDropped += formsAfter;
     this.record(entry, r, state, category);
     return true;
   }
