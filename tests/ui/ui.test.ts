@@ -450,7 +450,7 @@ describe('App session lifecycle', () => {
     expect(scanItems(w).length).toBe(made[2].writes);
   });
 
-  test('a hanging close stops blocking after 2 seconds', async () => {
+  test('a hanging close stops blocking after 4.5 seconds, past the worst USB close of 4', async () => {
     vi.useFakeTimers();
     try {
       const first = new FakeTransport();
@@ -465,7 +465,7 @@ describe('App session lifecycle', () => {
       await vi.advanceTimersByTimeAsync(10);
       expect(w.text()).toContain('Automatic scan finished');
       await btn(w, 'Serial port')!.trigger('click');
-      await vi.advanceTimersByTimeAsync(1999);
+      await vi.advanceTimersByTimeAsync(4499);
       expect(second.written).toEqual([]);
       await vi.advanceTimersByTimeAsync(1);
       expect(second.written.length).toBeGreaterThan(0);

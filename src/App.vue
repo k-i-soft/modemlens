@@ -59,7 +59,8 @@ const connectors = computed<Connectors>(() => {
 });
 
 const COPS_SCAN = STANDARD_CATALOG.find((e) => e.command === 'AT+COPS=?')!;
-const CLOSE_TIMEOUT_MS = 2000;
+/** Longer than the worst USB shutdown (two calls of 2000 ms), so a late close cannot hit the next session. */
+const CLOSE_TIMEOUT_MS = 4500;
 
 type Phase = 'idle' | 'auto' | 'deep' | 'network' | 'finished';
 type ScanKind = 'auto' | 'deep' | 'network';
