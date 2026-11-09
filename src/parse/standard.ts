@@ -271,6 +271,120 @@ const cgpaddr: Parser = (r) => {
   return out;
 };
 
+// ---------- settings and state ----------
+
+/** First `+NAME:` line as a list of unquoted arguments, or undefined. */
+function firstArgs(r: AtResponse, name: string): string[] | undefined {
+  const a = prefixed(r.lines, name)[0];
+  return a === undefined ? undefined : splitArgs(a);
+}
+
+const cfun: Parser = (r) => {
+  const v = firstArgs(r, 'CFUN')?.[0];
+  if (!isInt(v)) return [];
+  const names: Record<string, string> = { '0': 'minimum', '1': 'full', '4': 'radio off' };
+  return [field('functionality', 'Functionality', names[v] ?? v)];
+};
+
+const cgatt: Parser = (r) => {
+  const v = firstArgs(r, 'CGATT')?.[0];
+  if (v !== '0' && v !== '1') return [];
+  return [field('attached', 'Packet service', v === '1' ? 'attached' : 'detached')];
+};
+
+const cmee: Parser = (r) => {
+  const v = firstArgs(r, 'CMEE')?.[0];
+  if (!isInt(v)) return [];
+  const names: Record<string, string> = { '0': 'off (plain ERROR)', '1': 'numeric', '2': 'verbose text' };
+  return [field('error_reporting', 'Error reporting', names[v] ?? v)];
+};
+
+const cscs: Parser = (r) => {
+  const v = firstArgs(r, 'CSCS')?.[0];
+  return v ? [field('charset', 'Character set', v)] : [];
+};
+
+const clvl: Parser = (r) => {
+  const v = firstArgs(r, 'CLVL')?.[0];
+  return isInt(v) ? [field('volume', 'Speaker volume', v)] : [];
+};
+
+const ctzu: Parser = (r) => {
+  const v = firstArgs(r, 'CTZU')?.[0];
+  if (!isInt(v)) return [];
+  const names: Record<string, string> = { '0': 'off', '1': 'on' };
+  return [field('auto_time_zone', 'Automatic time zone update', names[v] ?? v)];
+};
+
+const clip: Parser = (r) => {
+  const args = firstArgs(r, 'CLIP');
+  if (!args || !isInt(args[0]) || !isInt(args[1])) return [];
+  const presentation = args[0] === '1' ? 'shown' : args[0] === '0' ? 'hidden' : args[0];
+  const service: Record<string, string> = { '0': 'not provisioned', '1': 'provisioned', '2': 'unknown' };
+  return [
+    field('presentation', 'Caller ID presentation', presentation),
+    field('service', 'Caller ID service', service[args[1]] ?? args[1]),
+  ];
+};
+
+/** "yy/MM/dd,hh:mm:ss+zz" with zz in quarter hours. Shown as "20yy-MM-dd hh:mm:ss UTC+hh:mm". */
+const cclk: Parser = (r) => {
+  const v = firstArgs(r, 'CCLK')?.[0];
+  const m = v === undefined ? null : /^(\d{2})\/(\d{2})\/(\d{2}),(\d{2}:\d{2}:\d{2})(?:([+-])(\d{2}))?$/.exec(v);
+  if (!m) return [];
+  let zone = '';
+  if (m[5] !== undefined) {
+    const q = Number(m[6]);
+    const hh = String(Math.floor(q / 4)).padStart(2, '0');
+    const mm = String((q % 4) * 15).padStart(2, '0');
+    zone = ` UTC${m[5]}${hh}:${mm}`;
+  }
+  return [field('time', 'Modem time', `20${m[1]}-${m[2]}-${m[3]} ${m[4]}${zone}`)];
+};
+
+const csca: Parser = (r) => {
+  const args = firstArgs(r, 'CSCA');
+  if (!args || !args[0]) return [];
+  const out = [field('smsc', 'SMS centre', args[0], 'smsc')];
+  if (isInt(args[1])) out.push(field('smsc_type', 'SMS centre address type', args[1]));
+  return out;
+};
+
+const COPS_STAT: Record<string, string> = { '0': 'unknown', '1': 'available', '2': 'current', '3': 'forbidden' };
+const COPS_RAT_SHORT: Record<string, string> = { '0': 'GSM', '2': 'UMTS', '7': 'LTE', '12': 'NB-IoT', '13': 'NR' };
+
+/** Splits "(a,b),(c,d),,(0,1)" into the text of each parenthesised group; quotes may contain parentheses. */
+function groups(s: string): string[] {
+  const out: string[] = [];
+  let open = false;
+  let inQ = false;
+  let cur = '';
+  for (const ch of s) {
+    if (ch === '"') inQ = !inQ;
+    if (!inQ && ch === '(' && !open) { open = true; cur = ''; continue; }
+    if (!inQ && ch === ')' && open) { open = false; out.push(cur); continue; }
+    if (open) cur += ch;
+  }
+  return out;
+}
+
+/** Answer of the manual AT+COPS=?: (stat,long,short,numeric[,act]) per operator, then the supported modes and formats. */
+const copsScan: Parser = (r) => {
+  const out: Field[] = [];
+  for (const a of prefixed(r.lines, 'COPS')) {
+    for (const g of groups(a)) {
+      const args = splitArgs(g);
+      if (args.length < 4 || !isInt(args[0]) || !/^\d{5,6}$/.test(args[3])) continue;
+      const n = out.length + 1;
+      const name = args[1] || args[2] || args[3];
+      const rat = isInt(args[4]) ? ` ${COPS_RAT_SHORT[args[4]] ?? args[4]}` : '';
+      out.push(field(`operator_${n}`, `Operator ${n}`, `${name} (${args[3]})${rat}, ${COPS_STAT[args[0]] ?? args[0]}`));
+    }
+  }
+  return out;
+};
+
 export const STANDARD_PARSERS: Record<string, Parser> = {
   identity, cgsn, cimi, cpin, clck, cops, creg, csq, cesq, cgdcont, cgact, cgpaddr, crsm_iccid: crsmIccid,
+  cfun, cgatt, cmee, cscs, clvl, ctzu, clip, cclk, csca, cops_scan: copsScan,
 };

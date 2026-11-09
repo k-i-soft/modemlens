@@ -40,21 +40,21 @@ export const STANDARD_CATALOG: CatalogEntry[] = [
   // data
   auto('cgdcont', 'AT+CGDCONT?', 'data', false, 'cgdcont'),
   auto('cgact', 'AT+CGACT?', 'data', false, 'cgact'),
-  auto('cgatt', 'AT+CGATT?', 'data'),
+  auto('cgatt', 'AT+CGATT?', 'data', false, 'cgatt'),
   auto('cgpaddr', 'AT+CGPADDR', 'data', false, 'cgpaddr'),
   // voice
   auto('clcc-test', 'AT+CLCC=?', 'voice'),
-  auto('clvl', 'AT+CLVL?', 'voice'),
+  auto('clvl', 'AT+CLVL?', 'voice', false, 'clvl'),
   auto('crsl', 'AT+CRSL?', 'voice'),
   auto('calm', 'AT+CALM?', 'voice'),
-  auto('clip', 'AT+CLIP?', 'voice'),
+  auto('clip', 'AT+CLIP?', 'voice', false, 'clip'),
   // other
-  auto('cfun', 'AT+CFUN?', 'other'),
-  auto('cmee', 'AT+CMEE?', 'other'),
-  auto('cscs', 'AT+CSCS?', 'other'),
-  auto('cclk', 'AT+CCLK?', 'other'),
-  auto('ctzu', 'AT+CTZU?', 'other'),
-  auto('csca', 'AT+CSCA?', 'other'),
+  auto('cfun', 'AT+CFUN?', 'other', false, 'cfun'),
+  auto('cmee', 'AT+CMEE?', 'other', false, 'cmee'),
+  auto('cscs', 'AT+CSCS?', 'other', false, 'cscs'),
+  auto('cclk', 'AT+CCLK?', 'other', false, 'cclk'),
+  auto('ctzu', 'AT+CTZU?', 'other', false, 'ctzu'),
+  auto('csca', 'AT+CSCA?', 'other', false, 'csca'),
   // manual: network scan takes minutes and disturbs the registration
-  { id: 'cops-scan', command: 'AT+COPS=?', category: 'network', phase: 'manual', timeoutMs: 180000 },
+  { id: 'cops-scan', command: 'AT+COPS=?', category: 'network', phase: 'manual', timeoutMs: 180000, parser: 'cops_scan' },
 ];

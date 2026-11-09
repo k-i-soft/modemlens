@@ -55,5 +55,5 @@ test('parser ids wired', () => {
   const p = (id: string) => STANDARD_CATALOG.find(e => e.id === id)?.parser;
   expect(p('ati')).toBe('identity'); expect(p('gsn')).toBe('cgsn'); expect(p('cimi')).toBe('cimi');
   expect(p('crsm-iccid')).toBe('crsm_iccid'); expect(p('clck-pn')).toBe('clck'); expect(p('c5greg')).toBe('creg');
-  expect(p('clip')).toBeUndefined(); expect(p('cfun')).toBeUndefined(); expect(p('clcc-test')).toBeUndefined();
+  expect(p('clip')).toBe('clip'); expect(p('cfun')).toBe('cfun'); expect(p('cops-scan')).toBe('cops_scan'); expect(p('clcc-test')).toBeUndefined();
 });

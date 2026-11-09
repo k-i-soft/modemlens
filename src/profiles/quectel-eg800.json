@@ -40,7 +40,8 @@
       "id": "qeng-neighbour",
       "command": "AT+QENG=\"neighbourcell\"",
       "category": "signal",
-      "phase": "auto"
+      "phase": "auto",
+      "parser": "qeng_neighbour"
     },
     {
       "id": "qcsq",
@@ -75,13 +76,15 @@
       "command": "AT+QPINC?",
       "category": "locks",
       "phase": "auto",
-      "needsSim": true
+      "needsSim": true,
+      "parser": "qpinc"
     },
     {
       "id": "qgmr",
       "command": "AT+QGMR",
       "category": "identity",
-      "phase": "auto"
+      "phase": "auto",
+      "parser": "qgmr"
     }
   ],
   "denyCommands": [

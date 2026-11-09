@@ -116,7 +116,100 @@ describe('parseResponse', () => {
     const q = parseResponse('qcsq', ok(['+QCSQ: "LTE",-60,-85,146,-10']))!;
     expect(q).toContainEqual(expect.objectContaining({ key: 'rsrp_dbm', value: '-85' }));
     expect(q).toContainEqual(expect.objectContaining({ key: 'rsrq_db', value: '-10' }));
-    expect(q).toContainEqual(expect.objectContaining({ key: 'sinr_db', value: '9.2' }));
+    expect(q.some(f => f.key === 'sinr_db')).toBe(false);
+  });
+
+  test('qcsq: positive RSSI is a magnitude, SINR is not reported', () => {
+    const q = parseResponse('qcsq', ok(['+QCSQ: "LTE",56,-84,100,-11']))!;
+    expect(q.map(f => [f.key, f.value])).toEqual([
+      ['sysmode', 'LTE'], ['rssi_dbm', '-56'], ['rsrp_dbm', '-84'], ['rsrq_db', '-11'],
+    ]);
+    expect(val('qcsq', ['+QCSQ: "GSM",60'], 'rssi_dbm')).toBe('-60');
+    expect(val('qcsq', ['+QCSQ: "GSM",-60'], 'rssi_dbm')).toBe('-60');
+  });
+
+  test('qtemp: one field per real sensor, 255 means none', () => {
+    const f = parseResponse('qtemp', ok(['+QTEMP: 37,255,255']))!;
+    expect(f.map(x => [x.key, x.value])).toEqual([['temp_1', '37']]);
+    expect(parseResponse('qtemp', ok(['+QTEMP: 255,255']))).toBeNull();
+    expect(parseResponse('qtemp', ok(['+QTEMP: 40,41,255']))!.map(x => x.key)).toEqual(['temp_1', 'temp_2']);
+    expect(val('qtemp', ['+QTEMP: "35"'], 'temp_1')).toBe('35');
+  });
+
+  test('qcfg band: raw value kept, LTE bands decoded', () => {
+    const f = parseResponse('qcfg', ok(['+QCFG: "band",0xd3,0x1a0080800d5']))!;
+    expect(f).toContainEqual(expect.objectContaining({ key: 'band', value: '0xd3,0x1a0080800d5' }));
+    expect(f).toContainEqual(expect.objectContaining({ key: 'lte_bands', value: '1,3,5,7,8,20,28,38,40,41' }));
+    for (const bad of ['+QCFG: "band",0xd3', '+QCFG: "band",0xd3,zz', '+QCFG: "band",0xd3,0x0']) {
+      const g = parseResponse('qcfg', ok([bad]));
+      expect(g?.some(x => x.key === 'lte_bands') ?? false).toBe(false);
+    }
+    expect(parseResponse('qcfg', ok(['+QCFG: "usbnet",0']))!.some(x => x.key === 'lte_bands')).toBe(false);
+  });
+
+  test('simple settings parsers', () => {
+    expect(val('cfun', ['+CFUN: 1'], 'functionality')).toBe('full');
+    expect(val('cfun', ['+CFUN: 0'], 'functionality')).toBe('minimum');
+    expect(val('cfun', ['+CFUN: 4'], 'functionality')).toBe('radio off');
+    expect(val('cgatt', ['+CGATT: 1'], 'attached')).toBe('attached');
+    expect(val('cgatt', ['+CGATT: 0'], 'attached')).toBe('detached');
+    expect(val('cmee', ['+CMEE: 2'], 'error_reporting')).toBe('verbose text');
+    expect(val('cscs', ['+CSCS: "GSM"'], 'charset')).toBe('GSM');
+    expect(val('clvl', ['+CLVL: 3'], 'volume')).toBe('3');
+    expect(val('ctzu', ['+CTZU: 1'], 'auto_time_zone')).toBe('on');
+    const clip = parseResponse('clip', ok(['+CLIP: 0,2']))!;
+    expect(clip.map(f => f.value)).toEqual(['hidden', 'unknown']);
+    for (const p of ['cfun', 'cgatt', 'cmee', 'cscs', 'clvl', 'ctzu', 'clip', 'cclk', 'csca', 'qpinc', 'qgmr', 'cops_scan', 'qeng_neighbour'])
+      expect(parseResponse(p, ok(['+X: nonsense']))).toBeNull();
+  });
+
+  test('cclk shows the modem time with its zone', () => {
+    expect(val('cclk', ['+CCLK: "26/11/09,15:33:20+04"'], 'time')).toBe('2026-11-09 15:33:20 UTC+01:00');
+    expect(val('cclk', ['+CCLK: "26/11/09,15:33:20-02"'], 'time')).toBe('2026-11-09 15:33:20 UTC-00:30');
+    expect(parseResponse('cclk', ok(['+CCLK: "garbage"']))).toBeNull();
+  });
+
+  test('csca marks the SMS centre as smsc', () => {
+    const f = parseResponse('csca', ok(['+CSCA: "+41790000000",145']))!;
+    expect(f[0]).toMatchObject({ key: 'smsc', value: '+41790000000', sensitive: 'smsc' });
+  });
+
+  test('qpinc reads PIN and PUK attempts per facility', () => {
+    const f = parseResponse('qpinc', ok(['+QPINC: "SC",3,10', '+QPINC: "P2",3,10']))!;
+    expect(f.map(x => [x.key, x.value])).toEqual([
+      ['sc_pin_left', '3'], ['sc_puk_left', '10'], ['p2_pin_left', '3'], ['p2_puk_left', '10'],
+    ]);
+  });
+
+  test('qgmr gives the firmware build', () => {
+    expect(val('qgmr', ['EC200AEUHAR01A30M16'], 'firmware_build')).toBe('EC200AEUHAR01A30M16');
+  });
+
+  test('cops_scan lists one field per operator', () => {
+    const f = parseResponse('cops_scan', ok(['+COPS: (2,"Sunrise","Sunrise","22802",7),(1,"X","X","22801",7),,(0,1,2,3,4),(0,1,2)']))!;
+    expect(f.map(x => [x.key, x.value])).toEqual([
+      ['operator_1', 'Sunrise (22802) LTE, current'],
+      ['operator_2', 'X (22801) LTE, available'],
+    ]);
+    expect(val('cops_scan', ['+COPS: (3,"Y (b)","Y","22803",2),(0,"Z","Z","22804",13),(1,"W","W","22805",12),(1,"V","V","22806",9)'], 'operator_1')).toBe('Y (b) (22803) UMTS, forbidden');
+    const g = parseResponse('cops_scan', ok(['+COPS: (0,"Z","Z","22804",13),(1,"W","W","22805",12),(1,"V","V","22806",9)']))!;
+    expect(g.map(x => x.value)).toEqual(['Z (22804) NR, unknown', 'W (22805) NB-IoT, available', 'V (22806) 9, available']);
+  });
+
+  test('qeng_neighbour: one group per LTE neighbour line', () => {
+    const f = parseResponse('qeng_neighbour', ok([
+      '+QENG: "neighbourcell intra","LTE",6200,101,-11,-81,-52,8,0,12,6',
+      '+QENG: "neighbourcell inter","LTE",1300,202,-14,-95,-60,3,0,0,0,0',
+      '+QENG: "neighbourcell","WCDMA",1,2,3',
+      '+QENG: "neighbourcell intra","LTE",abc,1,2,3',
+    ]))!;
+    expect(f.filter(x => x.key.endsWith('_kind')).map(x => x.value)).toEqual(['intra', 'inter']);
+    expect(f).toContainEqual(expect.objectContaining({ key: 'n1_earfcn', value: '6200' }));
+    expect(f).toContainEqual(expect.objectContaining({ key: 'n1_rsrq_db', value: '-11' }));
+    expect(f).toContainEqual(expect.objectContaining({ key: 'n1_rsrp_dbm', value: '-81' }));
+    expect(f).toContainEqual(expect.objectContaining({ key: 'n2_rsrp_dbm', value: '-95' }));
+    expect(f.filter(x => x.key.endsWith('_pci')).every(x => x.sensitive === 'location')).toBe(true);
+    expect(parseResponse('qeng_neighbour', ok(['+QENG: "servingcell","NOCONN","LTE"']))).toBeNull();
   });
 
   test('qeng_serving: LTE layout, location marking, tolerant of other layouts', () => {
