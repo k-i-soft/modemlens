@@ -2,8 +2,9 @@ import type { CatalogEntry, Category } from './types';
 
 export const CLAC_COMMAND = 'AT+CLAC';
 
-function auto(id: string, command: string, category: Category, needsSim = false): CatalogEntry {
+function auto(id: string, command: string, category: Category, needsSim = false, parser?: string): CatalogEntry {
   const entry: CatalogEntry = { id, command, category, phase: 'auto' };
+  if (parser) entry.parser = parser;
   if (needsSim) entry.needsSim = true;
   return entry;
 }
@@ -11,36 +12,36 @@ function auto(id: string, command: string, category: Category, needsSim = false)
 // Every 'auto' entry must be a read/query form: the automatic scan never writes to the modem.
 export const STANDARD_CATALOG: CatalogEntry[] = [
   // identity
-  auto('ati', 'ATI', 'identity'),
-  auto('gmi', 'AT+GMI', 'identity'),
-  auto('gmm', 'AT+GMM', 'identity'),
-  auto('gmr', 'AT+GMR', 'identity'),
-  auto('cgmi', 'AT+CGMI', 'identity'),
-  auto('cgmm', 'AT+CGMM', 'identity'),
-  auto('cgmr', 'AT+CGMR', 'identity'),
-  auto('cgsn', 'AT+CGSN', 'identity'),
-  auto('gsn', 'AT+GSN', 'identity'),
+  auto('ati', 'ATI', 'identity', false, 'identity'),
+  auto('gmi', 'AT+GMI', 'identity', false, 'identity'),
+  auto('gmm', 'AT+GMM', 'identity', false, 'identity'),
+  auto('gmr', 'AT+GMR', 'identity', false, 'identity'),
+  auto('cgmi', 'AT+CGMI', 'identity', false, 'identity'),
+  auto('cgmm', 'AT+CGMM', 'identity', false, 'identity'),
+  auto('cgmr', 'AT+CGMR', 'identity', false, 'identity'),
+  auto('cgsn', 'AT+CGSN', 'identity', false, 'cgsn'),
+  auto('gsn', 'AT+GSN', 'identity', false, 'cgsn'),
   // sim
-  auto('cpin', 'AT+CPIN?', 'sim'),
-  auto('cimi', 'AT+CIMI', 'sim', true),
-  auto('crsm-iccid', 'AT+CRSM=176,12258,0,0,10', 'sim', true),
+  auto('cpin', 'AT+CPIN?', 'sim', false, 'cpin'),
+  auto('cimi', 'AT+CIMI', 'sim', true, 'cimi'),
+  auto('crsm-iccid', 'AT+CRSM=176,12258,0,0,10', 'sim', true, 'crsm_iccid'),
   // locks (status queries, mode 2)
   ...['SC', 'PN', 'PU', 'PP', 'PS', 'PF'].map(f =>
-    auto(`clck-${f.toLowerCase()}`, `AT+CLCK="${f}",2`, 'locks')),
+    auto(`clck-${f.toLowerCase()}`, `AT+CLCK="${f}",2`, 'locks', false, 'clck')),
   // network
-  auto('cops', 'AT+COPS?', 'network'),
-  auto('creg', 'AT+CREG?', 'network'),
-  auto('cgreg', 'AT+CGREG?', 'network'),
-  auto('cereg', 'AT+CEREG?', 'network'),
-  auto('c5greg', 'AT+C5GREG?', 'network'),
+  auto('cops', 'AT+COPS?', 'network', false, 'cops'),
+  auto('creg', 'AT+CREG?', 'network', false, 'creg'),
+  auto('cgreg', 'AT+CGREG?', 'network', false, 'creg'),
+  auto('cereg', 'AT+CEREG?', 'network', false, 'creg'),
+  auto('c5greg', 'AT+C5GREG?', 'network', false, 'creg'),
   // signal
-  auto('csq', 'AT+CSQ', 'signal'),
-  auto('cesq', 'AT+CESQ', 'signal'),
+  auto('csq', 'AT+CSQ', 'signal', false, 'csq'),
+  auto('cesq', 'AT+CESQ', 'signal', false, 'cesq'),
   // data
-  auto('cgdcont', 'AT+CGDCONT?', 'data'),
-  auto('cgact', 'AT+CGACT?', 'data'),
+  auto('cgdcont', 'AT+CGDCONT?', 'data', false, 'cgdcont'),
+  auto('cgact', 'AT+CGACT?', 'data', false, 'cgact'),
   auto('cgatt', 'AT+CGATT?', 'data'),
-  auto('cgpaddr', 'AT+CGPADDR', 'data'),
+  auto('cgpaddr', 'AT+CGPADDR', 'data', false, 'cgpaddr'),
   // voice
   auto('clcc-test', 'AT+CLCC=?', 'voice'),
   auto('clvl', 'AT+CLVL?', 'voice'),

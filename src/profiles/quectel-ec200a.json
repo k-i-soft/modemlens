@@ -14,26 +14,30 @@
       "command": "AT+QCCID",
       "category": "sim",
       "phase": "auto",
-      "needsSim": true
+      "needsSim": true,
+      "parser": "qccid"
     },
     {
       "id": "qspn",
       "command": "AT+QSPN",
       "category": "network",
       "phase": "auto",
-      "needsSim": true
+      "needsSim": true,
+      "parser": "qspn"
     },
     {
       "id": "qnwinfo",
       "command": "AT+QNWINFO",
       "category": "network",
-      "phase": "auto"
+      "phase": "auto",
+      "parser": "qnwinfo"
     },
     {
       "id": "qeng-serving",
       "command": "AT+QENG=\"servingcell\"",
       "category": "signal",
-      "phase": "auto"
+      "phase": "auto",
+      "parser": "qeng_serving"
     },
     {
       "id": "qeng-neighbour",
@@ -45,25 +49,29 @@
       "id": "qcsq",
       "command": "AT+QCSQ",
       "category": "signal",
-      "phase": "auto"
+      "phase": "auto",
+      "parser": "qcsq"
     },
     {
       "id": "qtemp",
       "command": "AT+QTEMP",
       "category": "other",
-      "phase": "auto"
+      "phase": "auto",
+      "parser": "qtemp"
     },
     {
       "id": "qcfg-usbnet",
       "command": "AT+QCFG=\"usbnet\"",
       "category": "usbmode",
-      "phase": "auto"
+      "phase": "auto",
+      "parser": "qcfg"
     },
     {
       "id": "qcfg-band",
       "command": "AT+QCFG=\"band\"",
       "category": "bands",
-      "phase": "auto"
+      "phase": "auto",
+      "parser": "qcfg"
     },
     {
       "id": "qpinc",
@@ -79,5 +87,16 @@
       "phase": "auto"
     }
   ],
-  "denyCommands": []
+  "denyCommands": [
+    "+QPRTPARA",
+    "+QNVW",
+    "+QNVFW",
+    "+QCOPS",
+    "+QMGDA",
+    "+QCMGS",
+    "+QCMGR",
+    "+QHUP",
+    "+QIACT",
+    "+QIDEACT"
+  ]
 }

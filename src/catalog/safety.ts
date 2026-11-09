@@ -1,13 +1,29 @@
 /** Safety rules deciding which commands may ever be probed or sent without an explicit user action. */
 
-const EXTENDED_PREFIX = /^[+$^#!%*]/;
+// Substring rules: reset/power/bootloader, firmware/NV, scans, SMS/phonebook, PIN/lock/password families.
+const DENY_PATTERN = new RegExp(
+  [
+    'RESET', 'POW', 'OFF', 'DOWN', 'ERASE', 'DEL', 'FOTA', 'UPDATE', 'FLASH', 'FACTORY', 'RST', 'DFU', 'DIAL',
+    'BOOT', 'SHDN', 'HALT', 'SMSO', 'FWUPD', 'FWINST', 'FWSWITCH', 'SCAN', 'NVW', 'NVFW', 'PRTPARA',
+    'CMG[SDRLWC]', 'CMSS', 'HCMG', 'SMG[RLS]', 'CPB[RWFS]', 'CPIN', 'LOCK', 'CPWD|SPWD',
+  ].join('|'),
+  'i',
+);
 
-const DENY_PATTERN = /RESET|POW|OFF|DOWN|ERASE|DEL|FOTA|UPDATE|FLASH|FACTORY|RST|DFU|DIAL/i;
+// Short power-off style names such as ^MSO, ^SMSO.
+const DENY_SHAPE = /^.MSO$/i;
 
 const DENY_FIXED = new Set([
-  '+CPOF', '+COPS', '+QSCAN', '+QOPS', '+CPIN', '+CLCK', '+CPWD',
+  '+CPOF', '+COPS', '+QSCAN', '+QOPS', '+QCOPS', '+CPIN', '+CLCK', '+CPWD',
   '+CMGS', '+CMGD', '+CMGR', '+CMGL', '+CPBR', '+CPBW',
+  '+CGDATA', '+CIICR', '+CIPSHUT', '+NETOPEN', '+NETCLOSE', '+QIACT', '+QIDEACT', '$QCRMCALL',
+  '+CHUP', '+QHUP',
+  '+CSIM', '+CRSM', '+CCHO', '+CGLA',
+  '^SLCK', '+QMGDA', '+CNUM', '+CUSD',
 ]);
+
+// A name is one prefix character followed by letters, digits or underscores, nothing else.
+const NAME_SHAPE = /^[+$^#!%*][A-Z0-9_]+$/;
 
 /** Turns lines of an AT+CLAC answer into bare command names ("AT+CREG" -> "+CREG"). */
 export function parseCommandList(lines: string[]): string[] {
@@ -19,11 +35,11 @@ export function parseCommandList(lines: string[]): string[] {
   return names;
 }
 
-/** Only extended commands (+ $ ^ # ! % *) that are not on a deny list may be probed. */
+/** Only well-formed extended names (+ $ ^ # ! % * prefix) that are not on a deny list may be probed. Case-insensitive; whitespace is rejected, not trimmed. */
 export function isDiscoverable(name: string, extraDeny: string[] = []): boolean {
-  const n = name.trim().toUpperCase();
-  if (!EXTENDED_PREFIX.test(n)) return false;
-  if (DENY_PATTERN.test(n)) return false;
+  const n = name.toUpperCase();
+  if (!NAME_SHAPE.test(n)) return false;
+  if (DENY_PATTERN.test(n) || DENY_SHAPE.test(n)) return false;
   if (DENY_FIXED.has(n)) return false;
   if (extraDeny.some(d => d.trim().toUpperCase() === n)) return false;
   return true;

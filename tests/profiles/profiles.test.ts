@@ -22,3 +22,12 @@ test('profile commands never denied or unique', () => {
     expect(p.commands.some(e => /CPIN=|CPWD/.test(e.command))).toBe(false);
   }
 });
+
+test('profile deny lists and parsers', () => {
+  for (const p of PROFILES) {
+    expect(p.denyCommands).toEqual(['+QPRTPARA', '+QNVW', '+QNVFW', '+QCOPS', '+QMGDA', '+QCMGS', '+QCMGR', '+QHUP', '+QIACT', '+QIDEACT']);
+    const par = (id: string) => p.commands.find(e => e.id === id)?.parser;
+    expect(par('qeng-serving')).toBe('qeng_serving'); expect(par('qcfg-band')).toBe('qcfg'); expect(par('qccid')).toBe('qccid');
+    expect(par('qeng-neighbour')).toBeUndefined(); expect(par('qpinc')).toBeUndefined(); expect(par('qgmr')).toBeUndefined();
+  }
+});
