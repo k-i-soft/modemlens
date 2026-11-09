@@ -251,6 +251,11 @@ describe('redactReport', () => {
         ['a lower-case prefix', '+cmt: "+41791234567"'],
         ['an indented line', '  $GPGGA,123519,4807.038,N'],
         ['a name that only starts like its own', '+CGMRX: 4807.038'],
+        ['a caret line', '^HCMT: "+41791234567",26/11/09'],
+        ['a percent line', '%CMTI: "+41791234567",1'],
+        ['a hash line', '#CMT: "+41791234567"'],
+        ['an asterisk line', '*CMT: "+41791234567"'],
+        ['an exclamation line', '!GPSFIX: 4807.038,N'],
       ])('one line of %s is enough', (_, line) => {
         const r = redactReport(report([item('cgmr', 'AT+CGMR', ['R01A01', line], 'identity')]));
         expect(r.items[0].fields).toBeUndefined();

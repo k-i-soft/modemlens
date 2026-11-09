@@ -97,7 +97,7 @@ function hasUnsolicitedLine(command: string, lines: string[]): boolean {
   const own = ownIdentityPrefix(command);
   return lines.some((raw) => {
     const l = raw.trim().toUpperCase();
-    return l.startsWith('$') || (l.startsWith('+') && !own?.test(l));
+    return l.startsWith('$') || (/^[+^%#*!]/.test(l) && !own?.test(l));
   });
 }
 
