@@ -107,9 +107,16 @@ function bytesOf(view: DataView): Uint8Array {
   return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 
-/** A timeout here means the browser still holds the claim as pending. */
+/**
+ * A timeout here means the browser still holds the claim as pending. So does `InvalidStateError` from
+ * `claimInterface`: on a retry without replug, Chromium rejects at once while the first claim is pending.
+ */
 async function claim(device: USBDevice, c: UsbCandidate): Promise<void> {
-  await withTimeout(device.claimInterface(c.interfaceNumber), CLAIM_TIMEOUT_MS, 'claimInterface');
+  try {
+    await withTimeout(device.claimInterface(c.interfaceNumber), CLAIM_TIMEOUT_MS, 'claimInterface');
+  } catch (e) {
+    throw errorName(e) === 'InvalidStateError' ? new UsbTimeoutError('claimInterface') : e;
+  }
   if (c.alternateSetting === 0) return;
   try {
     await withTimeout(device.selectAlternateInterface(c.interfaceNumber, c.alternateSetting), USB_CALL_TIMEOUT_MS, 'selectAlternateInterface');

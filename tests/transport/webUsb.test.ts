@@ -51,6 +51,7 @@ class FakeDevice {
   controls: USBControlTransferParameters[] = [];
   readLengths: number[] = [];
   claims = new Map<number, Claim>();
+  hungClaims = new Set<number>();
   answering = new Set<number>();
   closeError: Error | null = null;
   releaseError: Error | null = null;
@@ -86,7 +87,12 @@ class FakeDevice {
   claimInterface(n: number): Promise<void> {
     this.calls.push(`claim:${n}`);
     const how = this.claims.get(n) ?? 'ok';
-    if (how === 'hang') return new Promise(() => {});
+    if (how === 'hang') {
+      // As in Chromium: while the first claim is pending, a second one is refused at once.
+      if (this.hungClaims.has(n)) return Promise.reject(new DOMException('An operation that changes interface state is in progress.', 'InvalidStateError'));
+      this.hungClaims.add(n);
+      return new Promise(() => {});
+    }
     if (how === 'fail') return Promise.reject(new DOMException('Unable to claim interface', 'NetworkError'));
     return Promise.resolve();
   }
@@ -384,6 +390,39 @@ describe('connectUsb', () => {
     expect(err.hadPendingClaim).toBe(true);
     expect(err.message).toContain('WinUSB');
     expect(d.claimCalls()).toEqual(['claim:3']);
+  });
+
+  test('a retry without replug on the known interface still asks for a replug', async () => {
+    vi.useFakeTimers();
+    const d = ec200a();
+    d.claims.set(3, 'hang');
+    d.closeError = new DOMException('claim pending', 'InvalidStateError');
+    const first = connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(3000 + 2000);
+    expect((await first).hadPendingClaim).toBe(true);
+    const second = connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(2000);
+    const err = await second;
+    expect(err).toBeInstanceOf(NoAtChannelError);
+    expect(err.hadPendingClaim).toBe(true);
+    expect(err.message).not.toContain('Another program');
+    expect(d.calls.filter((c) => c === 'open')).toHaveLength(1);
+  });
+
+  test('a retry without replug while probing still asks for a replug', async () => {
+    vi.useFakeTimers();
+    const d = unknownModem();
+    d.claims.set(0, 'hang');
+    d.closeError = new DOMException('claim pending', 'InvalidStateError');
+    const first = connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect((await first).hadPendingClaim).toBe(true);
+    const second = connectUsb({ beforeOpen: noop, device: d.asDevice }).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(20000);
+    const err = await second;
+    expect(err).toBeInstanceOf(NoAtChannelError);
+    expect(err.hadPendingClaim).toBe(true);
+    expect(d.claimCalls().filter((c) => c === 'claim:0')).toHaveLength(2);
   });
 
   test('a refused claim on the known interface does not ask for a replug', async () => {
