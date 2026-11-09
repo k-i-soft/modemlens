@@ -47,7 +47,7 @@ The page is built so that a strict Content-Security-Policy works: no inline scri
 
 ## Origin of the code
 
-ModemLens is original work. It was written from public standards (3GPP TS 27.007, ITU-T V.250 and related specifications) and from vendors' public AT command documentation, not from the source code of any other tool.
+ModemLens is original work by K-I-Soft, released under the MIT licence. Its modem support is based on the 3GPP and ITU-T standards and on measurements with real hardware.
 
 ## License
 
