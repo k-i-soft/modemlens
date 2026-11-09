@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import type { DataContext } from './dashboard';
 
-defineProps<{ contexts: DataContext[] }>();
+defineProps<{ contexts: DataContext[]; hostConnection?: boolean }>();
 </script>
 
 <template>
   <section class="panel" aria-label="Data connections">
     <span class="label">Data connections</span>
+    <div v-if="hostConnection !== undefined" class="host">
+      <span class="state" :data-tone="hostConnection ? 'ok' : 'warn'"><span class="dot" aria-hidden="true" />Host connection {{ hostConnection ? 'on' : 'off' }}</span>
+      <p v-if="!hostConnection" class="hint">The modem is not passing data to this computer, so the computer has no network through it.</p>
+    </div>
     <ul>
       <li v-for="c in contexts" :key="c.cid" :class="{ idle: c.active === false }">
         <span class="cid mono">{{ c.cid }}</span>
@@ -25,6 +29,7 @@ defineProps<{ contexts: DataContext[] }>();
 </template>
 
 <style scoped>
+.host { display: grid; gap: 0.2rem; margin-bottom: 0.75rem; }
 ul { margin: 0; padding: 0; list-style: none; }
 li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; align-items: baseline; gap: 0.75rem; padding-block: 0.65rem; border-top: 1px solid var(--line); }
 li:first-child { border-top: 0; padding-top: 0; }

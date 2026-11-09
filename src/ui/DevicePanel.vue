@@ -15,6 +15,7 @@ const rows = computed(() => {
   const d = props.device;
   return [
     ['USB mode', d.usbMode],
+    ['NAT', d.nat],
     ['Function', d.functionMode],
     ['Modem time', d.time],
     ...(d.details ?? []).map((r) => [r.label, r.value]),

@@ -12,9 +12,14 @@ test('the remaining starter profiles are unverified', () =>
 
 // same read-only invariant as the standard catalog, plus the Quectel read forms
 test('every auto profile command is a read form', () => {
-  const re = /^AT(\+\w+\?|\+\w+=\?|\+Q(CCID|SPN|NWINFO|CSQ|TEMP|GMR)|\+QENG="(servingcell|neighbourcell)"|\+QCFG="(usbnet|band)")$/;
+  const re = /^AT(\+\w+\?|\+\w+=\?|\+Q(CCID|SPN|NWINFO|CSQ|TEMP|GMR)|\+QENG="(servingcell|neighbourcell)"|\+QCFG="(usbnet|band|nat)")$/;
   for (const p of PROFILES)
     for (const e of p.commands.filter(e => e.phase === 'auto')) expect(e.command).toMatch(re);
+});
+test('the EC200A profile reads its host connection and NAT setting', () => {
+  const rows = PROFILES.find(p => p.id === 'quectel-ec200a')!.commands;
+  expect(rows.find(e => e.id === 'qnetdevctl')).toMatchObject({ command: 'AT+QNETDEVCTL?', phase: 'auto', parser: 'qnetdevctl' });
+  expect(rows.find(e => e.id === 'qcfg-nat')).toMatchObject({ command: 'AT+QCFG="nat"', phase: 'auto', parser: 'qcfg' });
 });
 test('profile commands never denied or unique', () => {
   for (const p of PROFILES) {

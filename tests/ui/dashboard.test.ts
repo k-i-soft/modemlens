@@ -3,6 +3,7 @@ import { buildDashboard, MASK, METRICS, rate, signalBars } from '../../src/ui/da
 import type { Metric, Rating } from '../../src/ui/dashboard';
 import type { ScanItem, ScanReport } from '../../src/scan/scanner';
 import { PROFILES } from '../../src/profiles';
+import { actionById } from '../../src/actions/ec200a';
 
 function item(parser: string, lines: string[], command = 'AT+X', id: string = parser): ScanItem {
   return {
@@ -243,6 +244,80 @@ describe('sim, data and device', () => {
       item('qcfg', ['+QCFG: "usbnet",9'], 'AT+QCFG="usbnet"', 'qcfg-usbnet'),
     ]));
     expect(d.device).toEqual({ temperature: 45, usbMode: 'mode 9' });
+  });
+});
+
+describe('radio off', () => {
+  const on = (): ScanItem[] => [
+    serving(),
+    item('csq', ['+CSQ: 21,99'], 'AT+CSQ', 'csq'),
+    item('creg', ['+CEREG: 0,1'], 'AT+CEREG?', 'cereg'),
+    item('cops', ['+COPS: 0,0,"Demo Mobile",7'], 'AT+COPS?', 'cops'),
+    item('qeng_neighbour', ['+QENG: "neighbourcell intra","LTE",1300,201,-8,-78,-55,14,0,0,0,0'], 'AT+QENG="neighbourcell"', 'qeng-neighbour'),
+  ];
+
+  test.each([['+CFUN: 4'], ['+CFUN: 0']])('%s reads "Radio off", neutrally, whatever the registration says', (line) => {
+    const d = buildDashboard(report([...on(), item('cfun', [line], 'AT+CFUN?', 'cfun')]));
+    expect(d.network).toEqual({ word: 'Radio off', tone: 'neutral' });
+  });
+
+  test('without the radio, signal values are absent and old network details are not shown', () => {
+    const d = buildDashboard(report([...on(), item('cfun', ['+CFUN: 4'], 'AT+CFUN?', 'cfun')]));
+    expect(d.signal.values).toEqual([]);
+    expect(d.signal.bars).toBeUndefined();
+    expect(d.signal.radioOff).toBe(true);
+    expect(d.neighbours).toEqual([]);
+    expect(d.chips.map((c) => c.key)).not.toContain('operator');
+    expect(d.chips.map((c) => c.key)).not.toContain('technology');
+  });
+
+  test('a configured address is not shown as if it were in use', () => {
+    const contexts = [item('cgdcont', ['+CGDCONT: 1,"IP","demo.apn","10.0.0.2",0,0'], 'AT+CGDCONT?', 'cgdcont')];
+    expect(buildDashboard(report([...contexts, item('cfun', ['+CFUN: 4'], 'AT+CFUN?', 'cfun')])).data[0]).toMatchObject({ apn: 'demo.apn', addresses: [] });
+    expect(buildDashboard(report([...contexts, item('cfun', ['+CFUN: 1'], 'AT+CFUN?', 'cfun')])).data[0].addresses).toEqual(['10.0.0.2']);
+  });
+
+  test('with the radio on, nothing changes', () => {
+    const d = buildDashboard(report([...on(), item('cfun', ['+CFUN: 1'], 'AT+CFUN?', 'cfun')]));
+    expect(d.network?.word).toBe('On the network');
+    expect(d.signal.values.length).toBeGreaterThan(0);
+    expect(d.signal.radioOff).toBeUndefined();
+    expect(d.neighbours.length).toBeGreaterThan(0);
+  });
+
+  test('without a CFUN answer, nothing changes', () => {
+    expect(buildDashboard(report(on())).network?.word).toBe('On the network');
+  });
+});
+
+describe('host connection and NAT', () => {
+  test.each([['+QNETDEVCTL: 1,1,1,1', true], ['+QNETDEVCTL: 0,0,0,0', false]])('%s', (line, on) => {
+    expect(buildDashboard(report([item('qnetdevctl', [line])])).hostConnection).toBe(on);
+  });
+
+  test('absent when the modem has no such answer', () => {
+    expect(buildDashboard(report([])).hostConnection).toBeUndefined();
+  });
+
+  test.each(['0', '1'])('NAT %s uses the words of Actions', (value) => {
+    const words = actionById('nat')!.choices.find((c) => c.value === value)!.label;
+    const d = buildDashboard(report([item('qcfg', [`+QCFG: "nat",${value}`], 'AT+QCFG="nat"', 'qcfg-nat')]));
+    expect(d.device.nat).toBe(words);
+  });
+
+  test('the words themselves', () => {
+    const nat = (v: string) => buildDashboard(report([item('qcfg', [`+QCFG: "nat",${v}`], 'AT+QCFG="nat"', 'qcfg-nat')])).device.nat;
+    expect(nat('0')).toBe('Modem does NAT');
+    expect(nat('1')).toBe('Carrier address on the computer');
+    expect(nat('7')).toBeUndefined();
+  });
+
+  test('a NAT row does not disturb the USB mode', () => {
+    const d = buildDashboard(report([
+      item('qcfg', ['+QCFG: "usbnet",1'], 'AT+QCFG="usbnet"', 'qcfg-usbnet'),
+      item('qcfg', ['+QCFG: "nat",0'], 'AT+QCFG="nat"', 'qcfg-nat'),
+    ]));
+    expect(d.device.usbMode).toMatch(/ECM/);
   });
 });
 

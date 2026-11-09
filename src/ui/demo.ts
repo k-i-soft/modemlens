@@ -139,6 +139,22 @@ function settingsAnswer(cmd: string, s: DemoSettings, restart: () => void): stri
   return undefined;
 }
 
+/** What a modem with its radio off answers instead of its usual network status. */
+const RADIO_OFF_ANSWERS: Record<string, string[]> = {
+  'AT+CREG?': ['+CREG: 0,0', OK],
+  'AT+CGREG?': ['+CGREG: 0,0', OK],
+  'AT+CEREG?': ['+CEREG: 0,0', OK],
+  'AT+COPS?': ['+COPS: 0', OK],
+  'AT+CSQ': ['+CSQ: 99,99', OK],
+  'AT+CESQ': ['+CESQ: 99,99,255,255,255,255', OK],
+  'AT+CGATT?': ['+CGATT: 0', OK],
+  'AT+CGACT?': ['+CGACT: 1,0', '+CGACT: 2,0', OK],
+  'AT+CGPADDR': ['+CGPADDR: 1,"0.0.0.0"', '+CGPADDR: 2,"0.0.0.0"', OK],
+  'AT+QNWINFO': ['+QNWINFO: No Service', OK],
+  'AT+QCSQ': ['+QCSQ: "NOSERVICE"', OK],
+  'AT+QENG="SERVINGCELL"': ['+QENG: "servingcell","SEARCH"', OK],
+};
+
 /** How long the simulated modem keeps talking before a restart takes it away. */
 const DEMO_RESTART_MS = 150;
 
@@ -165,7 +181,8 @@ export function createDemoTransport(opts: { delayMs?: number; settings?: DemoSet
 
   const answer = (cmd: string): void => {
     const name = cmd.toUpperCase();
-    const lines = settingsAnswer(cmd, settings, restart) ?? (name === 'AT+CESQ' ? demoCesq(Date.now()) : ANSWERS[name] ?? [ERR]);
+    const radioOff = settings.radio === '1' ? undefined : RADIO_OFF_ANSWERS[name];
+    const lines = settingsAnswer(cmd, settings, restart) ?? radioOff ?? (name === 'AT+CESQ' ? demoCesq(Date.now()) : ANSWERS[name] ?? [ERR]);
     emit(`\r\n${lines.join('\r\n')}\r\n`);
   };
 

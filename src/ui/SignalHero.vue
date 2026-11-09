@@ -33,8 +33,14 @@ const basis = computed(() => props.signal.values.find((v) => v.metric === props.
         </p>
       </div>
       <div v-else class="verdict">
-        <p class="word muted">{{ scanning ? 'Measuring' : 'No reading' }}</p>
-        <p class="of">{{ scanning ? 'Waiting for the first signal reading.' : 'The modem did not report a signal value.' }}</p>
+        <template v-if="signal.radioOff">
+          <p class="word muted">Radio off</p>
+          <p class="of">The radio is off, so there is no signal to measure.</p>
+        </template>
+        <template v-else>
+          <p class="word muted">{{ scanning ? 'Measuring' : 'No reading' }}</p>
+          <p class="of">{{ scanning ? 'Waiting for the first signal reading.' : 'The modem did not report a signal value.' }}</p>
+        </template>
       </div>
     </div>
     <div v-if="signal.values.length" class="scales">

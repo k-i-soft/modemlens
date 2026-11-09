@@ -48,7 +48,7 @@ const hasDevice = computed(() => Object.keys(props.dashboard.device).length > 0)
     <div class="columns">
       <div class="column wide">
         <NetworkPanel v-if="dashboard.cell.length" :rows="dashboard.cell" />
-        <DataPanel v-if="dashboard.data.length" :contexts="dashboard.data" />
+        <DataPanel v-if="dashboard.data.length || dashboard.hostConnection !== undefined" :contexts="dashboard.data" :host-connection="dashboard.hostConnection" />
         <NeighbourBars v-if="dashboard.neighbours.length" :neighbours="dashboard.neighbours" />
       </div>
       <div class="column">

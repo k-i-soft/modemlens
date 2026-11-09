@@ -82,6 +82,20 @@
       "parser": "qcfg"
     },
     {
+      "id": "qcfg-nat",
+      "command": "AT+QCFG=\"nat\"",
+      "category": "other",
+      "phase": "auto",
+      "parser": "qcfg"
+    },
+    {
+      "id": "qnetdevctl",
+      "command": "AT+QNETDEVCTL?",
+      "category": "data",
+      "phase": "auto",
+      "parser": "qnetdevctl"
+    },
+    {
       "id": "qpinc",
       "command": "AT+QPINC?",
       "category": "locks",

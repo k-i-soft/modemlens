@@ -1,3 +1,4 @@
+import { actionById } from '../actions/ec200a';
 import type { ScanReport } from '../scan/scanner';
 import { buildSummary, parseResponse, WEB_PARSER_NAMES } from '../parse';
 import type { Field } from '../parse';
@@ -63,14 +64,16 @@ export interface Dashboard {
   };
   network?: { word: string; tone: Tone };
   chips: Chip[];
-  signal: { values: SignalValue[]; bars?: number; rating?: Rating; word?: string; basis?: 'rsrp' | 'rssi' };
+  signal: { values: SignalValue[]; bars?: number; rating?: Rating; word?: string; basis?: 'rsrp' | 'rssi'; radioOff?: boolean };
   bands: { items: Array<{ band: number; active: boolean }>; otherActive?: string };
   cell: Row[];
   neighbours: Neighbour[];
   operators: Operator[];
   sim: { state?: string; lock?: string; pinLeft?: number; pukLeft?: number; iccid?: string; imsi?: string; msisdn?: string };
   data: DataContext[];
-  device: { temperature?: number; usbMode?: string; functionMode?: string; time?: string; details?: Row[] };
+  /** Whether the modem's data connection to the computer is up. */
+  hostConnection?: boolean;
+  device: { temperature?: number; usbMode?: string; nat?: string; functionMode?: string; time?: string; details?: Row[] };
 }
 
 export interface DashboardOptions {
@@ -104,6 +107,8 @@ const WEB_DEVICE_KEYS = [
   'product_family', 'support_mode', 'work_mode', 'home_plmn', 'uptime',
 ];
 const NO_SERVICE = /no[\s_]*service/i;
+/** What the cfun parser calls CFUN 4 and CFUN 0. */
+const RADIO_OFF_MODES = ['radio off', 'minimum'];
 const USB_MODES: Record<string, string> = { '0': 'RmNet', '1': 'ECM', '2': 'MBIM', '3': 'RNDIS', '5': 'NCM' };
 const UNUSED_ADDRESS = /^[0.:]*$/;
 const NEIGHBOUR_KEY = /^n(\d+)_(kind|earfcn|pci|rsrq_db|rsrp_dbm)$/;
@@ -164,18 +169,20 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   const workMode = webField('work_mode')?.value;
   const noService = workMode !== undefined && NO_SERVICE.test(workMode);
   const technology = summary.rat ?? text('qeng_serving', 'rat') ?? (noService ? undefined : workMode);
+  const functionality = find('cfun', 'functionality')?.value;
+  const radioOff = functionality !== undefined && RADIO_OFF_MODES.includes(functionality);
   const chips: Chip[] = [];
   if (simState) chips.push({ key: 'sim', label: 'SIM', value: simState, tone: simState === 'Ready' ? 'ok' : simState === 'Unavailable' ? 'bad' : 'warn' });
   // A web answer has no registration state: having an operator is the closest it comes to saying so.
-  const network = networkStatus(summary.registration)
+  const network = radioOff ? { word: 'Radio off', tone: 'neutral' as const } : networkStatus(summary.registration)
     ?? (noService ? { word: 'No service', tone: 'bad' as const } : webField('operator') ? { word: 'On the network', tone: 'ok' as const } : undefined);
   if (summary.registration && network) chips.push({ key: 'registration', label: 'Registration', value: capitalise(summary.registration), tone: network.tone });
-  if (technology) chips.push({ key: 'technology', label: 'Technology', value: technology, tone: 'neutral' });
-  if (summary.operator) chips.push({ key: 'operator', label: 'Operator', value: summary.operator, tone: 'neutral' });
+  if (technology && !radioOff) chips.push({ key: 'technology', label: 'Technology', value: technology, tone: 'neutral' });
+  if (summary.operator && !radioOff) chips.push({ key: 'operator', label: 'Operator', value: summary.operator, tone: 'neutral' });
 
   // ---- signal ----
   const values: SignalValue[] = [];
-  for (const metric of Object.keys(METRICS) as Metric[]) {
+  for (const metric of radioOff ? [] : (Object.keys(METRICS) as Metric[])) {
     for (const source of SIGNAL_SOURCES) {
       const value = reading(find(source, SIGNAL_KEYS[metric])?.value);
       if (value === undefined) continue;
@@ -185,7 +192,7 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
     }
   }
   const basis = values.find((v) => v.metric === 'rsrp') ?? values.find((v) => v.metric === 'rssi');
-  const signal: Dashboard['signal'] = { values };
+  const signal: Dashboard['signal'] = radioOff ? { values, radioOff } : { values };
   if (basis) {
     const metric = basis.metric as 'rsrp' | 'rssi';
     Object.assign(signal, { bars: signalBars(metric, basis.value), rating: basis.rating, word: basis.word, basis: metric });
@@ -216,7 +223,7 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
 
   // ---- neighbours ----
   const byNeighbour = new Map<string, Record<string, Field>>();
-  for (const f of fieldsOf('qeng_neighbour')[0] ?? []) {
+  for (const f of radioOff ? [] : fieldsOf('qeng_neighbour')[0] ?? []) {
     const m = NEIGHBOUR_KEY.exec(f.key);
     if (!m) continue;
     byNeighbour.set(m[1], { ...byNeighbour.get(m[1]), [m[2]]: f });
@@ -272,13 +279,15 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
       apn: c.apn && shown(c.apn),
       type: c.type && shown(c.type),
       active: c.active ? c.active.value === 'active' : undefined,
-      addresses: c.addresses.map(shown),
+      addresses: radioOff ? [] : c.addresses.map(shown),
     }));
 
   // ---- device ----
   const temperatures = (fieldsOf('qtemp')[0] ?? []).map((f) => reading(f.value)).filter((n): n is number => n !== undefined && n !== NO_TEMPERATURE_SENSOR);
   const usbnet = find('qcfg', 'usbnet')?.value;
   const usbLabel = usbnet === undefined ? undefined : USB_MODES[usbnet];
+  const natValue = find('qcfg', 'nat')?.value;
+  const hostConnection = find('qnetdevctl', 'host_connection')?.value;
 
   const firstField = (key: string): Field | undefined => find('identity', key) ?? webField(key);
   const imei = find('cgsn', 'imei') ?? webField('imei');
@@ -313,9 +322,11 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
       msisdn: web('msisdn'),
     }),
     data,
+    ...(hostConnection === undefined ? {} : { hostConnection: hostConnection === 'on' }),
     device: present({
       temperature: temperatures.length > 0 ? Math.max(...temperatures) : undefined,
       usbMode: usbnet === undefined ? undefined : usbLabel ? `${usbLabel} (mode ${usbnet})` : `mode ${usbnet}`,
+      nat: actionById('nat')?.choices.find((c) => c.value === natValue)?.label,
       functionMode: text('cfun', 'functionality'),
       time: text('cclk', 'time'),
       details: deviceDetails.length > 0 ? deviceDetails : undefined,

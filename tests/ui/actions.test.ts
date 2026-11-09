@@ -106,7 +106,7 @@ describe('Actions tab in the app', () => {
 
   test('opening the tab reads the current values and writes nothing', async () => {
     const w = await scanned();
-    expect(sent()).not.toContain('AT+QNETDEVCTL?');
+    expect(sent()).not.toContain('AT+QCFG="roamservice"');
     await openTab(w);
     await until(() => sent().includes('AT+QCFG="roamservice"'));
     await until(() => row(w, 'roaming').find('.value').text() === 'On');
@@ -443,9 +443,9 @@ describe('Actions tab in the app', () => {
     await flushPromises();
     expect(w.find('.actions-view').text()).toContain('A scan is running');
     for (const b of row(w, 'restart').findAll('button')) expect(b.attributes('disabled')).toBeDefined();
-    expect(sent()).not.toContain('AT+QNETDEVCTL?');
+    expect(sent()).not.toContain('AT+QCFG="roamservice"');
     finish();
-    await until(() => sent().includes('AT+QNETDEVCTL?'));
+    await until(() => sent().includes('AT+QCFG="roamservice"'));
     expect(writes()).toEqual([]);
   });
 
@@ -470,8 +470,7 @@ describe('Actions tab in the app', () => {
     await btn(w, 'Download full JSON')!.trigger('click');
     expect(dl).toHaveBeenCalledTimes(2);
     for (const call of dl.mock.calls) {
-      expect(call[1]).not.toContain('QNETDEVCTL');
-      expect(call[1]).not.toContain('"nat"');
+      expect(call[1]).not.toContain('QCFG=\\"nat\\",1');
       expect(call[1]).not.toContain('Carrier address');
     }
   });

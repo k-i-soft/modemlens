@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { Connector, Connectors, Transport } from './transport/types';
 import './ui/theme.css';
 import { AtEngine } from './at/engine';
@@ -16,6 +16,7 @@ import ExportMenu from './ui/ExportMenu.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
 import TerminalPane from './ui/TerminalPane.vue';
 import ActionsPanel from './ui/ActionsPanel.vue';
+import AutoRefresh from './ui/AutoRefresh.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
 import DonateLink from './ui/DonateLink.vue';
 import { connectSerial } from './transport/webSerial';
@@ -27,6 +28,8 @@ import { downloadText } from './ui/download';
 import { buildDashboard } from './ui/dashboard';
 import { DONATE_URL } from './config';
 import { LiveSignal } from './ui/liveSignal';
+import { StatusRefresher, mergeOverlay, refreshEntries } from './ui/statusRefresh';
+import type { Overlay, RefreshState } from './ui/statusRefresh';
 
 const appVersion = __APP_VERSION__;
 const gitCommit = __GIT_COMMIT__;
@@ -117,6 +120,12 @@ const finished = ref<ScanKind | null>(null);
 /** The report on screen came from a capture file: there is no modem behind it. */
 const imported = ref<ScanReport | null>(null);
 const importCount = ref(0);
+/** Newer answers than the scan's. Only the Overview sees them: reports and exports keep the scan. */
+const overlay = shallowRef<Overlay>({});
+const refreshState = shallowRef<RefreshState>({ enabled: true, refreshing: false, stalled: false, updatedAt: null });
+const terminalBusy = ref(0);
+const pageHidden = ref(document.visibilityState === 'hidden');
+const clock = ref(Date.now());
 const currentCommand = ref('');
 const progressBase = ref(0);
 const progressTotal = ref<number | undefined>(undefined);
@@ -146,7 +155,7 @@ function syncMeta(): void {
 }
 
 const dashboard = computed(() =>
-  buildDashboard({ ...reportMeta.value, items: items.value }, { hideIdentifiers: hideIdentifiers.value }),
+  buildDashboard(mergeOverlay({ ...reportMeta.value, items: items.value }, overlay.value), { hideIdentifiers: hideIdentifiers.value }),
 );
 const hasResults = computed(() => items.value.length > 0);
 const running = computed(() => phase.value !== 'idle' && phase.value !== 'finished');
@@ -177,6 +186,30 @@ const liveSamples = live.samples;
 // Synchronous, so that no poll can be issued between the start of a scan and its first command.
 watch(modemBusy, (busy) => live.setPaused(busy), { flush: 'sync' });
 
+const refresher = new StatusRefresher(
+  (command, opts) => (engine ? engine.send(command, opts ?? {}) : Promise.resolve({ command, status: 'disconnected', lines: [], durationMs: 0 })),
+  {
+    onResults: (results) => {
+      overlay.value = { ...overlay.value, ...Object.fromEntries(results.map((item) => [item.id, item])) };
+    },
+    onState: (state) => {
+      refreshState.value = state;
+    },
+  },
+);
+const refreshHeld = computed(() => modemBusy.value || terminalBusy.value > 0 || pageHidden.value);
+// Synchronous for the same reason as above.
+watch(refreshHeld, (held) => refresher.setPaused(held), { flush: 'sync', immediate: true });
+
+function onVisibilityChange(): void {
+  pageHidden.value = document.visibilityState === 'hidden';
+}
+let clockTimer: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  clockTimer = setInterval(() => (clock.value = Date.now()), 1000);
+});
+
 function toggleLive(on: boolean): void {
   if (on && connected.value) live.start();
   else live.stop();
@@ -198,6 +231,7 @@ function teardown(): Promise<void> {
   // Detach synchronously: while the close is pending, nothing may reach the old session.
   const old = transport;
   live.stop();
+  refresher.stop();
   abort?.abort();
   engine?.dispose();
   abort = null;
@@ -233,6 +267,8 @@ async function runScan(s: Scanner, which: ScanKind, work: () => Promise<unknown>
 
 /** A fresh report from the automatic scan, on the session that is already open. */
 async function scanFromStart(): Promise<void> {
+  refresher.stop();
+  overlay.value = {};
   const usb = props.demo ? DEMO_USB : transport?.usbId;
   const s = new Scanner(engine!, usb ? { usb } : {});
   scanner = s;
@@ -256,6 +292,7 @@ async function scanFromStart(): Promise<void> {
   if (s === scanner) {
     autoDone.value = true;
     autoComplete.value = s.report.interrupted === undefined;
+    if (autoComplete.value && connected.value) refresher.start(refreshEntries(s.report.profile));
   }
 }
 
@@ -270,8 +307,10 @@ async function onConnected(t: Transport): Promise<void> {
   transport = t;
   label.value = t.label;
   engine = new AtEngine(t);
+  engine.onUrc(() => refresher.trigger());
   engine.onDisconnect((reason) => {
     live.stop();
+    refresher.stop();
     connected.value = false;
     lostReason.value = reason;
     confirmDeep.value = false;
@@ -304,9 +343,14 @@ async function startNetworkScan(): Promise<void> {
   await runScan(s, 'network', () => s.runManual(COPS_SCAN));
 }
 
-function terminalSend(command: string, body?: string): Promise<AtResponse> {
-  if (!engine) return Promise.resolve({ command, status: 'disconnected', lines: [], durationMs: 0 });
-  return engine.send(command, { timeoutMs: 15000, cancelPromptOnTimeout: true, body });
+async function terminalSend(command: string, body?: string): Promise<AtResponse> {
+  if (!engine) return { command, status: 'disconnected', lines: [], durationMs: 0 };
+  terminalBusy.value++;
+  try {
+    return await engine.send(command, { timeoutMs: 15000, cancelPromptOnTimeout: true, body });
+  } finally {
+    terminalBusy.value--;
+  }
 }
 
 /** Takes the modem for an action. False when something else holds it, and then nothing may be sent. */
@@ -344,6 +388,7 @@ function onImported(report: ScanReport): void {
   generation++;
   void teardown();
   scanner = null;
+  overlay.value = {};
   imported.value = report;
   importCount.value++;
   items.value = [...report.items];
@@ -377,6 +422,8 @@ function exportFull(kind: 'json' | 'md'): void {
 }
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+  clearInterval(clockTimer);
   void teardown();
 });
 </script>
@@ -424,6 +471,13 @@ onBeforeUnmount(() => {
           <template v-else>Not connected</template>
         </p>
         <p v-if="!running && !(reportMeta.interrupted && connected) && finished && connected" class="hint" role="status">{{ FINISHED_TEXT[finished] }}</p>
+        <AutoRefresh
+          v-if="connected && autoDone && autoComplete"
+          :state="refreshState"
+          :now="clock"
+          @toggle="refresher.setEnabled($event)"
+          @resume="refresher.resume()"
+        />
       </div>
       <ConnectBar
         :connectors="connectors"
@@ -510,6 +564,7 @@ onBeforeUnmount(() => {
         :begin="beginAction"
         :end="endAction"
         @restarted="onRestarted"
+        @confirmed="refresher.runNow()"
         @rescan="rescan"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>

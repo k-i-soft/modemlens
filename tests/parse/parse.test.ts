@@ -136,6 +136,22 @@ describe('parseResponse', () => {
     expect(val('qtemp', ['+QTEMP: "35"'], 'temp_1')).toBe('35');
   });
 
+  test.each([
+    ['+QNETDEVCTL: 1,1,1,1', 'on'],
+    ['+QNETDEVCTL: 0,0,0,0', 'off'],
+    ['+qnetdevctl:1, 1, 1, 0', 'off'],
+  ])('qnetdevctl %s: host connection %s', (line, value) => {
+    expect(val('qnetdevctl', [line], 'host_connection')).toBe(value);
+  });
+
+  test.each(['+QNETDEVCTL: 1,1,1,2', '+QNETDEVCTL: 1,1', 'nonsense'])('qnetdevctl %s says nothing', (line) => {
+    expect(parseResponse('qnetdevctl', ok([line]))).toBeNull();
+  });
+
+  test('qcfg reads the NAT setting', () => {
+    expect(val('qcfg', ['+QCFG: "nat",1'], 'nat')).toBe('1');
+  });
+
   test('qcfg band: raw value kept, LTE bands decoded', () => {
     const f = parseResponse('qcfg', ok(['+QCFG: "band",0xd3,0x1a0080800d5']))!;
     expect(f).toContainEqual(expect.objectContaining({ key: 'band', value: '0xd3,0x1a0080800d5' }));

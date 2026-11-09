@@ -173,6 +173,15 @@ const qcfg: Parser = (r) => {
 
 const isInt = (s: string | undefined): s is string => s !== undefined && /^-?\d+$/.test(s);
 
+/** "+QNETDEVCTL: 1,1,1,1": the fourth value says whether the host connection is up. */
+const qnetdevctl: Parser = (r) => {
+  const a = prefixed(r.lines, 'QNETDEVCTL')[0];
+  if (a === undefined) return [];
+  const state = splitArgs(a)[3];
+  if (state !== '0' && state !== '1') return [];
+  return [field('host_connection', 'Host connection', state === '1' ? 'on' : 'off')];
+};
+
 /** "+QPINC: "SC",3,10": PIN and PUK attempts left per facility. */
 const qpinc: Parser = (r) => {
   const out: Field[] = [];
@@ -218,5 +227,5 @@ const qengNeighbour: Parser = (r) => {
 };
 
 export const QUECTEL_PARSERS: Record<string, Parser> = {
-  qccid, qspn, qnwinfo, qeng_serving: qengServing, qcsq, qtemp, qcfg, qpinc, qgmr, qeng_neighbour: qengNeighbour,
+  qccid, qspn, qnwinfo, qeng_serving: qengServing, qcsq, qtemp, qcfg, qpinc, qgmr, qeng_neighbour: qengNeighbour, qnetdevctl,
 };

@@ -26,6 +26,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'restarted'): void;
+  (e: 'confirmed'): void;
   (e: 'rescan'): void;
 }>();
 
@@ -204,6 +205,7 @@ async function confirm(): Promise<void> {
     // Before the modem is released: nothing may be sent to one that is going down.
     if (outcome?.kind === 'restarting') emit('restarted');
     props.end();
+    if (outcome?.kind === 'confirmed') emit('confirmed');
   }
 }
 
