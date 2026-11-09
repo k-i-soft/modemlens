@@ -1,0 +1,105 @@
+import type { ItemState, ScanReport } from '../scan/scanner';
+import { parseResponse } from '../parse';
+import type { Field } from '../parse';
+
+export interface Shape { length: number; lines: number; classes: string; }
+export interface SharedItem {
+  id: string;
+  command: string;
+  state: ItemState;
+  fields?: Field[];
+  lines?: string[];
+  shape?: Shape;
+}
+export interface SharedReport {
+  redacted: true;
+  startedAt: string;
+  usb?: string;
+  profile?: string;
+  items: SharedItem[];
+  commandList: string[];
+}
+
+export const REDACTED = '[redacted]';
+const MIN_LEARNED_LENGTH = 4;
+
+export function shapeOf(lines: string[]): Shape {
+  const text = lines.join('\n');
+  const classes: string[] = [];
+  if (/[A-Za-z]/.test(text)) classes.push('alpha');
+  if (/\d/.test(text)) classes.push('digit');
+  if (/\s/.test(text)) classes.push('space');
+  if (/[^A-Za-z\d\s]/.test(text)) classes.push('punct');
+  return { length: text.length, lines: lines.length, classes: classes.join(',') };
+}
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const PATTERNS: RegExp[] = [
+  /\d{14,20}/g,
+  /\+\d{7,15}/g,
+  /\b\d{1,3}(?:\.\d{1,3}){3}\b/g,
+  /(?<![\w:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}/gi,
+];
+
+function makeFilter(learned: Set<string>): (s: string) => string {
+  // Longest first so that a value containing another one is replaced whole.
+  const values = [...learned].sort((a, b) => b.length - a.length);
+  const learnedRe = values.length > 0 ? new RegExp(values.map(escapeRe).join('|'), 'gi') : undefined;
+  return (s) => {
+    let out = learnedRe ? s.replace(learnedRe, REDACTED) : s;
+    for (const p of PATTERNS) out = out.replace(p, REDACTED);
+    return out;
+  };
+}
+
+function isCommandName(s: string): boolean {
+  return /^[+$^#!%*&]?[A-Za-z0-9_]+$/.test(s) && !/\d{14,}/.test(s);
+}
+
+/**
+ * Default-deny: text only survives for items a known parser understood, and
+ * only after masking. Everything else is reduced to its shape.
+ */
+export function redactReport(report: ScanReport): SharedReport {
+  const parsed = report.items.map((item) =>
+    item.response && item.parser ? parseResponse(item.parser, item.response) : null);
+
+  const learned = new Set<string>();
+  for (const fields of parsed) {
+    for (const f of fields ?? []) {
+      if (f.sensitive !== 'none' && f.value.trim().length >= MIN_LEARNED_LENGTH) learned.add(f.value.trim());
+    }
+  }
+  const filter = makeFilter(learned);
+
+  const items: SharedItem[] = report.items.map((item, i) => {
+    const out: SharedItem = { id: item.id, command: item.command, state: item.state };
+    const r = item.response;
+    if (!r) return out;
+    const fields = parsed[i];
+    const isCrsm = /CRSM/i.test(item.command) || /crsm/i.test(item.parser ?? '');
+    if (!fields || isCrsm) {
+      out.shape = shapeOf(r.lines);
+      return out;
+    }
+    out.fields = fields.map((f) => ({
+      key: filter(f.key),
+      label: filter(f.label),
+      value: f.sensitive !== 'none' ? REDACTED : filter(f.value),
+      sensitive: f.sensitive,
+    }));
+    if (fields.every((f) => f.sensitive === 'none')) out.lines = r.lines.map(filter);
+    return out;
+  });
+
+  const shared: SharedReport = {
+    redacted: true,
+    startedAt: report.startedAt,
+    items,
+    commandList: report.commandList.filter(isCommandName),
+  };
+  if (report.usb !== undefined) shared.usb = report.usb;
+  if (report.profile) shared.profile = report.profile.id;
+  return shared;
+}
