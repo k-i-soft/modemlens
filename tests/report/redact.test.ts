@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'vitest';
+import { AtEngine } from '../../src/at/engine';
+import { Scanner } from '../../src/scan/scanner';
 import type { ScanItem, ScanReport } from '../../src/scan/scanner';
 import { redactReport, shapeOf } from '../../src/report/redact';
-import { toJson } from '../../src/report/export';
+import { toJson, toMarkdown } from '../../src/report/export';
+import { FakeTransport } from '../helpers/fakeTransport';
 
 const resp = (command: string, lines: string[], status: 'ok' | 'error' = 'ok') =>
   ({ command, status, lines, durationMs: 1 }) as ScanItem['response'];
@@ -60,6 +63,19 @@ describe('redactReport', () => {
     leaks([item('ati', 'ATI', ['SN AB12CD34EF56', 'M1'], 'identity')], ['AB12CD34EF56']);
     leaks([item('cgmr', 'AT+CGMR', ['R1', 'SN:AB12CD34EF56'], 'identity')], ['AB12CD34EF56']);
     leaks([item('cgmr', 'AT+CGMR', ['35-209900-176148-1'], 'identity')], ['35-209900-176148-1']);
+  });
+
+  test('SerialNumber label without separator is shape only', () => {
+    const a = leaks([item('ati', 'ATI', ['Acme', 'SerialNumber: AB12CD34EF56'], 'identity')], ['AB12CD34EF56']);
+    expect(a.items[0].fields).toBeUndefined();
+    expect(a.items[0].shape).toBeDefined();
+    leaks([item('ati', 'ATI', ['Acme', 'Serial_No AB12CD34EF56'], 'identity')], ['AB12CD34EF56']);
+    leaks([item('ati', 'ATI', ['Acme', 'SERIALNO=AB12CD34EF56'], 'identity')], ['AB12CD34EF56']);
+  });
+
+  test('a word that merely contains a serial label stays readable', () => {
+    const a = leaks([item('ati', 'ATI', ['Acme', 'Unserialized build'], 'identity')], []);
+    expect(a.items[0].fields).toBeDefined();
   });
 
   test('deep item names carrying identifiers are replaced', () => {
@@ -142,5 +158,46 @@ describe('redactReport', () => {
 
   test('shapeOf', () => {
     expect(shapeOf(['+QXYZ: secretvalue 42'])).toEqual({ length: 21, lines: 1, classes: 'alpha,digit,space,punct' });
+  });
+
+  describe('raw lines of full-coverage parsers', () => {
+    const INJECTED = ['+CMT: "+41791234567",,"26/11/09,12:00:00+04"', 'Your login code is alpha-secret', '$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M'];
+    const NEEDLES = ['41791234567', 'alpha-secret', 'login code', 'GPGGA', '4807.038', '+CMT'];
+
+    test.each([
+      ['csq', 'AT+CSQ', '+CSQ: 21,99'],
+      ['cesq', 'AT+CESQ', '+CESQ: 99,99,255,255,20,60'],
+      ['cpin', 'AT+CPIN?', '+CPIN: READY'],
+      ['clck', 'AT+CLCK="SC",2', '+CLCK: 0'],
+      ['cgact', 'AT+CGACT?', '+CGACT: 1,1'],
+      ['qcsq', 'AT+QCSQ', '+QCSQ: "LTE",-62,-92,150,-10'],
+    ])('%s exports only its own prefix', (parser, command, own) => {
+      const r = leaks([item(parser, command, [...INJECTED, own], parser)], NEEDLES);
+      expect(r.items[0].lines).toEqual([own]);
+    });
+
+    test('injected lines do not survive engine, scanner and both export formats', async () => {
+      const t = new FakeTransport();
+      t.reply('AT+CSQ', [`AT+CSQ\r\r\n${INJECTED.join('\r\n')}\r\n\r\n+CSQ: 21,99\r\n\r\nOK\r\n`]);
+      t.reply(/.*/, ['\r\nERROR\r\n']);
+      const engine = new AtEngine(t);
+      const s = new Scanner(engine, {});
+      await s.runAuto();
+      engine.dispose();
+      const shared = redactReport(s.report);
+      const out = toJson(shared) + toMarkdown(shared);
+      for (const n of NEEDLES) expect(out).not.toContain(n);
+      expect(shared.items.find((i) => i.id === 'csq')!.lines).toEqual(['+CSQ: 21,99']);
+    });
+
+    test('a parser name matching an Object member gets no lines', () => {
+      const r = redactReport(report([item('x', 'AT+X', ['+X: 1'], 'constructor')]));
+      expect(r.items[0].lines).toBeUndefined();
+    });
+  });
+
+  test('URC-format CREG with a decimal LAC does not leak it through the status', () => {
+    const r = leaks([item('creg', 'AT+CREG?', ['+CREG: 1,"4711","00123456",7'], 'creg')], ['4711', '00123456']);
+    expect(r.items[0].fields?.find((f) => f.key === 'status')?.value).toBe('unknown');
   });
 });

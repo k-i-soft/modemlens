@@ -62,9 +62,21 @@ function isCommandName(s: string, learned: Set<string>): boolean {
   return true;
 }
 
-/** Parsers that consume the whole response, so raw lines hold nothing they did not see. */
-const FULL_COVERAGE_PARSERS = new Set(['csq', 'cesq', 'cpin', 'clck', 'cgact', 'qcsq']);
-const SERIAL_LABEL = /(^|[^a-z0-9])(serial|s\/n|sn|fsn|esn|meid|imei)(?![a-z0-9])/i;
+/**
+ * Parsers whose non-sensitive answers may be exported as raw lines, with the
+ * prefix a line needs. Anything else in the response (an injected +CMT, an NMEA
+ * sentence) never reached the parser and is dropped.
+ */
+const RAW_LINE_PREFIX = new Map([
+  ['csq', '+CSQ:'],
+  ['cesq', '+CESQ:'],
+  ['cpin', '+CPIN:'],
+  ['clck', '+CLCK:'],
+  ['cgact', '+CGACT:'],
+  ['qcsq', '+QCSQ:'],
+]);
+// "serial" also matches as the start of a word: SerialNumber, SERIALNO.
+const SERIAL_LABEL = /(^|[^a-z0-9])(serial|(?:s\/n|sn|fsn|esn|meid|imei)(?![a-z0-9]))/i;
 const USB_ID = /^[0-9a-f]{4}:[0-9a-f]{4}$/i;
 
 /**
@@ -109,7 +121,11 @@ export function redactReport(report: ScanReport): SharedReport {
       value: f.sensitive !== 'none' ? REDACTED : filter(f.value),
       sensitive: f.sensitive,
     }));
-    if (FULL_COVERAGE_PARSERS.has(item.parser ?? '') && fields.every((f) => f.sensitive === 'none')) out.lines = r.lines.map(filter);
+    const prefix = RAW_LINE_PREFIX.get(item.parser ?? '');
+    if (prefix && fields.every((f) => f.sensitive === 'none')) {
+      const own = r.lines.filter((l) => l.trim().toUpperCase().startsWith(prefix));
+      if (own.length > 0) out.lines = own.map(filter);
+    }
     return out;
   });
 

@@ -179,7 +179,7 @@ const creg: Parser = (r) => {
     const hasN = args.length >= 2;
     const rest = hasN ? args.slice(1) : args;
     if (!isInt(rest[0])) continue;
-    const out: Field[] = [field('status', 'Registration', REG_STAT[rest[0]] ?? `unknown (${rest[0]})`)];
+    const out: Field[] = [field('status', 'Registration', REG_STAT[rest[0]] ?? 'unknown')];
     const area = rest[1];
     const cell = rest[2];
     const act = rest[3];
