@@ -14,6 +14,7 @@ import Diagnostics from './ui/Diagnostics.vue';
 import ScanProgress from './ui/ScanProgress.vue';
 import ExportMenu from './ui/ExportMenu.vue';
 import ToggleSwitch from './ui/ToggleSwitch.vue';
+import HelpTip from './ui/HelpTip.vue';
 import TerminalPane from './ui/TerminalPane.vue';
 import ActionsPanel from './ui/ActionsPanel.vue';
 import AutoRefresh from './ui/AutoRefresh.vue';
@@ -81,6 +82,7 @@ const TABS = [
 const IMPORTED_TERMINAL = 'This report was imported from a file, so there is no modem to send commands to.';
 const IMPORTED_SCANS = 'Deep scan and Network scan need a connected modem. This report was imported from a file.';
 const IMPORTED_LIVE = 'Live signal needs a connected modem. This report was imported from a file.';
+const IMPORTED_REFRESH = 'Refresh needs a connected modem. This report was imported from a file.';
 const TERMINAL_DURING_SCAN = 'Sending is off while a scan is running, so that a typed command cannot land between the scan commands.';
 const TERMINAL_DURING_ACTION = 'Sending is off while an action is running, so that a typed command cannot land between its steps.';
 const SCAN_TITLES: Record<ScanKind, string> = {
@@ -165,6 +167,12 @@ const canDeep = computed(() => canNetworkScan.value && autoComplete.value);
 const modemBusy = computed(() => running.value || actionBusy.value);
 /** The serial number from the scan: it tells whether a reconnected modem is the same one. Never shown. */
 const modemKey = computed(() => items.value.find((i) => i.parser === 'cgsn' && i.state === 'done')?.response?.lines.join('') || undefined);
+const refreshBlocked = computed(() => {
+  if (imported.value) return IMPORTED_REFRESH;
+  if (!connected.value) return 'Refresh needs a connected modem.';
+  if (running.value) return 'A scan is running.';
+  return actionBusy.value ? 'An action is running.' : '';
+});
 const terminalReason = computed(() => {
   if (imported.value) return IMPORTED_TERMINAL;
   if (running.value) return TERMINAL_DURING_SCAN;
@@ -447,7 +455,7 @@ onBeforeUnmount(() => {
         </button>
       </nav>
       <div class="actions">
-        <ToggleSwitch v-model="hideIdentifiers" label="Hide identifiers" />
+        <span class="switch-with-help"><ToggleSwitch v-model="hideIdentifiers" label="Hide identifiers" /><HelpTip term="Hide identifiers" /></span>
         <ExportMenu :disabled="!hasResults" :session="reportMeta.startedAt" @shared="exportShared" @full="exportFull" />
       </div>
     </div>
@@ -522,6 +530,11 @@ onBeforeUnmount(() => {
       />
       <p v-else-if="reportMeta.interrupted && connected" class="notice warn" role="status">{{ interruptedText }}</p>
 
+      <div v-if="tab === 'overview' || tab === 'diagnostics'" class="refresh-row">
+        <button type="button" :disabled="refreshBlocked !== ''" @click="rescan">Refresh</button>
+        <p v-if="refreshBlocked" class="hint">{{ refreshBlocked }}</p>
+      </div>
+
       <Overview
         v-show="tab === 'overview'"
         :dashboard="dashboard"
@@ -570,7 +583,6 @@ onBeforeUnmount(() => {
         :end="endAction"
         @restarted="onRestarted"
         @confirmed="refreshAfterAction"
-        @rescan="rescan"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>
     </template>
@@ -599,6 +611,8 @@ onBeforeUnmount(() => {
 .mark { width: 1rem; height: 1rem; fill: var(--accent); }
 .demo-tag { padding: 0.05rem 0.45rem; font-size: 0.7rem; font-weight: 600; letter-spacing: 0; color: var(--accent); background: var(--accent-soft); border-radius: 4px; }
 .actions { display: flex; align-items: center; gap: 1rem; margin-left: auto; padding-bottom: 0.6rem; }
+.switch-with-help { display: inline-flex; align-items: center; }
+.refresh-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; }
 .tabs { display: flex; gap: 1.5rem; order: 0; }
 .tabs button {
   padding: 0.35rem 0 0.75rem;

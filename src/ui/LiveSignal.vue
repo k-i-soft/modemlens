@@ -4,6 +4,7 @@ import { formatNumber, METRICS, RATING_WORDS, rate } from './dashboard';
 import { LIVE_MAX_SAMPLES } from './liveSignal';
 import type { LiveSample } from './liveSignal';
 import ToggleSwitch from './ToggleSwitch.vue';
+import HelpTip from './HelpTip.vue';
 
 const props = defineProps<{
   enabled: boolean;
@@ -92,6 +93,7 @@ const description = computed(() =>
         :disabled="!enabled && (!available || paused)"
         @update:model-value="$emit('toggle', $event)"
       />
+      <HelpTip term="Live signal" />
       <span class="status">{{ status }}</span>
       <span v-if="enabled && latest !== null" class="now" :data-rating="latestRating">
         <span class="num">{{ formatNumber(latest) }}</span><span class="unit">dBm</span>

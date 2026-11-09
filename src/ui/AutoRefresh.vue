@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import ToggleSwitch from './ToggleSwitch.vue';
+import HelpTip from './HelpTip.vue';
 import type { RefreshState } from './statusRefresh';
 
 const props = defineProps<{ state: RefreshState; now: number }>();
@@ -15,7 +16,7 @@ const updated = computed(() => {
 
 <template>
   <div class="auto-refresh">
-    <ToggleSwitch label="Auto refresh" :model-value="state.enabled" @update:model-value="$emit('toggle', $event)" />
+    <span class="switch-with-help"><ToggleSwitch label="Auto refresh" :model-value="state.enabled" @update:model-value="$emit('toggle', $event)" /><HelpTip term="Auto refresh" /></span>
     <p v-if="state.stalled" class="stalled" role="status">
       Auto refresh paused: the modem stopped answering.
       <button type="button" @click="$emit('resume')">Resume</button>
@@ -27,6 +28,7 @@ const updated = computed(() => {
 <style scoped>
 .auto-refresh { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; font-size: 0.8rem; }
 .auto-refresh :deep(.switch) { font-size: 0.8rem; }
+.switch-with-help { display: inline-flex; align-items: center; }
 .hint { font-size: 0.8rem; min-width: 7rem; }
 .stalled { color: var(--r-fair); }
 .stalled button { margin-left: 0.4rem; padding: 0.15rem 0.55rem; font-size: 0.8rem; }

@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import type { Dashboard } from './dashboard';
+import HelpTip from './HelpTip.vue';
 
 defineProps<{ bands: Dashboard['bands'] }>();
 </script>
 
 <template>
   <section v-if="bands.items.length || bands.otherActive" class="bands" aria-label="LTE bands">
-    <span class="label">LTE bands</span>
+    <span class="label">LTE bands<HelpTip term="LTE bands" /></span>
     <ul>
       <li v-for="b in bands.items" :key="b.band" class="mono" :class="{ active: b.active }">
-        B{{ b.band }}<span v-if="b.active" class="on">active</span>
+        B{{ b.band }}<span v-if="b.active" class="on">active</span><HelpTip v-if="b.active" term="Active band" />
       </li>
-      <li v-if="bands.otherActive" class="mono active">{{ bands.otherActive }}<span class="on">active</span></li>
+      <li v-if="bands.otherActive" class="mono active">{{ bands.otherActive }}<span class="on">active</span><HelpTip term="Active band" /></li>
     </ul>
   </section>
 </template>
@@ -37,4 +38,5 @@ li {
 }
 li.active { color: var(--accent-ink); background: var(--accent); box-shadow: none; font-weight: 600; }
 .on { margin-left: 0.45rem; font-family: var(--font-sans); font-size: 0.72rem; font-weight: 500; }
+.active :deep(.help-q) { color: inherit; border-color: currentColor; }
 </style>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Dashboard } from './dashboard';
+import HelpTip from './HelpTip.vue';
 
 const props = defineProps<{ identity: Dashboard['identity']; network?: Dashboard['network']; chips: Dashboard['chips']; scanning: boolean }>();
 
@@ -22,9 +23,10 @@ const badge = computed(() => {
     <div class="tags">
       <span class="badge" :class="{ verified: badge.verified }">
         {{ badge.text }}<span v-if="identity.profileId" class="mono profile">{{ identity.profileId }}</span>
+        <HelpTip v-if="identity.verified !== undefined" :term="identity.verified ? 'Verified profile' : 'Unverified profile'" />
       </span>
       <span v-if="identity.usb" class="tag mono">USB {{ identity.usb }}</span>
-      <span v-if="identity.imei" class="tag mono">IMEI {{ identity.imei }}</span>
+      <span v-if="identity.imei" class="tag mono">IMEI {{ identity.imei }}<HelpTip term="IMEI" /></span>
     </div>
 
     <div class="status">

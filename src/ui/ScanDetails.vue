@@ -4,8 +4,13 @@ import type { ScanItem } from '../scan/scanner';
 import { parseResponse } from '../parse';
 import type { Field } from '../parse';
 import { MASK } from './dashboard';
+import type { GlossaryTerm } from './glossary';
+import HelpTip from './HelpTip.vue';
 
 const props = defineProps<{ items: ScanItem[]; hideIdentifiers?: boolean }>();
+
+/** By parser keys, and it only ever selects fixed text. */
+const HELP = new Map<string, GlossaryTerm>([['smsc', 'SMS centre']]);
 
 const TITLES: Record<string, string> = {
   identity: 'Identity', sim: 'SIM', network: 'Network', signal: 'Signal', bands: 'Bands',
@@ -65,7 +70,7 @@ function rawText(item: ScanItem): string {
           </header>
           <dl v-if="fieldsOf(item)">
             <template v-for="f in fieldsOf(item)!" :key="f.key">
-              <dt>{{ f.label }}</dt>
+              <dt>{{ f.label }}<HelpTip v-if="HELP.has(f.key)" :term="HELP.get(f.key)!" /></dt>
               <dd>{{ shownValue(f) }}</dd>
             </template>
           </dl>

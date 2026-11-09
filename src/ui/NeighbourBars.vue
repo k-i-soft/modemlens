@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { formatNumber, METRICS } from './dashboard';
 import type { Neighbour } from './dashboard';
+import HelpTip from './HelpTip.vue';
 
 defineProps<{ neighbours: Neighbour[] }>();
 
@@ -10,7 +11,7 @@ const width = (rsrp: number) => ({ width: `${Math.max(2, Math.min(100, ((rsrp - 
 
 <template>
   <section class="panel" aria-label="Neighbour cells">
-    <span class="label">Neighbour cells, RSRP</span>
+    <span class="label">Neighbour cells, RSRP<HelpTip term="RSRP" /></span>
     <ul>
       <li v-for="(n, i) in neighbours" :key="i" :data-rating="n.rating">
         <span class="who mono"><template v-if="n.pci">PCI {{ n.pci }}</template><span v-if="n.earfcn" class="quiet"> EARFCN {{ n.earfcn }}</span><span v-if="n.kind" class="kind">{{ n.kind }}</span></span>

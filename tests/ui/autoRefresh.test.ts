@@ -293,6 +293,93 @@ describe('Overview stays current', () => {
     });
   });
 
+  describe('the Refresh button', () => {
+    const refresh = (w: VueWrapper) => btn(w, 'Refresh')!;
+    const openTab = (w: VueWrapper, i: number) => w.findAll('nav button')[i].trigger('click');
+
+    test('is on Overview and Diagnostics, and nowhere else', async () => {
+      const w = await scanned();
+      expect(refresh(w).exists()).toBe(true);
+      await openTab(w, 1);
+      expect(btn(w, 'Refresh')).toBeTruthy();
+      await openTab(w, 2);
+      expect(btn(w, 'Refresh')).toBeUndefined();
+      await openTab(w, 3);
+      expect(btn(w, 'Refresh')).toBeUndefined();
+    });
+
+    test('runs the automatic scan again on the same connection, with the same commands', async () => {
+      let connections = 0;
+      const make = () => {
+        connections++;
+        lastTransport = createDemoTransport({ delayMs: 0, settings });
+        return Promise.resolve(lastTransport);
+      };
+      const w = mount(App, { props: { connectors: { serial: make, usb: make }, donateUrl: null }, attachTo: document.body });
+      wrappers.push(w);
+      await btn(w, 'Serial port')!.trigger('click');
+      await until(() => w.text().includes('Automatic scan finished'));
+      const first = [...sent()];
+      send.mockClear();
+      await refresh(w).trigger('click');
+      await until(() => w.text().includes('Automatic scan finished') && !w.text().includes('Scanning ('));
+      expect(sent()).toEqual(first);
+      expect(connections).toBe(1);
+      expect(w.text()).not.toContain('Connection lost');
+    });
+
+    test('replaces the scan data and clears the overlay', async () => {
+      const w = await scanned();
+      settings.radio = '4';
+      await tick(REFRESH_INTERVAL_MS);
+      await flushPromises();
+      expect(status(w)).toBe('Radio off');
+      settings.radio = '1';
+      await refresh(w).trigger('click');
+      await until(() => w.text().includes('On the network') && w.text().includes('Automatic scan finished'));
+      expect(w.text()).not.toContain('Radio off');
+    });
+
+    test('is off during a scan, and says so', async () => {
+      const h = hold('AT+CSQ');
+      const w = await connected();
+      await until(() => sent().includes('AT+CSQ'));
+      expect(refresh(w).attributes('disabled')).toBeDefined();
+      expect(w.find('.refresh-row').text()).toContain('A scan is running');
+      h.release();
+      await until(() => w.text().includes('Automatic scan finished'));
+      expect(refresh(w).attributes('disabled')).toBeUndefined();
+      expect(w.find('.refresh-row .hint').exists()).toBe(false);
+    });
+
+    test('is off during an action, and says so', async () => {
+      const h = hold('AT+QCFG="roamservice"');
+      const w = await scanned();
+      await openTab(w, 3);
+      await flushPromises();
+      await openTab(w, 0);
+      expect(refresh(w).attributes('disabled')).toBeDefined();
+      expect(w.find('.refresh-row').text()).toContain('An action is running');
+      h.release();
+    });
+
+    test('is off when not connected, and says so', async () => {
+      const w = await scanned();
+      lastTransport.disconnect('pulled');
+      await flushPromises();
+      expect(refresh(w).attributes('disabled')).toBeDefined();
+      expect(w.find('.refresh-row').text()).toContain('needs a connected modem');
+    });
+
+    test('is off on an imported report, and says so', async () => {
+      const w = await scanned();
+      w.findComponent({ name: 'ConnectBar' }).vm.$emit('imported', importWebCapture(demoWebCapture()));
+      await flushPromises();
+      expect(refresh(w).attributes('disabled')).toBeDefined();
+      expect(w.find('.refresh-row').text()).toContain('imported from a file');
+    });
+  });
+
   test('an unsolicited line triggers one cycle, and its text goes nowhere', async () => {
     const urc = vi.spyOn(AtEngine.prototype, 'onUrc');
     const w = await scanned();

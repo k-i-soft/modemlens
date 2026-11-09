@@ -6,6 +6,7 @@ import type { LiveSample } from './liveSignal';
 import BarMeter from './BarMeter.vue';
 import RatingScale from './RatingScale.vue';
 import LiveSignal from './LiveSignal.vue';
+import HelpTip from './HelpTip.vue';
 
 const props = defineProps<{
   signal: Dashboard['signal'];
@@ -29,7 +30,7 @@ const basis = computed(() => props.signal.values.find((v) => v.metric === props.
         <p class="word">{{ signal.word }}</p>
         <p class="figure">
           <span class="num">{{ formatNumber(basis.value) }}</span><span class="unit">{{ basis.unit }}</span>
-          <span class="of">{{ basis.label }}, {{ signal.bars }} of 5 bars</span>
+          <span class="of">{{ basis.label }}, {{ signal.bars }} of 5 bars<HelpTip term="Signal bars" /></span>
         </p>
       </div>
       <div v-else class="verdict">

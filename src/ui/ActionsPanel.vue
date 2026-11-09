@@ -6,6 +6,8 @@ import type { ActionsState } from '../actions/rules';
 import { emptyReadings, readCurrent, runAction } from '../actions/runner';
 import type { ActionOutcome, Readings } from '../actions/runner';
 import type { ActionDefinition, ActionId, ActionSend } from '../actions/types';
+import type { GlossaryTerm } from './glossary';
+import HelpTip from './HelpTip.vue';
 
 const props = withDefaults(defineProps<{
   /** The tab is open. Current values are read then. */
@@ -27,7 +29,6 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'restarted'): void;
   (e: 'confirmed'): void;
-  (e: 'rescan'): void;
 }>();
 
 interface Pending {
@@ -40,6 +41,13 @@ interface Pending {
   restoring: boolean;
 }
 
+const ACTION_HELP: Record<ActionId, GlossaryTerm> = {
+  apn: 'APN', data: 'Host connection', radio: 'Radio', 'usb-mode': 'USB mode', nat: 'NAT', 'network-mode': 'Network mode', roaming: 'Roaming', restart: 'Restart',
+};
+/** Allowed values that have an explanation of their own, by the action definitions' labels. */
+const CHOICE_HELP = new Map<string, GlossaryTerm>([
+  ['ECM', 'ECM'], ['RNDIS', 'RNDIS'], ['Modem does NAT', 'Modem does NAT'], ['Carrier address on the computer', 'Carrier address on the computer'],
+]);
 const HIDDEN_ANSWER = 'Hidden while "Hide identifiers" is on.';
 /** A held or double-pressed key must not send an untested command before the warning can be read. */
 const SECOND_CONFIRM_GUARD_MS = 600;
@@ -230,23 +238,24 @@ function toneOf(outcome: ActionOutcome): string {
         <li v-for="row in shownRows" :key="row.action.id" class="setting" :data-action="row.action.id">
           <div class="head">
             <div class="what">
-              <h3>{{ row.action.label }}</h3>
+              <h3>{{ row.action.label }}<HelpTip :term="ACTION_HELP[row.action.id]" /></h3>
               <p class="summary">{{ row.action.summary }}</p>
             </div>
             <p v-if="row.action.read" class="value mono">{{ row.shownValue }}</p>
           </div>
 
           <div v-if="row.action.kind === 'choice'" class="row">
-            <button
-              v-for="c in row.choices"
-              :key="c.value"
-              type="button"
-              :aria-pressed="c.value === row.current"
-              :disabled="!c.availability.enabled || c.value === row.current"
-              @click="pick(row.action, c.value)"
-            >
-              {{ c.label }}
-            </button>
+            <span v-for="c in row.choices" :key="c.value" class="choice">
+              <button
+                type="button"
+                :aria-pressed="c.value === row.current"
+                :disabled="!c.availability.enabled || c.value === row.current"
+                @click="pick(row.action, c.value)"
+              >
+                {{ c.label }}
+              </button>
+              <HelpTip v-if="CHOICE_HELP.has(c.label)" :term="CHOICE_HELP.get(c.label)!" />
+            </span>
           </div>
           <form v-else-if="row.action.kind === 'apn'" class="apn" @submit.prevent="pickApn(row.action)">
             <select v-model="apnType" aria-label="Address type" :disabled="!row.availability.enabled">
@@ -292,7 +301,6 @@ function toneOf(outcome: ActionOutcome): string {
               <p v-if="row.action.needsRestart" class="hint">This takes effect after a restart.</p>
               <div class="row">
                 <button v-if="row.action.needsRestart" type="button" class="primary" :disabled="scanning || reading || acting" @click="pickRestart">Restart now</button>
-                <button type="button" :disabled="scanning || reading || acting" @click="emit('rescan')">Rescan</button>
               </div>
             </template>
           </div>
@@ -317,6 +325,7 @@ function toneOf(outcome: ActionOutcome): string {
 h3 { font-size: 0.98rem; font-weight: 600; }
 .summary { font-size: 0.82rem; color: var(--ink-3); }
 .value { font-size: 0.9rem; overflow-wrap: anywhere; }
+.choice { display: inline-flex; align-items: center; }
 .apn { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .apn input {
   flex: 1 1 12rem;

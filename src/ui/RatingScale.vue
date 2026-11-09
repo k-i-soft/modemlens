@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { formatNumber, METRICS, rate } from './dashboard';
 import type { Rating, SignalValue } from './dashboard';
+import HelpTip from './HelpTip.vue';
 
 const props = defineProps<{ reading: SignalValue }>();
 
@@ -36,7 +37,7 @@ const rating = computed(() => rate(props.reading.metric, props.reading.value));
 <template>
   <div class="scale" :data-rating="rating">
     <div class="head">
-      <span class="name">{{ reading.label }}</span>
+      <span class="name">{{ reading.label }}<HelpTip :term="METRICS[reading.metric].label" /></span>
       <span class="reading">
         <span class="num">{{ formatNumber(reading.value) }}</span><span class="unit">{{ reading.unit }}</span>
         <span class="word">{{ reading.word }}</span>

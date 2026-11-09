@@ -675,7 +675,7 @@ describe('the instrument panel', () => {
 
   test('the demo exercises bands, neighbours, attempts and contexts', async () => {
     const w = await scanned();
-    expect(w.findAll('.bands li').map((b) => b.text())).toEqual(['B1', 'B3active', 'B7', 'B8', 'B20', 'B28']);
+    expect(w.findAll('.bands li').map((b) => b.text().replace('?', ''))).toEqual(['B1', 'B3active', 'B7', 'B8', 'B20', 'B28']);
     expect(w.findAll('.panel[aria-label="Neighbour cells"] li')).toHaveLength(4);
     expect(w.find('[aria-label="PIN: 2 attempts left"]').findAll('i.on')).toHaveLength(2);
     expect(w.find('[aria-label="PUK: 10 attempts left"]').findAll('i.on')).toHaveLength(10);

@@ -168,7 +168,7 @@ describe('cell, neighbours and operators', () => {
   test('cell rows from the serving cell', () => {
     const d = buildDashboard(report([serving()]));
     expect(d.cell.map((r) => [r.key, r.value])).toEqual([
-      ['plmn', '00101'], ['earfcn', '1300'], ['cell_id', '1A2B3C'], ['pci', '321'], ['tac', 'ABCD'], ['state', 'NOCONN'],
+      ['plmn', '00101'], ['earfcn', '1300'], ['cell_id', '1A2B3C'], ['pci', '321'], ['tac', 'ABCD'], ['state', 'NOCONN'], ['duplex', 'FDD'],
     ]);
   });
   test('cell rows fall back to QNWINFO and CEREG', () => {

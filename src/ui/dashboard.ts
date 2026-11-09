@@ -8,7 +8,7 @@ export type Rating = 'excellent' | 'good' | 'fair' | 'poor';
 export type Tone = 'ok' | 'warn' | 'bad' | 'neutral';
 
 export interface MetricSpec {
-  label: string;
+  label: 'RSRP' | 'RSRQ' | 'SINR' | 'RSSI';
   unit: 'dBm' | 'dB';
   /** Lowest value that still earns the rating: a value on a boundary takes the better rating. */
   excellent: number;
@@ -218,6 +218,7 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
     ['pci', 'PCI', text('qeng_serving', 'pci') ?? web('pci')],
     ['tac', 'TAC', text('qeng_serving', 'tac') ?? text('creg', 'tac') ?? web('tac')],
     ['state', 'State', text('qeng_serving', 'state')],
+    ['duplex', 'Duplex', text('qeng_serving', 'duplex')],
   ];
   const cell = [...cellRows.flatMap(([key, label, value]) => (value === undefined ? [] : [{ key, label, value }])), ...webRows(WEB_CELL_KEYS)];
 

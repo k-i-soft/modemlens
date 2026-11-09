@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ScanItem } from '../scan/scanner';
 import ScanDetails from './ScanDetails.vue';
+import HelpTip from './HelpTip.vue';
 
 defineProps<{
   items: ScanItem[];
@@ -19,11 +20,11 @@ defineEmits<{ (e: 'ask-deep'): void; (e: 'cancel-deep'): void; (e: 'start-deep')
   <div class="diagnostics">
     <section class="panel controls" aria-label="Further scans">
       <div class="choice">
-        <button type="button" :disabled="!canDeep" @click="$emit('ask-deep')">Deep scan…</button>
+        <button type="button" :disabled="!canDeep" @click="$emit('ask-deep')">Deep scan…</button><HelpTip term="Deep scan" />
         <p class="hint">Queries commands this tool has no description for. Asks first.</p>
       </div>
       <div class="choice">
-        <button type="button" :disabled="!canNetworkScan" @click="$emit('network-scan')">Network scan</button>
+        <button type="button" :disabled="!canNetworkScan" @click="$emit('network-scan')">Network scan</button><HelpTip term="Network scan" />
         <p class="hint">
           Lists the operators around you (<code>AT+COPS=?</code>). It can take minutes and may interrupt the connection.
         </p>

@@ -179,12 +179,12 @@ describe('Actions tab in the app', () => {
     expect(rowBtn(w, 'data', 'On')!.attributes('disabled')).toBeDefined();
   });
 
-  test('a success offers putting it back and a rescan; putting back needs its own confirm', async () => {
+  test('a success offers putting it back, with its own confirm, and no separate rescan', async () => {
     const w = await opened();
     await rowBtn(w, 'radio', 'Off')!.trigger('click');
     await rowBtn(w, 'radio', 'Confirm')!.trigger('click');
     await until(() => btn(w, 'Put it back') !== undefined && !btn(w, 'Put it back')!.element.disabled);
-    expect(btn(w, 'Rescan')).toBeTruthy();
+    expect(btn(w, 'Rescan')).toBeUndefined();
     expect(btn(w, 'Put it back')!.text()).toContain('On');
 
     const before = writes().length;
@@ -198,18 +198,19 @@ describe('Actions tab in the app', () => {
     expect(btn(w, 'Put it back')).toBeUndefined();
   });
 
-  test('rescan runs a fresh automatic scan and shows the changed value', async () => {
+  test('Refresh runs a fresh automatic scan and shows the changed value', async () => {
     const w = await opened();
     await row(w, 'apn').find('input').setValue('new.apn');
     await row(w, 'apn').find('form').trigger('submit');
     expect(row(w, 'apn').find('.confirm').text()).toContain('AT+CGDCONT=1,"IP","new.apn"');
     await rowBtn(w, 'apn', 'Confirm')!.trigger('click');
-    await until(() => btn(w, 'Rescan') !== undefined && !btn(w, 'Rescan')!.element.disabled);
+    await until(() => row(w, 'apn').find('.result').exists());
     expect(row(w, 'apn').find('.result').text()).toContain('Restart the data connection');
-    await btn(w, 'Rescan')!.trigger('click');
-    await until(() => w.text().includes('Automatic scan finished'));
     expect(settings.apn).toBe('new.apn');
     await w.findAll('nav button')[0].trigger('click');
+    await until(() => btn(w, 'Refresh') !== undefined && !btn(w, 'Refresh')!.element.disabled);
+    await btn(w, 'Refresh')!.trigger('click');
+    await until(() => w.text().includes('Automatic scan finished'));
     expect(w.text()).toContain('new.apn');
   });
 
@@ -442,7 +443,7 @@ describe('Actions tab in the app', () => {
     await openTab(w);
     await flushPromises();
     expect(w.find('.actions-view').text()).toContain('A scan is running');
-    for (const b of row(w, 'restart').findAll('button')) expect(b.attributes('disabled')).toBeDefined();
+    for (const b of row(w, 'restart').findAll('button:not(.help-q)')) expect(b.attributes('disabled')).toBeDefined();
     expect(sent()).not.toContain('AT+QCFG="roamservice"');
     finish();
     await until(() => sent().includes('AT+QCFG="roamservice"'));
@@ -634,7 +635,7 @@ describe('ActionsPanel', () => {
     const w = panel(send);
     await flushPromises();
     expect(row(w, 'data').text()).toContain('could not be read');
-    for (const b of row(w, 'data').findAll('button')) expect(b.attributes('disabled')).toBeDefined();
+    for (const b of row(w, 'data').findAll('button:not(.help-q)')) expect(b.attributes('disabled')).toBeDefined();
     expect(row(w, 'apn').text()).toContain('could not be read');
     expect(row(w, 'nat').text()).toContain('could not be read');
     expect(rowBtn(w, 'restart', 'Restart')!.attributes('disabled')).toBeUndefined();
@@ -645,7 +646,7 @@ describe('ActionsPanel', () => {
     const w = panel(send);
     await flushPromises();
     expect(row(w, 'apn').text()).toContain('SIM PIN');
-    expect(row(w, 'apn').find('button').attributes('disabled')).toBeDefined();
+    expect(row(w, 'apn').find('button:not(.help-q)').attributes('disabled')).toBeDefined();
     expect(rowBtn(w, 'radio', 'Off')!.attributes('disabled')).toBeUndefined();
   });
 

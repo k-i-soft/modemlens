@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import type { Row } from './dashboard';
+import type { GlossaryTerm } from './glossary';
+import HelpTip from './HelpTip.vue';
 
 defineProps<{ rows: Row[] }>();
+
+/** By the dashboard's own row keys, never by anything the modem said. */
+const HELP = new Map<string, GlossaryTerm>([
+  ['plmn', 'PLMN'], ['earfcn', 'EARFCN'], ['cell_id', 'Cell ID'], ['pci', 'PCI'], ['tac', 'TAC'], ['state', 'RRC state'], ['duplex', 'Duplex'],
+]);
 </script>
 
 <template>
@@ -9,7 +16,7 @@ defineProps<{ rows: Row[] }>();
     <span class="label">Network and cell</span>
     <dl>
       <div v-for="r in rows" :key="r.key">
-        <dt>{{ r.label }}</dt>
+        <dt>{{ r.label }}<HelpTip v-if="HELP.has(r.key)" :term="HELP.get(r.key)!" /></dt>
         <dd class="mono">{{ r.value }}</dd>
       </div>
     </dl>

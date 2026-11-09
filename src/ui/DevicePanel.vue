@@ -2,6 +2,8 @@
 import { computed } from 'vue';
 import { formatNumber } from './dashboard';
 import type { Dashboard } from './dashboard';
+import type { GlossaryTerm } from './glossary';
+import HelpTip from './HelpTip.vue';
 
 const props = defineProps<{ device: Dashboard['device'] }>();
 
@@ -11,6 +13,8 @@ const fill = computed(() => {
   const t = props.device.temperature ?? GAUGE_MIN;
   return Math.max(0, Math.min(100, ((t - GAUGE_MIN) / (GAUGE_MAX - GAUGE_MIN)) * 100));
 });
+/** By this panel's own row names, never by anything the modem said. */
+const HELP = new Map<string, GlossaryTerm>([['USB mode', 'USB mode'], ['NAT', 'NAT']]);
 const rows = computed(() => {
   const d = props.device;
   return [
@@ -35,7 +39,7 @@ const rows = computed(() => {
         <p class="reading"><span class="num">{{ formatNumber(device.temperature) }}</span><span class="unit">°C</span></p>
       </div>
       <dl v-if="rows.length">
-        <template v-for="[k, v] in rows" :key="k"><dt>{{ k }}</dt><dd>{{ v }}</dd></template>
+        <template v-for="[k, v] in rows" :key="k"><dt>{{ k }}<HelpTip v-if="HELP.has(k)" :term="HELP.get(k)!" /></dt><dd>{{ v }}</dd></template>
       </dl>
     </div>
   </section>
