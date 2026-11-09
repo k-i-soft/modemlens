@@ -1,0 +1,83 @@
+{
+  "id": "quectel-ec25",
+  "label": "Quectel EC25",
+  "verified": false,
+  "match": {
+    "usb": [
+      "2c7c:0125"
+    ],
+    "modelPattern": "EC25"
+  },
+  "commands": [
+    {
+      "id": "qccid",
+      "command": "AT+QCCID",
+      "category": "sim",
+      "phase": "auto",
+      "needsSim": true
+    },
+    {
+      "id": "qspn",
+      "command": "AT+QSPN",
+      "category": "network",
+      "phase": "auto",
+      "needsSim": true
+    },
+    {
+      "id": "qnwinfo",
+      "command": "AT+QNWINFO",
+      "category": "network",
+      "phase": "auto"
+    },
+    {
+      "id": "qeng-serving",
+      "command": "AT+QENG=\"servingcell\"",
+      "category": "signal",
+      "phase": "auto"
+    },
+    {
+      "id": "qeng-neighbour",
+      "command": "AT+QENG=\"neighbourcell\"",
+      "category": "signal",
+      "phase": "auto"
+    },
+    {
+      "id": "qcsq",
+      "command": "AT+QCSQ",
+      "category": "signal",
+      "phase": "auto"
+    },
+    {
+      "id": "qtemp",
+      "command": "AT+QTEMP",
+      "category": "other",
+      "phase": "auto"
+    },
+    {
+      "id": "qcfg-usbnet",
+      "command": "AT+QCFG=\"usbnet\"",
+      "category": "usbmode",
+      "phase": "auto"
+    },
+    {
+      "id": "qcfg-band",
+      "command": "AT+QCFG=\"band\"",
+      "category": "bands",
+      "phase": "auto"
+    },
+    {
+      "id": "qpinc",
+      "command": "AT+QPINC?",
+      "category": "locks",
+      "phase": "auto",
+      "needsSim": true
+    },
+    {
+      "id": "qgmr",
+      "command": "AT+QGMR",
+      "category": "identity",
+      "phase": "auto"
+    }
+  ],
+  "denyCommands": []
+}
