@@ -6,6 +6,6 @@ dist/
 *.log
 coverage/
 
-# Internal material, never published
+# Local working files
 docs/superpowers/
 spike/
