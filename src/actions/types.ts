@@ -1,6 +1,6 @@
 import type { AtResponse } from '../at/engine';
 
-export type ActionId = 'apn' | 'data' | 'radio' | 'usb-mode' | 'nat' | 'network-mode' | 'roaming' | 'restart';
+export type ActionId = 'apn' | 'data' | 'data-context' | 'radio' | 'usb-mode' | 'nat' | 'network-mode' | 'roaming' | 'restart';
 
 /** How an action is operated: pick from fixed values, type an APN, or just trigger it. */
 export type ActionKind = 'choice' | 'apn' | 'trigger';
@@ -42,6 +42,12 @@ export interface ActionDefinition {
   timeoutMs?: number;
   /** Some settings show up in the read-back a moment after the write is accepted. */
   settle?: { attempts: number; delayMs: number };
+  /** Off unless the SIM is ready. */
+  needsSimReady?: boolean;
+  /** Off while the radio is off. */
+  needsRadioOn?: boolean;
+  /** Only offered while the modem presents a network over USB. */
+  needsNetworkUsbMode?: boolean;
   /** Said after a confirmed change, when there is a next step to take. */
   afterSuccess?: string;
 }

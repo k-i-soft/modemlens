@@ -53,7 +53,7 @@ test('no useful class is unknown', () => {
 test('the asr profile is unverified and adds nothing to the standard catalog', () => {
   const p = matchProfile({ usb: '1286:4e3c' });
   expect(p?.verified).toBe(false);
-  expect(p?.usb).toBeUndefined();
+  expect(p?.usb).toEqual({ atInterface: 3, avoidInterfaces: [] });
   expect(p?.commands).toEqual([]);
   expect(p?.denyCommands).toEqual([]);
 });

@@ -1,4 +1,5 @@
-import { EC200A_PROFILE_ID, NETWORK_USB_MODES, RADIO_ON, RNDIS_USB_MODE } from './ec200a';
+import { NETWORK_USB_MODES, RADIO_ON, RNDIS_USB_MODE } from './ec200a';
+import { actionsFor } from './profiles';
 import type { ActionDefinition } from './types';
 
 export interface ActionsState {
@@ -21,8 +22,6 @@ export interface Availability {
   reason?: string;
 }
 
-const REQUIRES_SIM = new Set(['apn', 'data']);
-const REQUIRES_NETWORK_USB = new Set(['nat', 'data']);
 const RNDIS_ON_MAC = 'RNDIS is not offered on a Mac: macOS has no driver for it, so the modem would not become a network adapter.';
 
 const blocked = (reason: string): Availability => ({ enabled: false, hidden: false, reason });
@@ -33,7 +32,7 @@ export function sessionBlock(state: ActionsState): string | undefined {
   if (state.imported) return 'This report was imported from a file, so there is no modem to change.';
   if (!state.connected) return 'Actions need a connected modem.';
   if (state.profileId === undefined && state.scanning) return 'Waiting for the automatic scan to identify the modem.';
-  if (state.profileId !== EC200A_PROFILE_ID) return 'Actions are only available on a Quectel EC200A.';
+  if (actionsFor(state.profileId).length === 0) return 'Actions are not available for this modem.';
   if (state.scanning) return 'A scan is running. Actions wait for it, so that no command lands between the scan commands.';
   return undefined;
 }
@@ -47,16 +46,16 @@ export function availability(action: ActionDefinition, state: ActionsState, plat
   const block = sessionBlock(state);
   if (block) return blocked(block);
   if (action.id === 'usb-mode' && value === RNDIS_USB_MODE && /mac/i.test(platform)) return hidden(RNDIS_ON_MAC);
-  if (REQUIRES_NETWORK_USB.has(action.id)) {
+  if (action.needsNetworkUsbMode) {
     if (state.usbMode === null) return blocked('The USB mode could not be read, so this stays off.');
     if (!NETWORK_USB_MODES.includes(state.usbMode)) return hidden('Only offered in a network USB mode (ECM or RNDIS).');
   }
   if (state.busy) return blocked('One action at a time: another one is running.');
-  if (REQUIRES_SIM.has(action.id)) {
+  if (action.needsSimReady) {
     if (state.sim === null) return blocked('The SIM state could not be read, so this stays off.');
     if (state.sim !== 'READY') return blocked(`This needs a ready SIM. The SIM is ${state.sim}.`);
   }
-  if (action.id === 'data') {
+  if (action.needsRadioOn) {
     if (state.radio === null) return blocked('The radio state could not be read, so this stays off.');
     if (state.radio !== RADIO_ON) return blocked('The radio is off. Switch it on first.');
   }

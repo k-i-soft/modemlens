@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { AtEngine } from '../../src/at/engine';
 import type { AtResponse, AtStatus } from '../../src/at/engine';
 import { ACTIONS, SIM_READ, actionById, apnValue } from '../../src/actions/ec200a';
+import { ASR_ACTIONS } from '../../src/actions/asr';
 import { readCurrent, runAction } from '../../src/actions/runner';
 import type { ActionSend } from '../../src/actions/types';
 import { FakeTransport } from '../helpers/fakeTransport';
@@ -188,6 +189,30 @@ describe('runAction', () => {
   });
 });
 
+describe('runAction on the ASR stick', () => {
+  const asr = (id: string) => ASR_ACTIONS.find((a) => a.id === id)!;
+
+  test('a data connection that is off when read back is confirmed', async () => {
+    const { send, sent } = scripted({ 'AT+CGACT=0,1': ok(), 'AT+CGACT?': ok('+CGACT: 1,0') });
+    expect((await runAction(send, asr('data-context'), 'off')).kind).toBe('confirmed');
+    expect(sent).toEqual(['AT+CGACT=0,1', 'AT+CGACT?']);
+  });
+
+  test('a data connection that came back by itself is a plain mismatch', async () => {
+    const { send } = scripted({ 'AT+CGACT=0,1': ok(), 'AT+CGACT?': ok('+CGACT: 1,1') });
+    const o = await runAction(send, asr('data-context'), 'off');
+    expect(o.kind).toBe('mismatch');
+    expect(o.message).toContain('reads On instead of Off');
+    expect(o.message).toContain('not confirmed');
+  });
+
+  test('the restart follows the same path as on the EC200A', async () => {
+    const { send, sent } = scripted({ 'AT+CFUN=1,1': ok() });
+    expect((await runAction(send, asr('restart'), 'restart')).kind).toBe('restarting');
+    expect(sent).toEqual(['AT+CFUN=1,1']);
+  });
+});
+
 describe('runAction through the real engine', () => {
   let engine: AtEngine | undefined;
   afterEach(() => engine?.dispose());
@@ -216,13 +241,19 @@ describe('readCurrent', () => {
 
   test('sends the read forms and nothing else', async () => {
     const { send, sent } = scripted({ 'AT+CPIN?': ok('+CPIN: READY') });
-    await readCurrent(send);
+    await readCurrent(send, ACTIONS);
     expect(sent).toEqual(READS);
+  });
+
+  test('reads what the given set of actions reads, and no other', async () => {
+    const { send, sent } = scripted({ 'AT+CPIN?': ok('+CPIN: READY') });
+    await readCurrent(send, ASR_ACTIONS);
+    expect(sent).toEqual(['AT+CPIN?', 'AT+CGDCONT?', 'AT+CGACT?', 'AT+CFUN?']);
   });
 
   test('an unreadable value stays null, the rest is still read', async () => {
     const { send } = scripted({ 'AT+CPIN?': ok('+CPIN: READY'), 'AT+CFUN?': ok('+CFUN: 4') });
-    const r = await readCurrent(send);
+    const r = await readCurrent(send, ACTIONS);
     expect(r.sim).toBe('READY');
     expect(r.values.radio).toBe('4');
     expect(r.values.nat).toBeNull();
@@ -230,7 +261,7 @@ describe('readCurrent', () => {
 
   test('a lost connection stops the reading', async () => {
     const { send, sent } = scripted({ 'AT+CPIN?': ok('+CPIN: READY'), 'AT+CGDCONT?': { status: 'disconnected' } });
-    const r = await readCurrent(send);
+    const r = await readCurrent(send, ACTIONS);
     expect(sent).toEqual(['AT+CPIN?', 'AT+CGDCONT?']);
     expect(r.values.radio).toBeUndefined();
   });

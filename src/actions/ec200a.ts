@@ -10,10 +10,10 @@ export const NETWORK_USB_MODES = ['1', '3'];
 export const RNDIS_USB_MODE = '3';
 export const RADIO_ON = '1';
 
-const SLOW_WRITE_MS = 15000;
+export const SLOW_WRITE_MS = 15000;
 
 /** The capture of the last line that matches: an unsolicited line of the same name can come before the answer. */
-function capture(r: AtResponse, pattern: RegExp): string | null {
+export function capture(r: AtResponse, pattern: RegExp): string | null {
   if (r.status !== 'ok') return null;
   for (const line of [...r.lines].reverse()) {
     const m = pattern.exec(line.trim());
@@ -47,7 +47,7 @@ export function apnProblem(apn: string): string | undefined {
   return 'An APN is 1 to 63 letters, digits, dots or hyphens.';
 }
 
-function parseApn(r: AtResponse): string | null {
+export function parseApn(r: AtResponse): string | null {
   if (r.status !== 'ok') return null;
   for (const line of r.lines) {
     const m = /^\+CGDCONT:\s*1\s*,\s*"?([^",]*)"?\s*,\s*"?([^",]*)"?/i.exec(line.trim());
@@ -80,6 +80,7 @@ export const ACTIONS: ActionDefinition[] = [
     needsRestart: false,
     verified: true,
     warning: 'A wrong APN stops mobile data until it is corrected. No username or password is set.',
+    needsSimReady: true,
     afterSuccess: 'Restart the data connection for the new APN to be used.',
   },
   {
@@ -98,6 +99,9 @@ export const ACTIONS: ActionDefinition[] = [
     timeoutMs: SLOW_WRITE_MS,
     // The answer comes before the connection is up.
     settle: { attempts: 8, delayMs: 1000 },
+    needsSimReady: true,
+    needsRadioOn: true,
+    needsNetworkUsbMode: true,
   },
   {
     id: 'radio',
@@ -147,6 +151,7 @@ export const ACTIONS: ActionDefinition[] = [
     needsRestart: true,
     verified: true,
     warning: '',
+    needsNetworkUsbMode: true,
   },
   {
     id: 'network-mode',

@@ -1,5 +1,5 @@
 import type { AtResponse } from '../at/engine';
-import { ACTIONS, SIM_READ, buildWrite, valueLabel } from './ec200a';
+import { SIM_READ, buildWrite, valueLabel } from './ec200a';
 import type { ActionDefinition, ActionId, ActionSend } from './types';
 
 export type OutcomeKind =
@@ -42,12 +42,12 @@ function literal(r: AtResponse): string[] {
 }
 
 /** Reads the current values, read forms only. Stops at a lost connection: the rest stays unknown. */
-export async function readCurrent(send: ActionSend): Promise<Readings> {
+export async function readCurrent(send: ActionSend, actions: ActionDefinition[]): Promise<Readings> {
   const out = emptyReadings();
   const sim = await send(SIM_READ.command);
   if (sim.status === 'disconnected') return out;
   out.sim = SIM_READ.parse(sim);
-  for (const action of ACTIONS) {
+  for (const action of actions) {
     if (!action.read) continue;
     const r = await send(action.read.command);
     if (r.status === 'disconnected') return out;

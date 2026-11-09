@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue';
-import { ACTIONS, APN_TYPES, EC200A_PROFILE_ID, actionById, apnProblem, apnValue, buildWrite, isStrongWarning, isVerified, splitApnValue, valueLabel, warningFor } from '../actions/ec200a';
+import { APN_TYPES, apnProblem, apnValue, buildWrite, isStrongWarning, isVerified, splitApnValue, valueLabel, warningFor } from '../actions/ec200a';
+import { actionsFor } from '../actions/profiles';
 import { availability, sessionBlock } from '../actions/rules';
 import type { ActionsState } from '../actions/rules';
 import { emptyReadings, readCurrent, runAction } from '../actions/runner';
@@ -42,7 +43,7 @@ interface Pending {
 }
 
 const ACTION_HELP: Record<ActionId, GlossaryTerm> = {
-  apn: 'APN', data: 'Host connection', radio: 'Radio', 'usb-mode': 'USB mode', nat: 'NAT', 'network-mode': 'Network mode', roaming: 'Roaming', restart: 'Restart',
+  apn: 'APN', data: 'Host connection', 'data-context': 'Data connection', radio: 'Radio', 'usb-mode': 'USB mode', nat: 'NAT', 'network-mode': 'Network mode', roaming: 'Roaming', restart: 'Restart',
 };
 /** Allowed values that have an explanation of their own, by the action definitions' labels. */
 const CHOICE_HELP = new Map<string, GlossaryTerm>([
@@ -76,11 +77,13 @@ const state = computed<ActionsState>(() => ({
 }));
 
 const block = computed(() => sessionBlock(state.value));
-const isTargetModem = computed(() => props.connected && !props.imported && props.profileId === EC200A_PROFILE_ID);
+const actions = computed(() => actionsFor(props.profileId));
+const actionById = (id: ActionId): ActionDefinition | undefined => actions.value.find((a) => a.id === id);
+const isTargetModem = computed(() => props.connected && !props.imported && actions.value.length > 0);
 const current = (id: ActionId): string | null => readings.value.values[id] ?? null;
 
 const rows = computed(() =>
-  ACTIONS.map((action) => {
+  actions.value.map((action) => {
     const choices = action.choices.map((choice) => ({ ...choice, availability: availability(action, state.value, props.platform, choice.value) }));
     return {
       action,
@@ -120,7 +123,7 @@ async function loadCurrent(): Promise<void> {
   if (!props.begin()) return;
   reading.value = true;
   try {
-    readings.value = await readCurrent(props.send);
+    readings.value = await readCurrent(props.send, actions.value);
     everRead.value = true;
     const type = splitApnValue(current('apn') ?? '').type;
     if ((APN_TYPES as readonly string[]).includes(type)) apnType.value = type;
@@ -207,7 +210,7 @@ async function confirm(): Promise<void> {
     remember(p, before, outcome);
     last.value = { actionId: p.action.id, outcome };
     const modemStillThere = outcome.kind !== 'lost' && outcome.kind !== 'restarting' && outcome.kind !== 'invalid';
-    if (modemStillThere && p.action.kind !== 'trigger') readings.value = await readCurrent(props.send);
+    if (modemStillThere && p.action.kind !== 'trigger') readings.value = await readCurrent(props.send, actions.value);
   } finally {
     acting.value = false;
     // Before the modem is released: nothing may be sent to one that is going down.

@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { AtResponse } from '../../src/at/engine';
+import { ASR_ACTIONS, ASR_PROFILE_ID } from '../../src/actions/asr';
+import { actionsFor } from '../../src/actions/profiles';
 import { ACTIONS, SIM_READ, actionById, apnProblem, apnValue, buildWrite, isVerified, valueLabel } from '../../src/actions/ec200a';
 
 const action = (id: string) => actionById(id)!;
@@ -153,12 +155,85 @@ describe('what the definitions promise', () => {
   });
 });
 
+describe('actions per profile', () => {
+  test('the EC200A keeps its set', () => expect(actionsFor('quectel-ec200a')).toBe(ACTIONS));
+  test('the ASR stick has its own', () => expect(actionsFor(ASR_PROFILE_ID)).toBe(ASR_ACTIONS));
+  test.each(['quectel-ec25', 'quectel-eg800', 'nothing', undefined])('%s has none', (id) => {
+    expect(actionsFor(id)).toEqual([]);
+  });
+});
+
+describe('ASR definitions', () => {
+  const asr = (id: string) => ASR_ACTIONS.find((a) => a.id === id)!;
+  const reply = (...lines: string[]): AtResponse => ok(...lines);
+
+  test('only what this model has', () => {
+    expect(ASR_ACTIONS.map((a) => a.id)).toEqual(['apn', 'data-context', 'radio', 'restart']);
+  });
+
+  test.each([
+    ['apn', apnValue('IP', 'internet'), 'AT+CGDCONT=1,"IP","internet"'],
+    ['apn', apnValue('IPV4V6', 'internet'), 'AT+CGDCONT=1,"IPV4V6","internet"'],
+    ['apn', apnValue('IPV6', 'internet'), 'AT+CGDCONT=1,"IPV6","internet"'],
+    ['data-context', 'on', 'AT+CGACT=1,1'],
+    ['data-context', 'off', 'AT+CGACT=0,1'],
+    ['radio', '4', 'AT+CFUN=4'],
+    ['radio', '1', 'AT+CFUN=1'],
+    ['restart', 'restart', 'AT+CFUN=1,1'],
+  ])('%s %s writes %s', (id, value, command) => {
+    expect(buildWrite(asr(id), value)).toBe(command);
+  });
+
+  test('the APN is validated as on the EC200A', () => {
+    expect(buildWrite(asr('apn'), apnValue('IP', 'a";+CFUN=0;"'))).toBeNull();
+    expect(buildWrite(asr('apn'), apnValue('PPP', 'internet'))).toBeNull();
+  });
+
+  test('no command of the EC200A alone can be built', () => {
+    const own = ASR_ACTIONS.flatMap((a) => a.choices.map((c) => c.command));
+    for (const c of own) expect(c).not.toMatch(/QCFG|QNETDEVCTL/);
+    const ec200aOnly = ACTIONS.flatMap((a) => a.choices).filter((c) => !own.includes(c.command));
+    expect(ec200aOnly.length).toBeGreaterThan(5);
+    for (const a of ASR_ACTIONS.filter((x) => x.kind !== 'apn')) {
+      for (const c of ec200aOnly.filter((x) => !a.choices.some((y) => y.value === x.value))) {
+        expect(buildWrite(a, c.value), `${a.id} ${c.command}`).toBeNull();
+      }
+      for (const c of a.choices) expect(ec200aOnly.map((x) => x.command)).not.toContain(buildWrite(a, c.value));
+    }
+  });
+
+  test('every value takes the second confirmation', () => {
+    expect(isVerified(asr('apn'), apnValue('IP', 'internet'))).toBe(false);
+    for (const a of ASR_ACTIONS) for (const c of a.choices) expect(isVerified(a, c.value), `${a.id} ${c.value}`).toBe(false);
+  });
+
+  test('switching data off warns that it may come back', () => {
+    expect(asr('data-context').choices.find((c) => c.value === 'off')!.warning).toContain('may turn data back on');
+  });
+
+  test('radio and restart have the long timeout', () => {
+    expect(asr('radio').timeoutMs).toBe(15000);
+    expect(asr('restart').timeoutMs).toBe(15000);
+  });
+
+  test.each([
+    ['apn', ['+CGDCONT: 1,"IP","internet.MNC002.MCC228.GPRS","0.0.0.0",0,0,,,,'], apnValue('IP', 'internet.MNC002.MCC228.GPRS')],
+    ['data-context', ['+CGACT: 1,1'], 'on'],
+    ['data-context', ['+CGACT: 1,0'], 'off'],
+    ['data-context', ['+CGACT: 2,1'], null],
+    ['data-context', ['+CGACT: 1,1', '+CGACT: 2,0'], 'on'],
+    ['radio', ['+CFUN: 1'], '1'],
+  ])('%s: %j reads as %j', (id, lines, value) => {
+    expect(asr(id).read!.parse(reply(...lines))).toBe(value);
+  });
+});
+
 describe('never exposed', () => {
   const FORBIDDEN = ['band', 'usbid', 'usbmanufacturer', 'usbnetmac', 'imeilock', 'fota', 'poweroffdefault'];
   const dir = 'src/actions';
   const sources = readdirSync(dir).map((f) => readFileSync(join(dir, f), 'utf8'));
   const texts = [
-    ...ACTIONS.flatMap((a) => [a.label, a.summary, a.warning, a.read?.command ?? '', ...a.choices.flatMap((c) => [c.label, c.command, c.warning ?? ''])]),
+    ...[...ACTIONS, ...ASR_ACTIONS].flatMap((a) => [a.label, a.summary, a.warning, a.read?.command ?? '', ...a.choices.flatMap((c) => [c.label, c.command, c.warning ?? ''])]),
     ...sources,
   ].map((t) => t.toLowerCase());
 

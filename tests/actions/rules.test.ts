@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { actionById, EC200A_PROFILE_ID } from '../../src/actions/ec200a';
+import { ASR_ACTIONS, ASR_PROFILE_ID } from '../../src/actions/asr';
 import { availability, sessionBlock } from '../../src/actions/rules';
 import type { ActionsState } from '../../src/actions/rules';
 
@@ -20,7 +21,7 @@ describe('rule 1: only the EC200A on a live connection', () => {
   test.each(ALL)('%s is off for another modem', (id) => {
     const a = check(id, { profileId: 'quectel-ec25' });
     expect(a.enabled).toBe(false);
-    expect(a.reason).toContain('EC200A');
+    expect(a.reason).toBe('Actions are not available for this modem.');
   });
   test.each(ALL)('%s is off without a connection', (id) => {
     expect(check(id, { connected: false }).enabled).toBe(false);
@@ -111,5 +112,50 @@ describe('rule 6: one at a time', () => {
   });
   test.each(ALL)('%s is off during another action', (id) => {
     expect(check(id, { busy: true }).enabled).toBe(false);
+  });
+});
+
+describe('the ASR stick', () => {
+  // A modem without USB mode settings has nothing to read for them.
+  const asrReady: ActionsState = { ...ready, profileId: ASR_PROFILE_ID, usbMode: null };
+  const asr = (id: string, over: Partial<ActionsState> = {}, value?: string) =>
+    availability(ASR_ACTIONS.find((a) => a.id === id)!, { ...asrReady, ...over }, MAC, value);
+  const IDS = ['apn', 'data-context', 'radio', 'restart'];
+
+  test.each(IDS)('%s is available, although no USB mode can be read', (id) => {
+    expect(asr(id)).toEqual({ enabled: true, hidden: false });
+  });
+
+  test.each(['apn', 'data-context'])('%s needs a ready SIM', (id) => {
+    expect(asr(id, { sim: 'SIM PIN' }).enabled).toBe(false);
+    expect(asr(id, { sim: null }).enabled).toBe(false);
+  });
+
+  test.each(['radio', 'restart'])('%s does not need a SIM', (id) => {
+    expect(asr(id, { sim: null }).enabled).toBe(true);
+  });
+
+  test.each(['4', '0'])('data is off with CFUN %s, and says why', (radio) => {
+    const a = asr('data-context', { radio });
+    expect(a.enabled).toBe(false);
+    expect(a.reason).toContain('radio is off');
+  });
+
+  test('data stays off when the radio cannot be read', () => {
+    expect(asr('data-context', { radio: null }).enabled).toBe(false);
+  });
+
+  test('the APN is not affected by the radio', () => {
+    expect(asr('apn', { radio: '4' }).enabled).toBe(true);
+  });
+
+  test.each(IDS)('%s is off during a scan and during an action', (id) => {
+    expect(asr(id, { scanning: true }).enabled).toBe(false);
+    expect(asr(id, { busy: true }).enabled).toBe(false);
+  });
+
+  test.each(IDS)('%s is off on an imported report and without a connection', (id) => {
+    expect(asr(id, { imported: true }).enabled).toBe(false);
+    expect(asr(id, { connected: false }).enabled).toBe(false);
   });
 });

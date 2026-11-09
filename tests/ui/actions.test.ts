@@ -528,7 +528,7 @@ describe('ActionsPanel', () => {
   }
 
   test.each([
-    [{ profileId: 'quectel-ec25' }, 'only available on a Quectel EC200A'],
+    [{ profileId: 'quectel-ec25' }, 'not available for this modem'],
     [{ connected: false }, 'need a connected modem'],
     [{ imported: true, connected: false }, 'imported from a file'],
   ])('%j: the tab says why and shows no settings', async (props, reason) => {
@@ -780,6 +780,78 @@ describe('ActionsPanel', () => {
     await rowBtn(w, 'restart', 'Confirm')!.trigger('click');
     await flushPromises();
     expect(order).toEqual(['restarted', 'end']);
+  });
+});
+
+describe('ActionsPanel on the ASR stick', () => {
+  const ANSWERS: Record<string, string[]> = {
+    'AT+CPIN?': ['+CPIN: READY'],
+    'AT+CGDCONT?': ['+CGDCONT: 1,"IP","internet.MNC002.MCC228.GPRS","0.0.0.0",0,0,,,,'],
+    'AT+CGACT?': ['+CGACT: 1,1'],
+    'AT+CFUN?': ['+CFUN: 1'],
+  };
+  const pastGuard = () => new Promise((r) => setTimeout(r, 650));
+
+  function asrPanel(extra: Record<string, string[]> = {}) {
+    const sent: string[] = [];
+    const answers = { ...ANSWERS, ...extra };
+    const send: ActionSend = async (command) => {
+      sent.push(command);
+      return { command, status: 'ok', lines: answers[command] ?? [], durationMs: 1 };
+    };
+    const w = mount(ActionsPanel, {
+      props: {
+        active: true, connected: true, imported: false, profileId: 'asr-1286-4e3c', scanning: false,
+        send, begin: () => true, end: () => {}, platform: 'Win32', modemKey: 'serial-1',
+      },
+    });
+    wrappers.push(w);
+    return { w, sent };
+  }
+
+  test('shows what this model has, and reads only that', async () => {
+    const { w, sent } = asrPanel();
+    await flushPromises();
+    expect(w.findAll('.setting').map((s) => s.attributes('data-action'))).toEqual(['apn', 'data-context', 'radio', 'restart']);
+    expect(sent).toEqual(['AT+CPIN?', 'AT+CGDCONT?', 'AT+CGACT?', 'AT+CFUN?']);
+    expect(row(w, 'apn').find('.value').text()).toBe('internet.MNC002.MCC228.GPRS (IP)');
+    expect(row(w, 'data-context').find('.value').text()).toBe('On');
+    expect(w.find('.hidden-row').exists()).toBe(false);
+  });
+
+  test('every write takes the first and the second confirmation', async () => {
+    const { w, sent } = asrPanel();
+    await flushPromises();
+    await rowBtn(w, 'radio', 'Off')!.trigger('click');
+    await rowBtn(w, 'radio', 'Confirm')!.trigger('click');
+    await flushPromises();
+    expect(sent.filter((c) => c === 'AT+CFUN=4')).toEqual([]);
+    expect(row(w, 'radio').find('.confirm').text()).toContain('not been tested on this firmware');
+    await pastGuard();
+    await rowBtn(w, 'radio', 'Send anyway')!.trigger('click');
+    await flushPromises();
+    expect(sent.filter((c) => c === 'AT+CFUN=4')).toEqual(['AT+CFUN=4']);
+  });
+
+  test('a data connection that comes back is reported, and the warning came first', async () => {
+    const { w } = asrPanel();
+    await flushPromises();
+    await rowBtn(w, 'data-context', 'Off')!.trigger('click');
+    expect(row(w, 'data-context').find('.confirm').text()).toContain('may turn data back on');
+    await rowBtn(w, 'data-context', 'Confirm')!.trigger('click');
+    await pastGuard();
+    await rowBtn(w, 'data-context', 'Send anyway')!.trigger('click');
+    await flushPromises();
+    const result = row(w, 'data-context').find('.result');
+    expect(result.text()).toContain('reads On instead of Off');
+    expect(result.attributes('data-tone')).toBe('bad');
+  });
+
+  test('with the radio off the data row says why', async () => {
+    const { w } = asrPanel({ 'AT+CFUN?': ['+CFUN: 4'] });
+    await flushPromises();
+    expect(row(w, 'data-context').text()).toContain('radio is off');
+    expect(rowBtn(w, 'data-context', 'Off')!.attributes('disabled')).toBeDefined();
   });
 });
 

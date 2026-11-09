@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { ASR_ACTIONS } from '../../src/actions/asr';
 import { ACTIONS } from '../../src/actions/ec200a';
 import { AtEngine } from '../../src/at/engine';
 import { CANDIDATE_COMMANDS } from '../../src/catalog/candidates';
@@ -31,7 +32,7 @@ const clac = (...names: string[]) =>
 
 describe('the scans never write an action', () => {
   const OWN_SOURCES = ['src/scan/scanner.ts', 'src/catalog/standard.ts', 'src/catalog/candidates.ts', 'src/catalog/safety.ts'];
-  const WRITES = ACTIONS.flatMap((a) => a.choices.map((c) => c.command));
+  const WRITES = [...ACTIONS, ...ASR_ACTIONS].flatMap((a) => a.choices.map((c) => c.command));
 
   test.each(OWN_SOURCES)('%s does not reference the actions', (file) => {
     expect(readFileSync(file, 'utf8')).not.toMatch(/actions\//);
@@ -45,7 +46,7 @@ describe('the scans never write an action', () => {
   test('auto and deep scan send no action write, even when the modem lists those commands', async () => {
     t.reply('AT+CPIN?', ['\r\n+CPIN: READY\r\n\r\nOK\r\n']);
     t.reply('ATI', ['\r\nQuectel\r\nEC200A\r\n\r\nOK\r\n']);
-    clac('+CFUN', '+CGDCONT', '+QCFG', '+QNETDEVCTL', '+QDEMO');
+    clac('+CFUN', '+CGDCONT', '+CGACT', '+QCFG', '+QNETDEVCTL', '+QDEMO');
     t.reply(/=\?$/, OK);
     t.reply(/\?$/, OK);
     defaultError();
