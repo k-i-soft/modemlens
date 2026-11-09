@@ -42,6 +42,12 @@ test('terminal write', () => {
   expect(classifyTerminalCommand('AT+CFUN=1?')).toBe('write');
   expect(classifyTerminalCommand('AT+CPIN="1234"')).toBe('write');
 });
+test.each([
+  'AT+COPS=?', 'at+cops=?', 'AT+ COPS =?', 'AT+COPS?', 'AT+QSCAN=?', 'AT+QOPS=?', 'AT+CPIN?', 'AT+CLCK=?', 'AT+CMGL=?', 'AT+CMGR=?',
+  'AT+CPBR=?', 'AT+CUSD?', 'AT+CRSM=?', 'AT+CSIM=?', 'AT+QPOWD=?', 'AT^RESET?', 'AT+CGDATA=?', 'AT+CHUP=?',
+])('terminal warns for the denied name in %s', (c) => expect(classifyTerminalCommand(c)).toBe('write'));
+test.each(['AT+CREG?', 'AT+CREG=?', 'AT+QENG=?', 'AT^SYSINFO?', 'AT+CGMR', 'AT+GMR', 'AT+CGPADDR', 'AT'])('terminal query %s stays a read', (c) =>
+  expect(classifyTerminalCommand(c)).toBe('read'));
 test('parse clac', () => expect(parseCommandList(['+CSQ', '&F', 'AT+CREG'])).toEqual(['+CSQ', '&F', '+CREG']));
 
 // invariant of the catalog

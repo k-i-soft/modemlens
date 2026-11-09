@@ -55,12 +55,17 @@ export function discoveryForms(name: string): [string, string] {
   return [`AT${name}=?`, `AT${name}?`];
 }
 
-const READ_QUERY = /^AT[+$^#!%*][A-Z0-9_]+(\?|=\?)$/;
+const READ_QUERY = /^AT([+$^#!%*][A-Z0-9_]+)(\?|=\?)$/;
 const READ_BARE = /^(AT|ATI\d?|AT\+(CSQ|CESQ|CIMI|CGSN|GSN|GMI|GMM|GMR|CGMI|CGMM|CGMR|CGPADDR))$/;
 
-/** Conservative: anything not clearly a query is a write, and chained commands are always writes. */
+/**
+ * Conservative: anything not clearly a query is a write, chained commands are always writes, and so
+ * is any form of a name on the deny list (AT+COPS=? looks like a query but ties up the radio for minutes).
+ */
 export function classifyTerminalCommand(cmd: string): 'read' | 'write' {
   const c = cmd.trim().toUpperCase().replace(/\s+/g, '');
   if (c.includes(';')) return 'write';
-  return READ_QUERY.test(c) || READ_BARE.test(c) ? 'read' : 'write';
+  const query = READ_QUERY.exec(c);
+  if (query) return isDiscoverable(query[1]) ? 'read' : 'write';
+  return READ_BARE.test(c) ? 'read' : 'write';
 }
