@@ -7,7 +7,7 @@
 #   DEPLOY_STACK                   CloudFormation stack name
 #   DEPLOY_DISTRIBUTION_OUTPUT     stack output key that holds the CloudFront distribution id
 #
-# The bucket is derived from the distribution's S3 origin.
+# The bucket is derived from the S3 origin that the distribution's default cache behaviour serves.
 set -euo pipefail
 
 missing=()
@@ -43,13 +43,18 @@ if [[ -z "$DISTRIBUTION_ID" || "$DISTRIBUTION_ID" == "None" ]]; then
   exit 1
 fi
 
-ORIGIN_DOMAIN=$(aws_cmd cloudfront get-distribution \
+TARGET_ORIGIN_ID=$(aws_cmd cloudfront get-distribution \
   --id "$DISTRIBUTION_ID" \
-  --query "Distribution.DistributionConfig.Origins.Items[?contains(DomainName, '.s3.') || contains(DomainName, '.s3-website')].DomainName | [0]" \
+  --query "Distribution.DistributionConfig.DefaultCacheBehavior.TargetOriginId" \
   --output text)
 
-if [[ -z "$ORIGIN_DOMAIN" || "$ORIGIN_DOMAIN" == "None" ]]; then
-  echo "The distribution has no S3 origin." >&2
+ORIGIN_DOMAIN=$(aws_cmd cloudfront get-distribution \
+  --id "$DISTRIBUTION_ID" \
+  --query "Distribution.DistributionConfig.Origins.Items[?Id=='$TARGET_ORIGIN_ID'].DomainName | [0]" \
+  --output text)
+
+if [[ "$ORIGIN_DOMAIN" != *.s3.* && "$ORIGIN_DOMAIN" != *.s3-* ]]; then
+  echo "The default cache behaviour's origin '$TARGET_ORIGIN_ID' is not an S3 origin." >&2
   exit 1
 fi
 
