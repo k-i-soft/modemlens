@@ -1,32 +1,36 @@
 import type { AtResponse, SendOptions } from '../at/engine';
 import { STANDARD_CATALOG } from '../catalog/standard';
 import type { CatalogEntry, Profile } from '../catalog/types';
+import { commandName } from '../scan/scanner';
 import type { ScanItem, ScanReport } from '../scan/scanner';
 
 export const REFRESH_INTERVAL_MS = 5000;
 export const URC_DEBOUNCE_MS = 500;
-/** This many cycles in a row with a timeout, and the modem counts as no longer answering. */
-export const MAX_TIMEOUT_CYCLES = 2;
+/** A modem that keeps sending unsolicited lines must not be polled without a pause. */
+export const MIN_URC_GAP_MS = 3000;
+/** This many cycles in a row in which nothing answered, and the modem counts as no longer answering. */
+export const MAX_FAILED_CYCLES = 2;
+/** A cycle gives up after this many timeouts in a row, so that a silent modem costs seconds and not minutes. */
+const MAX_TIMEOUTS_IN_A_ROW = 3;
 
-const STANDARD_IDS = ['cfun', 'cpin', 'creg', 'cereg', 'cops', 'cesq', 'csq', 'cgatt', 'cgact', 'cgpaddr'];
+const STANDARD_IDS = ['cfun', 'cpin', 'creg', 'cgreg', 'cereg', 'c5greg', 'cops', 'cesq', 'csq', 'cgatt', 'cgact', 'cgpaddr'];
 const PROFILE_IDS = ['qnwinfo', 'qeng-serving', 'qcsq', 'qnetdevctl'];
 
 /** What one cycle reads: catalog rows only, each in the read form the scan uses. */
 export function refreshEntries(profile?: Profile): CatalogEntry[] {
   const byId = (rows: CatalogEntry[], ids: string[]): CatalogEntry[] =>
     ids.flatMap((id) => rows.filter((e) => e.id === id && e.phase === 'auto'));
-  return [...byId(STANDARD_CATALOG, STANDARD_IDS), ...byId(profile?.commands ?? [], PROFILE_IDS)];
+  const deny = new Set((profile?.denyCommands ?? []).map((d) => d.trim().toUpperCase()));
+  return [...byId(STANDARD_CATALOG, STANDARD_IDS), ...byId(profile?.commands ?? [], PROFILE_IDS)].filter((e) => {
+    const name = commandName(e.command);
+    return !(name && deny.has(name));
+  });
 }
 
 export type Overlay = Readonly<Record<string, ScanItem>>;
 
-/**
- * Answers the refresh does not repeat, and the answer that replaces each. Left in, an old
- * "registered" from the scan would keep the modem on the network after it has left.
- */
+/** A scan answer the refresh does not repeat, and the answer that replaces it: the operator name after leaving the network. */
 const SUPERSEDED_BY: Record<string, string[]> = {
-  cgreg: ['creg', 'cereg'],
-  c5greg: ['creg', 'cereg'],
   qspn: ['cops'],
 };
 
@@ -70,7 +74,9 @@ export class StatusRefresher {
   private refreshing = false;
   /** A cycle was asked for while none could start. */
   private owed = false;
-  private timeoutCycles = 0;
+  /** What a one-shot cycle has to read, until it has run. */
+  private forced: CatalogEntry[] | null = null;
+  private failedCycles = 0;
   private updatedAt: number | null = null;
   private lastFinished = 0;
   /** Bumped when polling stops, so that an answer to an older cycle is dropped. */
@@ -95,6 +101,7 @@ export class StatusRefresher {
   stop(): void {
     this.halt();
     this.active = false;
+    this.forced = null;
     this.notify();
   }
 
@@ -132,14 +139,21 @@ export class StatusRefresher {
       return;
     }
     clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => void this.cycle(), URC_DEBOUNCE_MS);
+    const delay = Math.max(URC_DEBOUNCE_MS, this.lastFinished + MIN_URC_GAP_MS - Date.now());
+    this.debounce = setTimeout(() => void this.cycle(), delay);
   }
 
-  /** One cycle now, or as soon as the modem is free. */
-  runNow(): void {
-    if (!this.active || !this.wanted || this.stalled) return;
-    if (this.paused || this.refreshing) this.owed = true;
-    else void this.cycle();
+  /**
+   * One cycle because the modem was just changed on purpose: now, or as soon as the modem is free.
+   * The toggle, a stall and a scan that never finished do not hold it back: it needs only a live connection.
+   */
+  runNow(entries: CatalogEntry[]): void {
+    this.forced = entries;
+    this.runForced();
+  }
+
+  private runForced(): void {
+    if (!this.paused && !this.refreshing) void this.cycle(true);
   }
 
   private canRun(): boolean {
@@ -157,7 +171,7 @@ export class StatusRefresher {
     this.refreshing = false;
     this.stalled = false;
     this.owed = false;
-    this.timeoutCycles = 0;
+    this.failedCycles = 0;
   }
 
   private clearTimers(): void {
@@ -174,6 +188,10 @@ export class StatusRefresher {
   }
 
   private continueAfter(delayMs: number): void {
+    if (this.forced) {
+      this.runForced();
+      return;
+    }
     this.schedule(delayMs);
     if (this.owed && this.canRun()) {
       this.owed = false;
@@ -185,16 +203,19 @@ export class StatusRefresher {
     this.callbacks.onState({ enabled: this.wanted, refreshing: this.refreshing, stalled: this.stalled, updatedAt: this.updatedAt });
   }
 
-  private async cycle(): Promise<void> {
-    if (this.refreshing || !this.canRun()) return;
+  private async cycle(forced = false): Promise<void> {
+    if (this.refreshing || this.paused || (!forced && !this.canRun())) return;
+    const entries = forced ? this.forced ?? [] : this.entries;
+    if (forced) this.forced = null;
     this.clearTimers();
     const run = this.run;
     this.refreshing = true;
     this.notify();
     const items: ScanItem[] = [];
-    let timedOut = false;
+    let timeouts = 0;
+    let timeoutsInARow = 0;
     let complete = true;
-    for (const entry of this.entries) {
+    for (const entry of entries) {
       if (this.paused) {
         complete = false;
         break;
@@ -202,24 +223,30 @@ export class StatusRefresher {
       const r = await this.send(entry.command, entry.timeoutMs ? { timeoutMs: entry.timeoutMs } : {});
       if (run !== this.run) return;
       if (r.status === 'timeout') {
-        timedOut = true;
-        break;
+        timeouts++;
+        timeoutsInARow++;
+        // One slow command says nothing about the others.
+        if (timeoutsInARow >= MAX_TIMEOUTS_IN_A_ROW) {
+          complete = false;
+          break;
+        }
+        continue;
       }
       if (r.status === 'disconnected') {
         complete = false;
         break;
       }
+      timeoutsInARow = 0;
       items.push({ ...entry, state: r.status === 'ok' ? 'done' : 'unsupported', response: r });
     }
     this.refreshing = false;
     this.lastFinished = Date.now();
     if (items.length > 0) this.callbacks.onResults(items);
-    if (timedOut) {
-      this.timeoutCycles++;
-      this.stalled = this.timeoutCycles >= MAX_TIMEOUT_CYCLES;
-    } else if (complete) {
-      this.timeoutCycles = 0;
-      this.updatedAt = this.lastFinished;
+    if (complete) this.updatedAt = this.lastFinished;
+    if (!forced) {
+      if (items.length > 0) this.failedCycles = 0;
+      else if (timeouts > 0) this.failedCycles++;
+      this.stalled = this.failedCycles >= MAX_FAILED_CYCLES;
     }
     this.continueAfter(REFRESH_INTERVAL_MS);
     this.notify();

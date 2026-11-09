@@ -37,7 +37,7 @@ const MAX_DEEP_TIMEOUTS = 5;
 const DEEP_SILENT = `deep scan stopped: ${MAX_DEEP_TIMEOUTS} commands in a row got no answer`;
 
 /** "AT+QENG=\"servingcell\"" -> "+QENG"; undefined for plain commands such as ATI. */
-function commandName(command: string): string | undefined {
+export function commandName(command: string): string | undefined {
   const m = /^AT([+$^#!%*][A-Za-z0-9_]+)/i.exec(command.trim());
   return m ? m[1].toUpperCase() : undefined;
 }

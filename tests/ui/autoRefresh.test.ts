@@ -12,7 +12,8 @@ import { Scanner } from '../../src/scan/scanner';
 import { createDemoSettings, createDemoTransport, demoWebCapture } from '../../src/ui/demo';
 import type { DemoSettings, DemoTransport } from '../../src/ui/demo';
 import { downloadText } from '../../src/ui/download';
-import { REFRESH_INTERVAL_MS, URC_DEBOUNCE_MS } from '../../src/ui/statusRefresh';
+import { MIN_URC_GAP_MS, REFRESH_INTERVAL_MS } from '../../src/ui/statusRefresh';
+import { MASK } from '../../src/ui/dashboard';
 import { importWebCapture } from '../../src/web/importReport';
 
 const ORIGINAL_SEND = AtEngine.prototype.send;
@@ -39,7 +40,7 @@ async function until(fn: () => boolean): Promise<void> {
   throw new Error('timeout waiting for condition');
 }
 
-async function scanned(): Promise<VueWrapper> {
+async function connected(): Promise<VueWrapper> {
   const make = () => {
     lastTransport = createDemoTransport({ delayMs: 0, settings });
     return Promise.resolve(lastTransport);
@@ -47,8 +48,28 @@ async function scanned(): Promise<VueWrapper> {
   const w = mount(App, { props: { connectors: { serial: make, usb: make }, donateUrl: null }, attachTo: document.body });
   wrappers.push(w);
   await btn(w, 'Serial port')!.trigger('click');
+  return w;
+}
+
+async function scanned(): Promise<VueWrapper> {
+  const w = await connected();
   await until(() => w.text().includes('Automatic scan finished'));
   return w;
+}
+
+/** Opens Actions, sets the radio and confirms. */
+async function setRadio(w: VueWrapper, label: 'On' | 'Off'): Promise<void> {
+  await w.findAll('nav button')[3].trigger('click');
+  const row = () => w.find('[data-action="radio"]');
+  const click = async (text: string) => {
+    await until(() => !row().findAll('button').find((b) => b.text().includes(text))!.element.disabled);
+    await row().findAll('button').find((b) => b.text().includes(text))!.trigger('click');
+  };
+  await click(label);
+  await click('Confirm');
+  // Well inside the interval: this is the cycle that follows a successful action.
+  await tick(1000);
+  await flushPromises();
 }
 
 function setHidden(hidden: boolean): void {
@@ -87,26 +108,50 @@ describe('Overview stays current', () => {
   test('switching the radio off in Actions shows on the Overview without a reload, and on again', async () => {
     const w = await scanned();
     expect(status(w)).toBe('On the network');
-    await w.findAll('nav button')[3].trigger('click');
-    await until(() => w.find('[data-action="radio"] .value').text() === 'On');
-    const row = () => w.find('[data-action="radio"]');
-    const click = async (text: string) => {
-      await until(() => !row().findAll('button').find((b) => b.text().includes(text))!.element.disabled);
-      await row().findAll('button').find((b) => b.text().includes(text))!.trigger('click');
-    };
-    await click('Off');
-    await click('Confirm');
-    // Well inside the interval: this is the cycle that follows a successful action.
-    await tick(1000);
-    await flushPromises();
+    await setRadio(w, 'Off');
     expect(status(w)).toBe('Radio off');
     expect(w.find('.network').attributes('data-tone')).toBe('neutral');
     expect(w.find('.signal').text()).toContain('Radio off');
-    await click('On');
-    await click('Confirm');
-    await tick(1000);
-    await flushPromises();
+    await setRadio(w, 'On');
     expect(status(w)).toBe('On the network');
+  });
+
+  test('with Auto refresh off the Overview still follows an action, and no polling starts', async () => {
+    const w = await scanned();
+    await w.find('.auto-refresh input').setValue(false);
+    await setRadio(w, 'Off');
+    expect(status(w)).toBe('Radio off');
+    const before = count(CYCLE_MARKER);
+    await tick(REFRESH_INTERVAL_MS * 3);
+    expect(count(CYCLE_MARKER)).toBe(before);
+  });
+
+  test('after a stopped automatic scan the Overview still follows an action', async () => {
+    const h = hold('AT+CSQ');
+    const w = await connected();
+    await until(() => btn(w, 'Stop') !== undefined && sent().includes('AT+CSQ'));
+    await btn(w, 'Stop')!.trigger('click');
+    h.release();
+    await until(() => w.text().includes('Scan stopped'));
+    expect(w.find('.auto-refresh').exists()).toBe(false);
+    await setRadio(w, 'Off');
+    expect(status(w)).toBe('Radio off');
+    expect(sent()).toContain('AT+CGATT?');
+  });
+
+  test('refreshed identifiers are masked while "Hide identifiers" is on', async () => {
+    const w = await scanned();
+    const NEW_ADDRESS = '10.9.8.7';
+    send.mockImplementation(async function (this: AtEngine, c: string, opts?: SendOptions): Promise<AtResponse> {
+      if (c === 'AT+CGPADDR') return { command: c, status: 'ok', lines: [`+CGPADDR: 1,"${NEW_ADDRESS}"`], durationMs: 1 };
+      return ORIGINAL_SEND.call(this, c, opts);
+    });
+    await tick(REFRESH_INTERVAL_MS);
+    await flushPromises();
+    expect(w.find('.addresses').text()).toContain(NEW_ADDRESS);
+    await w.find('.actions input[role="switch"]').setValue(true);
+    expect(w.text()).not.toContain(NEW_ADDRESS);
+    expect(w.find('.addresses').text()).toContain(MASK);
   });
 
   test('auto refresh is on after the scan, and says how old the reading is', async () => {
@@ -124,7 +169,7 @@ describe('Overview stays current', () => {
     await flushPromises();
     expect(status(w)).toBe('Radio off');
     expect(new Set(sent().slice(before))).toEqual(new Set([
-      'AT+CFUN?', 'AT+CPIN?', 'AT+CREG?', 'AT+CEREG?', 'AT+COPS?', 'AT+CESQ', 'AT+CSQ', 'AT+CGATT?', 'AT+CGACT?', 'AT+CGPADDR',
+      'AT+CFUN?', 'AT+CPIN?', 'AT+CREG?', 'AT+CGREG?', 'AT+CEREG?', 'AT+C5GREG?', 'AT+COPS?', 'AT+CESQ', 'AT+CSQ', 'AT+CGATT?', 'AT+CGACT?', 'AT+CGPADDR',
       'AT+QNWINFO', 'AT+QENG="servingcell"', 'AT+QCSQ', 'AT+QNETDEVCTL?',
     ]));
   });
@@ -254,7 +299,7 @@ describe('Overview stays current', () => {
     const before = count(CYCLE_MARKER);
     urc.mock.calls[0][0]('+CMTI: "SECRET-URC-TEXT",7');
     urc.mock.calls[0][0]('+CMTI: "SECRET-URC-TEXT",8');
-    await tick(URC_DEBOUNCE_MS);
+    await tick(MIN_URC_GAP_MS);
     await flushPromises();
     expect(count(CYCLE_MARKER)).toBe(before + 1);
     expect(w.html()).not.toContain('SECRET-URC-TEXT');

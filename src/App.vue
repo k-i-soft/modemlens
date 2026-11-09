@@ -378,6 +378,11 @@ function onRestarted(): void {
   void teardown();
 }
 
+/** Runs whenever an action went through, so that the Overview never contradicts it. */
+function refreshAfterAction(): void {
+  if (connected.value) refresher.runNow(refreshEntries(reportMeta.value.profile));
+}
+
 function rescan(): void {
   if (modemBusy.value || !engine || !connected.value) return;
   void scanFromStart();
@@ -564,7 +569,7 @@ onBeforeUnmount(() => {
         :begin="beginAction"
         :end="endAction"
         @restarted="onRestarted"
-        @confirmed="refresher.runNow()"
+        @confirmed="refreshAfterAction"
         @rescan="rescan"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>
