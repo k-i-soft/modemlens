@@ -103,7 +103,7 @@ const WEB_DEVICE_KEYS = [
   'hardware', 'webui_version', 'serial', 'mac1', 'mac2', 'wan_ip', 'wan_ipv6', 'wan_dns', 'wan_ipv6_dns',
   'product_family', 'support_mode', 'work_mode', 'home_plmn', 'uptime',
 ];
-const NO_SERVICE = /no\s*service/i;
+const NO_SERVICE = /no[\s_]*service/i;
 const USB_MODES: Record<string, string> = { '0': 'RmNet', '1': 'ECM', '2': 'MBIM', '3': 'RNDIS', '5': 'NCM' };
 const UNUSED_ADDRESS = /^[0.:]*$/;
 const NEIGHBOUR_KEY = /^n(\d+)_(kind|earfcn|pci|rsrq_db|rsrp_dbm)$/;

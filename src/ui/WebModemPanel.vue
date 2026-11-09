@@ -39,7 +39,8 @@ async function copy(id: string, href: string): Promise<void> {
       </p>
       <div class="row">
         <!-- The script is meant for the modem's own page: here it must not run, so the click does nothing. -->
-        <a class="bookmarklet" :href="o.href" @click.prevent>Drag this to your bookmarks bar</a>
+        <span class="drag">Drag this to your bookmarks bar:</span>
+        <a class="bookmarklet" :href="o.href" @click.prevent>ModemLens capture</a>
         <button type="button" @click="copy(o.id, o.href)">Copy</button>
       </div>
       <p v-if="copyResult?.id === o.id" class="hint" role="status">{{ copyResult.text }}</p>
@@ -66,5 +67,5 @@ async function copy(id: string, href: string): Promise<void> {
   border-radius: var(--radius-s);
   cursor: grab;
 }
-.steps { font-size: 0.9rem; color: var(--ink-2); }
+.drag, .steps { font-size: 0.9rem; color: var(--ink-2); }
 </style>

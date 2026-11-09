@@ -1278,10 +1278,16 @@ describe('importing a web capture', () => {
   test('importing during a session ends it and clears the old results', async () => {
     const w = await scanned();
     expect(w.text()).toContain('EC200A');
+    const terminal = () => w.findComponent(TerminalPane);
+    await terminal().find('input[aria-label="AT command"]').setValue('AT+CSQ');
+    await terminal().find('form').trigger('submit');
+    await until(() => terminal().text().includes('+CSQ: 21,99'));
     await choose(w, captureFile(), w.findComponent(HelpNoModem).find('input[type="file"]'));
     await until(() => w.text().includes('DEMO-STICK-1'));
     expect(w.text()).toContain('Imported capture');
     expect(w.findComponent(Overview).text()).not.toContain('EC200A');
+    expect(terminal().text()).not.toContain('+CSQ: 21,99');
+    expect(terminal().text()).not.toContain('AT+CSQ');
   });
 
   test('the import in the guidance card replaces the card', async () => {
@@ -1330,7 +1336,8 @@ describe('WebModemPanel', () => {
     const w = mount(WebModemPanel, { props: { dialect: 'hilink' }, attachTo: document.body });
     wrappers.push(w);
     const a = w.find('a.bookmarklet');
-    expect(a.text()).toBe('Drag this to your bookmarks bar');
+    expect(a.text()).toBe('ModemLens capture');
+    expect(w.find('.offer').text()).toContain('Drag this to your bookmarks bar');
     expect(a.attributes('href')).toBe(buildBookmarklet(WEB_DIALECTS[0]));
     const click = new MouseEvent('click', { bubbles: true, cancelable: true });
     a.element.dispatchEvent(click);

@@ -160,6 +160,13 @@ describe('the Overview of an imported report', () => {
     expect(d.network?.word).toBe('No service');
   });
 
+  test.each(['NO SERVICE', 'NO_SERVICE', 'No Service', 'NOSERVICE'])('%s counts as no service', (mode) => {
+    const body = INFORMATION.replace('<workmode>LTE</workmode>', `<workmode>${mode}</workmode>`);
+    const d = buildDashboard(importWebCapture(hilinkCapture({ responses: [answer('information', body)] })));
+    expect(d.network).toEqual({ word: 'No service', tone: 'bad' });
+    expect(d.chips.find((c) => c.key === 'technology')).toBeUndefined();
+  });
+
   test('a scan report is not affected', () => {
     const d = buildDashboard({ startedAt: 'x', items: [], commandList: [] });
     expect(d.device).toEqual({});

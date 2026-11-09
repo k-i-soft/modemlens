@@ -423,6 +423,7 @@ onBeforeUnmount(() => {
         @network-scan="startNetworkScan"
       />
       <TerminalPane
+        :key="importCount"
         v-show="tab === 'terminal'"
         :send="terminalSend"
         :disabled="!connected || running"
