@@ -18,6 +18,13 @@ test.each([
   '+CPBF', '+CPBS', '+CNUM', '+CUSD',
   '$QCPWRDN', '+CPWROFF', '^PWRCTL',
 ])('denied family %s', n => expect(isDiscoverable(n)).toBe(false));
+test.each([
+  '#CSURV', '+CPBP', '+CPBG', '+CPBM',
+  '+CLIR', '+COLP', '+CNAP', '+CDIP', '+COLR',
+  '+CGCMOD', '+CNMPSD', '+CSODCP', '#SGACT', '+QNETDEVCTL', '+CESP', '+CHLD', '+CTFR', '+CNTP', '+QNTP',
+  '+CRLA', '+CEAP', '+CERP', '+CUAD', '+CPOL', '+CPLS',
+  '+QFLST', '+QFLDS', '+QAUDLOOP', '+QLDTMF', '+QTTS', '+QGPSLOC', '+QMBNCFG', '+CNMA',
+])('own CLAC list cannot bring back %s', n => expect(isDiscoverable(n)).toBe(false));
 test.each(['+CSQ;Z', '+X;+CFUN=0', '+', '+CSQ=1', '+CSQ?', ' +CSQ', '+CSQ ', '+C SQ', '+CSQ\n', '', 'CSQ'])('malformed %j rejected', n => expect(isDiscoverable(n)).toBe(false));
 test('lowercase is normalised, not rejected', () => expect(isDiscoverable('+qeng')).toBe(true));
 test('+CCLK stays discoverable', () => expect(isDiscoverable('+CCLK')).toBe(true));

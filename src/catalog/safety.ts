@@ -5,7 +5,7 @@ const DENY_PATTERN = new RegExp(
   [
     'RESET', 'POW', 'PWR', 'OFF', 'DOWN', 'ERASE', 'DEL', 'FOTA', 'UPDATE', 'FLASH', 'FACTORY', 'RST', 'DFU', 'DIAL',
     'BOOT', 'SHDN', 'HALT', 'SMSO', 'FWUPD', 'FWINST', 'FWSWITCH', 'SCAN', 'NVW', 'NVFW', 'PRTPARA',
-    'CMG[SDRLWC]', 'CMSS', 'HCMG', 'SMG[RLS]', 'CPB[RWFS]', 'CPIN', 'LOCK', 'CPWD|SPWD',
+    'CMG[SDRLWC]', 'CMSS', 'HCMG', 'SMG[RLS]', 'CPB', 'CSURV', 'CPIN', 'LOCK', 'CPWD|SPWD',
   ].join('|'),
   'i',
 );
@@ -20,6 +20,11 @@ const DENY_FIXED = new Set([
   '+CHUP', '+QHUP',
   '+CSIM', '+CRSM', '+CCHO', '+CGLA',
   '^SLCK', '+QMGDA', '+CNUM', '+CUSD',
+  // network interrogation, session/channel actions, SIM auth and lists, files, audio, position, NV, SMS acks
+  '+CLIR', '+COLP', '+CNAP', '+CDIP', '+COLR',
+  '+CGCMOD', '+CNMPSD', '+CSODCP', '#SGACT', '+QNETDEVCTL', '+CESP', '+CHLD', '+CTFR', '+CNTP', '+QNTP',
+  '+CRLA', '+CEAP', '+CERP', '+CUAD', '+CPOL', '+CPLS',
+  '+QFLST', '+QFLDS', '+QAUDLOOP', '+QLDTMF', '+QTTS', '+QGPSLOC', '+QMBNCFG', '+CNMA',
 ]);
 
 // A name is one prefix character followed by letters, digits or underscores, nothing else.

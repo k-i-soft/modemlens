@@ -268,6 +268,9 @@ onBeforeUnmount(() => {
             <button type="button" :disabled="!canDeep" @click="confirmDeep = true">Deep scan…</button>
             <button type="button" :disabled="!canNetworkScan" @click="startNetworkScan">Network scan</button>
           </div>
+          <p v-if="canNetworkScan && !autoComplete" class="hint">
+            Deep scan is unavailable because the automatic scan did not finish.
+          </p>
           <p class="hint">
             Network scan lists the operators around you (AT+COPS=?). It can take minutes and may interrupt the
             connection.

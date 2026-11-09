@@ -79,7 +79,13 @@ describe('Scanner', () => {
   test('deep without a CLAC list tries the built-in candidates, all through isDiscoverable', async () => {
     defaultError();
     const s = new Scanner(engine, {});
-    await s.runDeep();
+    // Denied names injected into the candidate path must never reach the modem.
+    CANDIDATE_COMMANDS.push('+QPOWD', '+COPS', '+CPBR');
+    try {
+      await s.runDeep();
+    } finally {
+      CANDIDATE_COMMANDS.splice(-3, 3);
+    }
     const probes = sent();
     expect(probes.length).toBeGreaterThan(100);
     for (const w of probes) expect(w).toMatch(/^AT[+$^#!%*][A-Z0-9_]+=\?$/);
@@ -91,6 +97,7 @@ describe('Scanner', () => {
     }
     expect(probes).not.toContain('AT+QPOWD=?');
     expect(probes).not.toContain('AT+COPS=?');
+    expect(probes).not.toContain('AT+CPBR=?');
     // names the catalog already covers are not probed again
     expect(probes).not.toContain('AT+CSQ=?');
   });

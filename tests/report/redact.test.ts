@@ -17,6 +17,17 @@ const report = (items: ScanItem[], commandList: string[] = []): ScanReport =>
 export const SECRETS = ['123456789012345', '228011234567890', '89410123456789012345', '+41791234567', '10.40.1.2', '2001:db8::1', 'user1', 'pass1'];
 
 describe('redactReport', () => {
+  test('a position sentence before the firmware build is not exported', () => {
+    const nmea = '$GPGGA,123519,4807.038,N,01131.000,E,1,08';
+    const r = report([item('qgmr', 'AT+QGMR', [nmea, 'EC200AEUHAR01A30M16'], 'qgmr')]);
+    const out = toJson(redactReport(r)) + toMarkdown(redactReport(r));
+    expect(out).not.toContain('GPGGA');
+    expect(out).not.toContain('4807.038');
+    expect(out).toContain('EC200AEUHAR01A30M16');
+    const only = report([item('qgmr', 'AT+QGMR', [nmea], 'qgmr')]);
+    expect(toJson(redactReport(only)) + toMarkdown(redactReport(only))).not.toContain('4807.038');
+  });
+
   test('known secrets never appear anywhere', () => {
     const r = report([
       item('cgsn', 'AT+CGSN', ['123456789012345'], 'cgsn'),

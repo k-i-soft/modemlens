@@ -599,6 +599,7 @@ describe('App session lifecycle', () => {
     expect(w.text()).toContain('Scan stopped');
     expect(w.text()).not.toContain('Automatic scan finished');
     expect(btn(w, 'Deep scan')!.attributes('disabled')).toBeDefined();
+    expect(w.text()).toContain('automatic scan did not finish');
   });
 
   test('the terminal cannot send while a scan runs, and says why', async () => {

@@ -185,6 +185,11 @@ describe('parseResponse', () => {
     expect(val('qgmr', ['EC200AEUHAR01A30M16'], 'firmware_build')).toBe('EC200AEUHAR01A30M16');
   });
 
+  test('qgmr ignores lines that are not a plain build string', () => {
+    expect(val('qgmr', ['$GPGGA,123519,4807.038,N,01131.000,E,1,08', 'EC200AEUHAR01A30M16'], 'firmware_build')).toBe('EC200AEUHAR01A30M16');
+    expect(parseResponse('qgmr', ok(['$GPGGA,123519,4807.038,N,01131.000,E,1,08']))).toBeNull();
+  });
+
   test('cops_scan lists one field per operator', () => {
     const f = parseResponse('cops_scan', ok(['+COPS: (2,"Sunrise","Sunrise","22802",7),(1,"X","X","22801",7),,(0,1,2,3,4),(0,1,2)']))!;
     expect(f.map(x => [x.key, x.value])).toEqual([

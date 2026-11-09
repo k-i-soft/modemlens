@@ -188,8 +188,8 @@ const qpinc: Parser = (r) => {
 };
 
 const qgmr: Parser = (r) => {
-  const line = r.lines.map(l => l.trim().replace(/^\+QGMR:\s*/i, '').replace(/"/g, '')).find(l => l !== '');
-  return line && line.length <= 80 && !line.startsWith('+') ? [field('firmware_build', 'Firmware build', line)] : [];
+  const line = r.lines.map(l => l.trim().replace(/^\+QGMR:\s*/i, '').replace(/"/g, '')).find(l => /^[A-Za-z0-9._-]{4,80}$/.test(l));
+  return line ? [field('firmware_build', 'Firmware build', line)] : [];
 };
 
 /**
