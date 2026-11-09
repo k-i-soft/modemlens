@@ -102,6 +102,8 @@ describe('read parsers', () => {
     ['apn', ['+CGDCONT: 1,"IP",""'], apnValue('IP', '')],
     ['apn', ['+CGDCONT: 2,"IP","other"'], null],
     ['radio', ['nonsense'], null],
+    ['radio', ['+CFUN: 1', '+CFUN: 4'], '4'],
+    ['usb-mode', ['+QCFG: "usbnet",3', '+QCFG: "usbnet",1'], '1'],
   ])('%s: %j reads as %j', (id, lines, value) => {
     expect(action(id).read!.parse(ok(...lines))).toBe(value);
   });
@@ -115,6 +117,7 @@ describe('read parsers', () => {
   test('the SIM state is read', () => {
     expect(SIM_READ.parse(ok('+CPIN: READY'))).toBe('READY');
     expect(SIM_READ.parse(ok('+CPIN: SIM PIN'))).toBe('SIM PIN');
+    expect(SIM_READ.parse(ok('+CPIN: NOT READY', '+CPIN: READY'))).toBe('READY');
   });
 });
 

@@ -45,6 +45,8 @@ const WRITES = ACTIONS.flatMap((a) => a.choices.map((c) => c.command));
 const isWrite = (c: string): boolean => WRITES.includes(c) || /^AT\+CGDCONT=/.test(c);
 const btn = (w: VueWrapper, text: string) => w.findAll('button').find((b) => b.text().includes(text));
 const row = (w: VueWrapper, id: string) => w.find(`[data-action="${id}"]`);
+/** A little longer than the panel holds back the second confirmation. */
+const pastSecondConfirmGuard = () => new Promise((r) => setTimeout(r, 650));
 const rowBtn = (w: VueWrapper, id: string, text: string) => row(w, id).findAll('button').find((b) => b.text().includes(text));
 
 describe('Actions tab in the app', () => {
@@ -53,6 +55,13 @@ describe('Actions tab in the app', () => {
   let send: MockInstance<AtEngine['send']>;
   const sent = (): string[] => send.mock.calls.map((c) => c[0] as string);
   const writes = (): string[] => sent().filter(isWrite);
+
+  /** Answers one command without asking the modem. */
+  function answer(command: string, response: AtResponse): void {
+    send.mockImplementation(async function (this: AtEngine, c: string, opts?: SendOptions): Promise<AtResponse> {
+      return c === command ? response : ORIGINAL_SEND.call(this, c, opts);
+    });
+  }
 
   function connectors() {
     const make = () => {
@@ -144,6 +153,7 @@ describe('Actions tab in the app', () => {
     await flushPromises();
     expect(writes()).toEqual([]);
     expect(row(w, 'network-mode').find('.confirm').text()).toContain('not been tested on this firmware');
+    await pastSecondConfirmGuard();
     await rowBtn(w, 'network-mode', 'Send anyway')!.trigger('click');
     await until(() => row(w, 'network-mode').find('.result').exists());
     expect(writes()).toEqual(['AT+QCFG="nwscanmode",3']);
@@ -242,14 +252,135 @@ describe('Actions tab in the app', () => {
     expect(btn(w, 'Put it back')!.text()).toContain('ECM');
   });
 
-  test('a modem that vanishes right after a USB mode change is expected', async () => {
+  test('a cable pulled after a confirmed USB mode change, with no restart sent, is a lost connection', async () => {
     const w = await opened();
     await rowBtn(w, 'usb-mode', 'RNDIS')!.trigger('click');
     await rowBtn(w, 'usb-mode', 'Confirm')!.trigger('click');
     await until(() => btn(w, 'Restart now') !== undefined);
+    lastTransport.disconnect('pulled');
+    await until(() => w.text().includes('Connection lost: pulled'));
+    expect(w.text()).not.toContain('restarting, reconnect');
+  });
+
+  test('a restart that got no answer reads nothing, and a later pull is a lost connection', async () => {
+    answer('AT+CFUN=1,1', { command: 'AT+CFUN=1,1', status: 'timeout', lines: [], durationMs: 15000 });
+    const w = await opened();
+    await rowBtn(w, 'restart', 'Restart')!.trigger('click');
+    await rowBtn(w, 'restart', 'Confirm')!.trigger('click');
+    await until(() => row(w, 'restart').find('.result').exists());
+    await flushPromises();
+    expect(sent().at(-1)).toBe('AT+CFUN=1,1');
+    lastTransport.disconnect('pulled');
+    await until(() => w.text().includes('Connection lost: pulled'));
+    expect(w.text()).not.toContain('restarting, reconnect');
+  });
+
+  test('a write cut off by a pull says it is not confirmed, and keeps saying so until the next modem is identified', async () => {
+    const h = hold('AT+QCFG="usbnet",3');
+    const w = await opened();
+    await rowBtn(w, 'usb-mode', 'RNDIS')!.trigger('click');
+    await rowBtn(w, 'usb-mode', 'Confirm')!.trigger('click');
+    await flushPromises();
+    lastTransport.disconnect('pulled');
+    h.release();
+    await until(() => w.find('.actions-view').text().includes('not confirmed'));
+    expect(w.find('.actions-view').text()).toContain('USB mode');
+    expect(w.find('.actions-view .result pre').text()).toContain('[disconnected');
+    expect(w.text()).toContain('Connection lost: pulled');
+    expect(w.text()).not.toContain('restarting, reconnect');
+
+    send.mockRestore();
+    await btn(w, 'Reconnect: Serial port')!.trigger('click');
+    await until(() => w.text().includes('Automatic scan finished'));
+    expect(w.find('.actions-view').text()).not.toContain('not confirmed');
+  });
+
+  test('a restart cut off mid-command reports restarting, not a lost connection', async () => {
+    const h = hold('AT+CFUN=1,1');
+    const w = await opened();
+    await rowBtn(w, 'restart', 'Restart')!.trigger('click');
+    await rowBtn(w, 'restart', 'Confirm')!.trigger('click');
+    await flushPromises();
     lastTransport.disconnect('gone');
+    h.release();
     await until(() => w.text().includes('restarting, reconnect when it is back'));
     expect(w.text()).not.toContain('Connection lost');
+  });
+
+  test('a restart that is accepted leaves nothing to follow it, not even with Live on', async () => {
+    const w = await opened();
+    await w.findAll('nav button')[0].trigger('click');
+    await w.find('.live input').setValue(true);
+    await until(() => sent().includes('AT+CESQ'));
+    await openTab(w);
+    await until(() => !rowBtn(w, 'restart', 'Restart')!.element.disabled);
+    await rowBtn(w, 'restart', 'Restart')!.trigger('click');
+    await rowBtn(w, 'restart', 'Confirm')!.trigger('click');
+    await until(() => w.text().includes('restarting, reconnect when it is back'));
+    await flushPromises();
+    expect(sent().at(-1)).toBe('AT+CFUN=1,1');
+  });
+
+  describe('going back on a different modem', () => {
+    /** Every connection is the next modem in the list. */
+    function serials(...list: Array<string | null>): void {
+      let call = 0;
+      send.mockImplementation(async function (this: AtEngine, c: string, opts?: SendOptions): Promise<AtResponse> {
+        if (c !== 'AT+CGSN' && c !== 'AT+GSN') return ORIGINAL_SEND.call(this, c, opts);
+        if (c === 'AT+CGSN') call++;
+        const serial = list[Math.min(call, list.length) - 1];
+        if (serial === null) return { command: c, status: 'error', lines: [], durationMs: 1 };
+        return { command: c, status: 'ok', lines: serial === '' ? [] : [serial], durationMs: 1 };
+      });
+    }
+
+    async function changeRadio(w: VueWrapper): Promise<void> {
+      await rowBtn(w, 'radio', 'Off')!.trigger('click');
+      await rowBtn(w, 'radio', 'Confirm')!.trigger('click');
+      await until(() => row(w, 'radio').find('.value').text() === 'Off' && !!row(w, 'radio').find('.result').exists());
+    }
+
+    async function reconnect(w: VueWrapper): Promise<void> {
+      lastTransport.disconnect('pulled');
+      await until(() => btn(w, 'Reconnect: Serial port') !== undefined);
+      await btn(w, 'Reconnect: Serial port')!.trigger('click');
+      await until(() => w.text().includes('Automatic scan finished'));
+      await until(() => row(w, 'radio').find('.value').text() === 'Off' && !rowBtn(w, 'nat', 'Carrier')!.element.disabled);
+    }
+
+    test('the value of one modem is not offered on the next', async () => {
+      serials('111111111111111', '222222222222222');
+      const w = await opened();
+      await changeRadio(w);
+      expect(btn(w, 'Put it back')).toBeTruthy();
+      await reconnect(w);
+      expect(btn(w, 'Put it back')).toBeUndefined();
+    });
+
+    test('the same modem back again keeps its way back', async () => {
+      serials('111111111111111', '111111111111111');
+      const w = await opened();
+      await changeRadio(w);
+      await reconnect(w);
+      expect(btn(w, 'Put it back')).toBeTruthy();
+    });
+
+    test('an empty serial identifies nothing', async () => {
+      serials('', '');
+      const w = await opened();
+      await changeRadio(w);
+      expect(btn(w, 'Put it back')).toBeUndefined();
+      await reconnect(w);
+      expect(btn(w, 'Put it back')).toBeUndefined();
+    });
+
+    test('a modem whose serial cannot be read is offered no way back', async () => {
+      serials('111111111111111', null);
+      const w = await opened();
+      await changeRadio(w);
+      await reconnect(w);
+      expect(btn(w, 'Put it back')).toBeUndefined();
+    });
   });
 
   test('losing the modem after an ordinary change is a lost connection', async () => {
@@ -389,7 +520,7 @@ describe('ActionsPanel', () => {
     const w = mount(ActionsPanel, {
       props: {
         active: true, connected: true, imported: false, profileId: 'quectel-ec200a', scanning: false,
-        send, begin: () => true, end: () => {}, platform: 'Win32', ...props,
+        send, begin: () => true, end: () => {}, platform: 'Win32', modemKey: 'serial-1', ...props,
       },
     });
     wrappers.push(w);
@@ -493,6 +624,7 @@ describe('ActionsPanel', () => {
     await flushPromises();
     await rowBtn(w, 'roaming', 'On')!.trigger('click');
     await rowBtn(w, 'roaming', 'Confirm')!.trigger('click');
+    await pastSecondConfirmGuard();
     await rowBtn(w, 'roaming', 'Send anyway')!.trigger('click');
     await flushPromises();
     expect(btn(w, 'Put it back')).toBeUndefined();
@@ -569,7 +701,7 @@ describe('ActionsPanel', () => {
     expect(row(w, 'apn').text()).toContain('cannot be put back');
   });
 
-  test('another modem starts without a way back', async () => {
+  test('a way back belongs to the modem it was remembered on', async () => {
     const { send } = modem({ 'AT+CFUN=4': [] });
     const w = panel(send, { modemKey: 'a' });
     await flushPromises();
@@ -578,11 +710,76 @@ describe('ActionsPanel', () => {
     await flushPromises();
     expect(btn(w, 'Put it back')).toBeTruthy();
     await w.setProps({ modemKey: undefined });
-    expect(btn(w, 'Put it back')).toBeTruthy();
-    await w.setProps({ modemKey: 'a' });
-    expect(btn(w, 'Put it back')).toBeTruthy();
+    expect(btn(w, 'Put it back')).toBeUndefined();
     await w.setProps({ modemKey: 'b' });
     expect(btn(w, 'Put it back')).toBeUndefined();
+    await w.setProps({ modemKey: 'a' });
+    expect(btn(w, 'Put it back')).toBeTruthy();
+  });
+
+  test('with no serial nothing is remembered', async () => {
+    const { send } = modem({ 'AT+CFUN=4': [] });
+    const w = panel(send, { modemKey: undefined });
+    await flushPromises();
+    await rowBtn(w, 'radio', 'Off')!.trigger('click');
+    await rowBtn(w, 'radio', 'Confirm')!.trigger('click');
+    await flushPromises();
+    expect(btn(w, 'Put it back')).toBeUndefined();
+    await w.setProps({ modemKey: 'a' });
+    expect(btn(w, 'Put it back')).toBeUndefined();
+  });
+
+  test('the second confirmation is a new button that ignores an immediate activation', async () => {
+    const { send, sent } = modem({ 'AT+QCFG="nwscanmode",3': [] });
+    const w = panel(send);
+    await flushPromises();
+    await rowBtn(w, 'network-mode', 'LTE only')!.trigger('click');
+    const first = row(w, 'network-mode').find('.confirm button.primary').element;
+    await rowBtn(w, 'network-mode', 'Confirm')!.trigger('click');
+    const second = row(w, 'network-mode').find('.confirm button.primary').element;
+    expect(second).not.toBe(first);
+    expect(second.textContent).toContain('Send anyway');
+    expect(first.isConnected).toBe(false);
+
+    await rowBtn(w, 'network-mode', 'Send anyway')!.trigger('click');
+    await flushPromises();
+    expect(sent.filter(isWrite)).toEqual([]);
+    expect(row(w, 'network-mode').find('.confirm').exists()).toBe(true);
+
+    await pastSecondConfirmGuard();
+    await rowBtn(w, 'network-mode', 'Send anyway')!.trigger('click');
+    await flushPromises();
+    expect(sent.filter(isWrite)).toEqual(['AT+QCFG="nwscanmode",3']);
+  });
+
+  test('a refused restart sends nothing after it', async () => {
+    const { send, sent } = modem({ 'AT+CFUN=1,1': 'error' });
+    const w = panel(send);
+    await flushPromises();
+    await rowBtn(w, 'restart', 'Restart')!.trigger('click');
+    await rowBtn(w, 'restart', 'Confirm')!.trigger('click');
+    await flushPromises();
+    expect(sent.at(-1)).toBe('AT+CFUN=1,1');
+    expect(w.emitted('restarted')).toBeUndefined();
+  });
+
+  test('the modem is told to go down before it is released', async () => {
+    const order: string[] = [];
+    const { send } = modem({ 'AT+CFUN=1,1': [] });
+    const w = mount(ActionsPanel, {
+      props: {
+        active: true, connected: true, imported: false, profileId: 'quectel-ec200a', scanning: false,
+        send, begin: () => true, end: () => order.push('end'), platform: 'Win32', modemKey: 'serial-1',
+        onRestarted: () => order.push('restarted'),
+      },
+    });
+    wrappers.push(w);
+    await flushPromises();
+    order.length = 0;
+    await rowBtn(w, 'restart', 'Restart')!.trigger('click');
+    await rowBtn(w, 'restart', 'Confirm')!.trigger('click');
+    await flushPromises();
+    expect(order).toEqual(['restarted', 'end']);
   });
 });
 

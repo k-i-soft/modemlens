@@ -12,10 +12,10 @@ export const RADIO_ON = '1';
 
 const SLOW_WRITE_MS = 15000;
 
-/** The first capture of the first line that matches, from an answer the modem finished with OK. */
+/** The capture of the last line that matches: an unsolicited line of the same name can come before the answer. */
 function capture(r: AtResponse, pattern: RegExp): string | null {
   if (r.status !== 'ok') return null;
-  for (const line of r.lines) {
+  for (const line of [...r.lines].reverse()) {
     const m = pattern.exec(line.trim());
     if (m) return m[1];
   }
@@ -225,9 +225,4 @@ export function valueLabel(action: ActionDefinition, value: string | null | unde
     return `${apn === '' ? 'No APN' : apn} (${type})`;
   }
   return action.choices.find((c) => c.value === value)?.label ?? `Value ${value}`;
-}
-
-/** The modem going away is part of what this action does. */
-export function expectsModemToDrop(action: ActionDefinition): boolean {
-  return action.kind === 'trigger' || action.needsRestart;
 }

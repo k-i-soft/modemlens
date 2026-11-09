@@ -131,8 +131,6 @@ let generation = 0;
 let closing: Promise<void> = Promise.resolve();
 /** The session an action started on: its later steps must never reach a newer one. */
 let actionEngine: AtEngine | null = null;
-/** An action was sent that makes the modem go away. */
-let expectingDrop = false;
 
 function snapshot(): ScanReport | null {
   if (imported.value) return imported.value;
@@ -157,7 +155,7 @@ const canNetworkScan = computed(() => connected.value && autoDone.value && !runn
 const canDeep = computed(() => canNetworkScan.value && autoComplete.value);
 const modemBusy = computed(() => running.value || actionBusy.value);
 /** The serial number from the scan: it tells whether a reconnected modem is the same one. Never shown. */
-const modemKey = computed(() => items.value.find((i) => i.parser === 'cgsn' && i.state === 'done')?.response?.lines.join(''));
+const modemKey = computed(() => items.value.find((i) => i.parser === 'cgsn' && i.state === 'done')?.response?.lines.join('') || undefined);
 const terminalReason = computed(() => {
   if (imported.value) return IMPORTED_TERMINAL;
   if (running.value) return TERMINAL_DURING_SCAN;
@@ -275,8 +273,7 @@ async function onConnected(t: Transport): Promise<void> {
   engine.onDisconnect((reason) => {
     live.stop();
     connected.value = false;
-    if (expectingDrop) restarting.value = true;
-    else lostReason.value = reason;
+    lostReason.value = reason;
     confirmDeep.value = false;
     syncMeta();
     if (running.value) phase.value = 'finished';
@@ -284,7 +281,6 @@ async function onConnected(t: Transport): Promise<void> {
   connected.value = true;
   lostReason.value = '';
   restarting.value = false;
-  expectingDrop = false;
   await scanFromStart();
 }
 
@@ -513,7 +509,6 @@ onBeforeUnmount(() => {
         :send="actionSend"
         :begin="beginAction"
         :end="endAction"
-        @expect-drop="expectingDrop = $event"
         @restarted="onRestarted"
         @rescan="rescan"
       />

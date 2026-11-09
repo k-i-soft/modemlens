@@ -113,12 +113,21 @@ describe('runAction', () => {
     expect((await runAction(send, action('radio'), '4')).kind).toBe('lost');
   });
 
-  test.each(['usb-mode', 'nat'])('%s: the modem going away is expected, but never a confirmation', async (id) => {
+  test.each(['usb-mode', 'nat'])('%s: the modem going away during the read-back is not a restart and not a confirmation', async (id) => {
     const a = action(id);
     const value = a.choices[0].value;
     const { send } = scripted({ [a.choices[0].command]: ok(), [a.read!.command]: { status: 'disconnected' } });
     const o = await runAction(send, a, value);
-    expect(o.kind).toBe('restarting');
+    expect(o.kind).toBe('lost');
+    expect(o.message).toContain('not confirmed');
+    expect(o.message).not.toContain('restarting');
+  });
+
+  test.each(['usb-mode', 'nat'])('%s: a write cut off by a disconnect is not a restart', async (id) => {
+    const a = action(id);
+    const { send } = scripted({ [a.choices[0].command]: { status: 'disconnected' } });
+    const o = await runAction(send, a, a.choices[0].value);
+    expect(o.kind).toBe('lost');
     expect(o.message).toContain('not confirmed');
   });
 

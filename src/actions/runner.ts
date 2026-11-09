@@ -1,5 +1,5 @@
 import type { AtResponse } from '../at/engine';
-import { ACTIONS, SIM_READ, buildWrite, expectsModemToDrop, valueLabel } from './ec200a';
+import { ACTIONS, SIM_READ, buildWrite, valueLabel } from './ec200a';
 import type { ActionDefinition, ActionId, ActionSend } from './types';
 
 export type OutcomeKind =
@@ -9,9 +9,9 @@ export type OutcomeKind =
   /** The value read back is not the one that was written, or could not be read. */
   | 'mismatch'
   | 'no-answer'
-  /** The modem went away, and that was not expected. */
+  /** The modem went away before the change could be confirmed. */
   | 'lost'
-  /** The modem went away because of this action. */
+  /** The modem went away because it was told to restart. */
   | 'restarting'
   /** Not an allowed value. Nothing was sent. */
   | 'invalid';
@@ -57,12 +57,7 @@ export async function readCurrent(send: ActionSend): Promise<Readings> {
 }
 
 function goneOutcome(action: ActionDefinition, command: string, answer: string[], stage: string): ActionOutcome {
-  if (expectsModemToDrop(action)) {
-    const message = action.kind === 'trigger'
-      ? 'The modem is restarting. Reconnect when it is back.'
-      : `The modem went away ${stage}, which can happen with this setting. Reconnect when it is back and check the value: this change is not confirmed.`;
-    return { kind: 'restarting', message, command, answer };
-  }
+  if (action.kind === 'trigger') return { kind: 'restarting', message: 'The modem is restarting. Reconnect when it is back.', command, answer };
   return { kind: 'lost', message: `The connection was lost ${stage}. This change is not confirmed.`, command, answer };
 }
 

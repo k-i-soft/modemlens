@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue';
-import { ACTIONS, APN_TYPES, EC200A_PROFILE_ID, actionById, apnProblem, apnValue, buildWrite, expectsModemToDrop, isStrongWarning, isVerified, splitApnValue, valueLabel, warningFor } from '../actions/ec200a';
+import { ACTIONS, APN_TYPES, EC200A_PROFILE_ID, actionById, apnProblem, apnValue, buildWrite, isStrongWarning, isVerified, splitApnValue, valueLabel, warningFor } from '../actions/ec200a';
 import { availability, sessionBlock } from '../actions/rules';
 import type { ActionsState } from '../actions/rules';
 import { emptyReadings, readCurrent, runAction } from '../actions/runner';
@@ -25,7 +25,6 @@ const props = withDefaults(defineProps<{
 }>(), { profileId: undefined, modemKey: undefined, hideIdentifiers: false, platform: () => navigator.platform });
 
 const emit = defineEmits<{
-  (e: 'expect-drop', expected: boolean): void;
   (e: 'restarted'): void;
   (e: 'rescan'): void;
 }>();
@@ -35,10 +34,14 @@ interface Pending {
   value: string;
   /** A write that was not tested on this firmware takes a second click. */
   stage: 'confirm' | 'unverified';
+  /** When the second click became possible. */
+  armedAt: number;
   restoring: boolean;
 }
 
 const HIDDEN_ANSWER = 'Hidden while "Hide identifiers" is on.';
+/** A held or double-pressed key must not send an untested command before the warning can be read. */
+const SECOND_CONFIRM_GUARD_MS = 600;
 
 const readings = shallowRef<Readings>(emptyReadings());
 const everRead = ref(false);
@@ -46,7 +49,8 @@ const reading = ref(false);
 const acting = ref(false);
 const pending = shallowRef<Pending | null>(null);
 const last = shallowRef<{ actionId: ActionId; outcome: ActionOutcome } | null>(null);
-const previous = shallowRef<ReadonlyMap<ActionId, string>>(new Map());
+/** The values to go back to, and the modem they belong to. */
+const previous = shallowRef<{ owner: string; values: ReadonlyMap<ActionId, string> } | null>(null);
 const apnType = ref<string>('IP');
 const apnText = ref('');
 const apnError = ref('');
@@ -82,15 +86,21 @@ const rows = computed(() =>
 const shownRows = computed(() => rows.value.filter((r) => !r.availability.hidden));
 const hiddenRows = computed(() => rows.value.filter((r) => r.availability.hidden));
 
+/** Only for the modem it was remembered on: without a serial number that cannot be shown. */
+function previousValue(id: ActionId): string | undefined {
+  const p = previous.value;
+  return p && props.modemKey !== undefined && p.owner === props.modemKey ? p.values.get(id) : undefined;
+}
+
 function restoreOf(action: ActionDefinition): { value: string; label: string; enabled: boolean } | undefined {
-  const value = previous.value.get(action.id);
+  const value = previousValue(action.id);
   if (value === undefined || value === current(action.id) || buildWrite(action, value) === null) return undefined;
   const a = availability(action, state.value, props.platform, value);
   return a.hidden ? undefined : { value, label: valueLabel(action, value), enabled: a.enabled };
 }
 
 function cannotRestore(action: ActionDefinition): boolean {
-  const value = previous.value.get(action.id);
+  const value = previousValue(action.id);
   return value !== undefined && buildWrite(action, value) === null;
 }
 
@@ -118,21 +128,25 @@ watch([block, () => props.active], ([blocked, active]) => {
   if (blocked || !active) pending.value = null;
 });
 
-watch(() => props.connected, () => {
+let connectionWentAway = false;
+
+watch(() => props.connected, (connected) => {
   readings.value = emptyReadings();
   everRead.value = false;
-  if (props.connected) last.value = null;
+  if (!connected) connectionWentAway = true;
 });
 
-/** Another modem has other settings to go back to. */
-watch(() => props.modemKey, (key, old) => {
-  if (key !== undefined && old !== undefined && key !== old) previous.value = new Map();
+// What became of the last write stays readable until the next modem has been identified.
+watch(() => props.connected && props.profileId !== undefined, (identified) => {
+  if (!identified || !connectionWentAway) return;
+  connectionWentAway = false;
+  last.value = null;
 });
 
 function pick(action: ActionDefinition, value: string, restoring = false): void {
   if (!availability(action, state.value, props.platform, value).enabled) return;
   last.value = null;
-  pending.value = { action, value, stage: 'confirm', restoring };
+  pending.value = { action, value, stage: 'confirm', armedAt: 0, restoring };
 }
 
 function pickApn(action: ActionDefinition): void {
@@ -148,7 +162,9 @@ function pickRestart(): void {
 
 function remember(p: Pending, before: string | null, outcome: ActionOutcome): void {
   if (outcome.kind === 'refused' || outcome.kind === 'invalid') return;
-  const next = new Map(previous.value);
+  const owner = props.modemKey;
+  if (owner === undefined) return;
+  const next = new Map(previous.value?.owner === owner ? previous.value.values : []);
   if (p.restoring) {
     if (outcome.kind !== 'confirmed') return;
     next.delete(p.action.id);
@@ -156,7 +172,7 @@ function remember(p: Pending, before: string | null, outcome: ActionOutcome): vo
     if (before === null || before === p.value) return;
     next.set(p.action.id, before);
   }
-  previous.value = next;
+  previous.value = { owner, values: next };
 }
 
 /** The one place a write is sent from, and only ever from the confirm button. */
@@ -164,31 +180,31 @@ async function confirm(): Promise<void> {
   const p = pending.value;
   if (!p) return;
   if (p.stage === 'confirm' && !isVerified(p.action, p.value)) {
-    pending.value = { ...p, stage: 'unverified' };
+    pending.value = { ...p, stage: 'unverified', armedAt: Date.now() };
     return;
   }
+  if (p.stage === 'unverified' && Date.now() - p.armedAt < SECOND_CONFIRM_GUARD_MS) return;
   // The state can have changed since the value was picked.
   if (!availability(p.action, state.value, props.platform, p.value).enabled || !props.begin()) {
     pending.value = null;
     return;
   }
   const before = current(p.action.id);
-  const drops = expectsModemToDrop(p.action);
   pending.value = null;
   acting.value = true;
   let outcome: ActionOutcome | undefined;
   try {
-    if (drops) emit('expect-drop', true);
     outcome = await runAction(props.send, p.action, p.value);
-    if (drops && (outcome.kind === 'refused' || outcome.kind === 'invalid')) emit('expect-drop', false);
     remember(p, before, outcome);
     last.value = { actionId: p.action.id, outcome };
-    if (outcome.kind !== 'lost' && outcome.kind !== 'restarting' && outcome.kind !== 'invalid') readings.value = await readCurrent(props.send);
+    const modemStillThere = outcome.kind !== 'lost' && outcome.kind !== 'restarting' && outcome.kind !== 'invalid';
+    if (modemStillThere && p.action.kind !== 'trigger') readings.value = await readCurrent(props.send);
   } finally {
     acting.value = false;
+    // Before the modem is released: nothing may be sent to one that is going down.
+    if (outcome?.kind === 'restarting') emit('restarted');
     props.end();
   }
-  if (outcome?.kind === 'restarting') emit('restarted');
 }
 
 function cancel(): void {
@@ -261,7 +277,7 @@ function toneOf(outcome: ActionOutcome): string {
             <p v-if="warningFor(pending.action, pending.value)" :class="{ strong: isStrongWarning(pending.action, pending.value) }">{{ warningFor(pending.action, pending.value) }}</p>
             <p v-if="pending.stage === 'unverified'" class="strong" role="alert">This has not been tested on this firmware. Send it only if you can recover the modem without this tool.</p>
             <div class="row">
-              <button type="button" class="primary" :disabled="reading || acting" @click="confirm">{{ pending.stage === 'confirm' ? 'Confirm' : 'Send anyway' }}</button>
+              <button :key="pending.stage" type="button" class="primary" :disabled="reading || acting" @click="confirm">{{ pending.stage === 'confirm' ? 'Confirm' : 'Send anyway' }}</button>
               <button type="button" @click="cancel">Cancel</button>
             </div>
           </div>
@@ -281,6 +297,11 @@ function toneOf(outcome: ActionOutcome): string {
         </li>
       </ul>
       <p v-for="r in hiddenRows" :key="r.action.id" class="reason hidden-row">{{ r.action.label }}: {{ r.availability.reason }}</p>
+    </div>
+
+    <div v-if="last && !isTargetModem" class="result" :data-tone="toneOf(last.outcome)" role="status">
+      <p>{{ actionById(last.actionId)?.label }}: {{ last.outcome.message }}</p>
+      <pre v-if="last.outcome.command">{{ hideIdentifiers ? HIDDEN_ANSWER : last.outcome.answer.join('\n') }}</pre>
     </div>
   </section>
 </template>
