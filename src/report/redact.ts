@@ -40,8 +40,10 @@ const PATTERNS: RegExp[] = [
   /\d{14,20}/g,
   /\+\d{7,15}/g,
   /(?<!\d)\d{1,3}(?:\.\d{1,3}){3}(?!\d)/g,
-  /(?<![0-9a-f])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}/gi,
 ];
+const IPV6 = /(?<![0-9a-f])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}/gi;
+// Only the exact shape of a valid time: an IPv6 address can be all digits and have no "::".
+const CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/;
 
 function makeFilter(learned: Set<string>): (s: string) => string {
   // Longest first so that a value containing another one is replaced whole.
@@ -50,7 +52,7 @@ function makeFilter(learned: Set<string>): (s: string) => string {
   return (s) => {
     let out = learnedRe ? s.replace(learnedRe, REDACTED) : s;
     for (const p of PATTERNS) out = out.replace(p, REDACTED);
-    return out;
+    return out.replace(IPV6, (m) => (CLOCK_TIME.test(m) ? m : REDACTED));
   };
 }
 

@@ -111,6 +111,36 @@ describe('redactReport', () => {
     leaks([item('c', 'AT+X', ['IP10.40.1.2'], 'csq')], ['10.40.1.2']);
   });
 
+  describe('clock times and IPv6 addresses', () => {
+    const inCsq = (text: string) => redactReport(report([item('c', 'AT+CSQ', [`+CSQ: 21,99 ${text}`], 'csq')])).items[0].lines?.[0];
+
+    test('the modem time stays readable', () => {
+      const r = redactReport(report([item('cclk', 'AT+CCLK?', ['+CCLK: "26/11/09,18:30:05+04"'], 'cclk')]));
+      const value = r.items[0].fields?.[0].value;
+      expect(value).toBe('2026-11-09 18:30:05 UTC+01:00');
+      expect(toMarkdown(r)).toContain('18:30:05');
+    });
+
+    test.each(['00:00:00', '23:59:59', '18:30:05'])('clock time %s is kept', (time) => {
+      expect(inCsq(time)).toBe(`+CSQ: 21,99 ${time}`);
+    });
+
+    test.each([
+      '2001:db8::1', 'fe80::1', '::1', '::ffff:10.40.1.2',
+      '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+      '2001:1234:5678:1:2:3:4:5',
+      '20:01:08:12:13:14',
+    ])('address %s stays masked', (address) => {
+      const line = inCsq(address);
+      expect(line).toContain('[redacted]');
+      expect(line).not.toContain(address);
+    });
+
+    test.each(['24:00:00', '18:60:05', '18:30:61', '1:2:3'])('%s is not a clock time and stays masked', (text) => {
+      expect(inCsq(text)).toBe('+CSQ: 21,99 [redacted]');
+    });
+  });
+
   test('unknown response body kept only as shape', () => {
     const r = redactReport(report([item('deep:+QXYZ', 'AT+QXYZ?', ['+QXYZ: secretvalue 42'])]));
     expect(JSON.stringify(r)).not.toContain('secretvalue');
