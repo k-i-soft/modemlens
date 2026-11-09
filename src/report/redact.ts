@@ -36,10 +36,11 @@ export function shapeOf(lines: string[]): Shape {
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const PATTERNS: RegExp[] = [
+  /\d(?:[ .-]?\d){13,19}/g,
   /\d{14,20}/g,
   /\+\d{7,15}/g,
-  /\b\d{1,3}(?:\.\d{1,3}){3}\b/g,
-  /(?<![\w:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}/gi,
+  /(?<!\d)\d{1,3}(?:\.\d{1,3}){3}(?!\d)/g,
+  /(?<![0-9a-f])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}/gi,
 ];
 
 function makeFilter(learned: Set<string>): (s: string) => string {
@@ -53,9 +54,18 @@ function makeFilter(learned: Set<string>): (s: string) => string {
   };
 }
 
-function isCommandName(s: string): boolean {
-  return /^[+$^#!%*&]?[A-Za-z0-9_]+$/.test(s) && !/\d{14,}/.test(s);
+function isCommandName(s: string, learned: Set<string>): boolean {
+  if (!/^[+$^#!%*&]?[A-Za-z][A-Za-z0-9_]*$/.test(s)) return false;
+  if (/\d{14,}/.test(s) || /\+\d{7,15}/.test(s)) return false;
+  const low = s.toLowerCase();
+  for (const v of learned) if (low.includes(v.toLowerCase())) return false;
+  return true;
 }
+
+/** Parsers that consume the whole response, so raw lines hold nothing they did not see. */
+const FULL_COVERAGE_PARSERS = new Set(['csq', 'cesq', 'cpin', 'clck', 'cgact', 'qcsq']);
+const SERIAL_LABEL = /(^|[^a-z0-9])(serial|s\/n|sn|fsn|esn|meid|imei)(?![a-z0-9])/i;
+const USB_ID = /^[0-9a-f]{4}:[0-9a-f]{4}$/i;
 
 /**
  * Default-deny: text only survives for items a known parser understood, and
@@ -74,12 +84,22 @@ export function redactReport(report: ScanReport): SharedReport {
   const filter = makeFilter(learned);
 
   const items: SharedItem[] = report.items.map((item, i) => {
-    const out: SharedItem = { id: item.id, command: item.command, state: item.state };
+    let id = filter(item.id);
+    let command = filter(item.command);
+    if (item.id.startsWith('deep:') || item.category === 'discovery') {
+      const name = /^AT([+$^#!%*&][A-Za-z0-9_]+)/i.exec(item.command.trim())?.[1];
+      if (!name || !isCommandName(name, learned)) {
+        id = 'deep:[redacted]';
+        command = 'AT[redacted]';
+      }
+    }
+    const out: SharedItem = { id, command, state: item.state };
     const r = item.response;
     if (!r) return out;
     const fields = parsed[i];
     const isCrsm = /CRSM/i.test(item.command) || /crsm/i.test(item.parser ?? '');
-    if (!fields || isCrsm) {
+    const serialLabelled = item.parser === 'identity' && r.lines.some((l) => SERIAL_LABEL.test(l));
+    if (!fields || isCrsm || serialLabelled) {
       out.shape = shapeOf(r.lines);
       return out;
     }
@@ -89,7 +109,7 @@ export function redactReport(report: ScanReport): SharedReport {
       value: f.sensitive !== 'none' ? REDACTED : filter(f.value),
       sensitive: f.sensitive,
     }));
-    if (fields.every((f) => f.sensitive === 'none')) out.lines = r.lines.map(filter);
+    if (FULL_COVERAGE_PARSERS.has(item.parser ?? '') && fields.every((f) => f.sensitive === 'none')) out.lines = r.lines.map(filter);
     return out;
   });
 
@@ -97,9 +117,9 @@ export function redactReport(report: ScanReport): SharedReport {
     redacted: true,
     startedAt: report.startedAt,
     items,
-    commandList: report.commandList.filter(isCommandName),
+    commandList: report.commandList.filter((c) => isCommandName(c, learned)),
   };
-  if (report.usb !== undefined) shared.usb = report.usb;
+  if (report.usb !== undefined && USB_ID.test(report.usb)) shared.usb = report.usb;
   if (report.profile) shared.profile = report.profile.id;
   return shared;
 }
