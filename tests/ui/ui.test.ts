@@ -9,7 +9,7 @@ import ConnectBar from '../../src/ui/ConnectBar.vue';
 import DonateLink from '../../src/ui/DonateLink.vue';
 import HelpNoModem from '../../src/ui/HelpNoModem.vue';
 import ScanDetails from '../../src/ui/ScanDetails.vue';
-import SummaryCard from '../../src/ui/SummaryCard.vue';
+import IdentityHero from '../../src/ui/IdentityHero.vue';
 import TerminalPane from '../../src/ui/TerminalPane.vue';
 import { FakeTransport } from '../helpers/fakeTransport';
 import { AtEngine } from '../../src/at/engine';
@@ -17,7 +17,11 @@ import { PickerCancelledError } from '../../src/transport/types';
 import type { Transport } from '../../src/transport/types';
 import { NoAtChannelError } from '../../src/transport/webUsb';
 import { classifyUsbDevice } from '../../src/profiles/known-devices';
-import { createDemoTransport } from '../../src/ui/demo';
+import Diagnostics from '../../src/ui/Diagnostics.vue';
+import BarMeter from '../../src/ui/BarMeter.vue';
+import { LIVE_COMMAND } from '../../src/ui/liveSignal';
+import { MASK } from '../../src/ui/dashboard';
+import { createDemoTransport, demoNoAtError } from '../../src/ui/demo';
 import type { DemoTransport } from '../../src/ui/demo';
 import { downloadText } from '../../src/ui/download';
 import { PROFILES } from '../../src/profiles';
@@ -343,7 +347,7 @@ describe('App', () => {
   test('terminal traffic stays out of default and full export', async () => {
     const marker = 'AT+QZZTERMTEST?';
     const w = await scanned();
-    await w.findAll('nav button')[1].trigger('click');
+    await w.findAll('nav button')[2].trigger('click');
     await w.find('input[aria-label="AT command"]').setValue(marker);
     await w.find('form').trigger('submit');
     await until(() => {
@@ -372,12 +376,12 @@ describe('App', () => {
   test('passes the USB id of the transport to the scan', async () => {
     const make = () => Promise.resolve(Object.assign(createDemoTransport({ delayMs: 0 }), { usbId: '2c7c:6005' }));
     const w = await scanned({ connectors: { serial: make, usb: make } });
-    expect(w.findComponent(SummaryCard).props('usb')).toBe('2c7c:6005');
+    expect(w.findComponent(IdentityHero).props('identity').usb).toBe('2c7c:6005');
   });
 
   test('a transport without a USB id leaves it out of the scan', async () => {
     const w = await scanned();
-    expect(w.findComponent(SummaryCard).props('usb')).toBeUndefined();
+    expect(w.findComponent(IdentityHero).props('identity').usb).toBeUndefined();
   });
 
   test('help panel names the one interface for Zadig', () => {
@@ -593,7 +597,7 @@ describe('App session lifecycle', () => {
     };
     const w = mountApp({ connectors: { serial: make, usb: make } });
     await btn(w, 'Serial port')!.trigger('click');
-    await until(() => w.text().includes('results so far') && !w.text().includes('0 results'));
+    await until(() => /[1-9]\d* of \d+ done/.test(w.text()));
     await btn(w, 'Stop')!.trigger('click');
     await until(() => !w.text().includes('Scanning ('));
     expect(w.text()).toContain('Scan stopped');
@@ -608,7 +612,7 @@ describe('App session lifecycle', () => {
     const w = await scanned();
     await btn(w, 'Network scan')!.trigger('click');
     await flushPromises();
-    await w.findAll('nav button')[1].trigger('click');
+    await w.findAll('nav button')[2].trigger('click');
     const before = send.mock.calls.length;
     expect(w.find('input[aria-label="AT command"]').attributes('disabled')).toBeDefined();
     expect(w.find('.terminal').text()).toContain('while a scan is running');
@@ -621,7 +625,7 @@ describe('App session lifecycle', () => {
     const send = vi.spyOn(AtEngine.prototype, 'send');
     const w = await scanned();
     expect(send.mock.calls.some((c) => c[1]?.cancelPromptOnTimeout)).toBe(false);
-    await w.findAll('nav button')[1].trigger('click');
+    await w.findAll('nav button')[2].trigger('click');
     await w.find('input[aria-label="AT command"]').setValue('AT+CSQ');
     await w.find('form').trigger('submit');
     await flushPromises();
@@ -629,7 +633,325 @@ describe('App session lifecycle', () => {
   });
 });
 
+describe('the instrument panel', () => {
+  test('the start screen has the name, a sentence and the two large choices, and no tabs yet', () => {
+    const w = mountApp();
+    expect(w.find('h1').text()).toBe('ModemLens');
+    expect(w.text()).toContain('whether it is on the network');
+    expect(btn(w, 'USB direct')).toBeTruthy();
+    expect(btn(w, 'Serial port')).toBeTruthy();
+    expect(w.find('nav').exists()).toBe(false);
+    expect(w.findComponent(HelpNoModem).exists()).toBe(true);
+  });
+
+  test('shows the modem, its network state and its signal at a glance', async () => {
+    const w = await scanned();
+    expect(w.find('.model').text()).toBe('EC200A');
+    expect(w.text()).toContain('On the network');
+    expect(w.findComponent(BarMeter).findAll('rect.on')).toHaveLength(4);
+    expect(w.find('.verdict').text()).toContain('Good');
+  });
+
+  test('the scales are meters with real values', async () => {
+    const w = await scanned();
+    const rsrp = w.find('[role="meter"][aria-label="RSRP"]');
+    expect(rsrp.attributes()).toMatchObject({ 'aria-valuemin': '-130', 'aria-valuemax': '-60', 'aria-valuenow': '-85', 'aria-valuetext': '-85 dBm, good' });
+    expect(w.findAll('[role="meter"]').map((m) => m.attributes('aria-label'))).toEqual(['RSRP', 'RSRQ', 'SINR', 'RSSI']);
+  });
+
+  test('every rating on screen has its word', async () => {
+    const w = await scanned();
+    for (const scale of w.findAll('.scale')) expect(scale.text()).toMatch(/Excellent|Good|Fair|Poor/);
+    for (const row of w.findAll('.panel[aria-label="Neighbour cells"] li')) expect(row.text()).toMatch(/Excellent|Good|Fair|Poor/);
+  });
+
+  test('the demo exercises bands, neighbours, attempts and contexts', async () => {
+    const w = await scanned();
+    expect(w.findAll('.bands li').map((b) => b.text())).toEqual(['B1', 'B3active', 'B7', 'B8', 'B20', 'B28']);
+    expect(w.findAll('.panel[aria-label="Neighbour cells"] li')).toHaveLength(4);
+    expect(w.find('[aria-label="PIN: 2 attempts left"]').findAll('i.on')).toHaveLength(2);
+    expect(w.find('[aria-label="PUK: 10 attempts left"]').findAll('i.on')).toHaveLength(10);
+    expect(w.findAll('.panel[aria-label="Data connections"] li')).toHaveLength(2);
+    expect(w.find('.panel[aria-label="Device"] [role="img"]').attributes('aria-label')).toBe('Temperature 38 degrees Celsius');
+  });
+
+  test('operators appear only after a network scan, the current one flagged', async () => {
+    const w = await scanned();
+    expect(w.find('.panel[aria-label="Operators"]').exists()).toBe(false);
+    await btn(w, 'Network scan')!.trigger('click');
+    await until(() => w.text().includes('Barred Demo'));
+    const current = w.find('.panel[aria-label="Operators"] li.current');
+    expect(current.text()).toContain('Demo Mobile');
+    expect(current.text()).toContain('Current');
+  });
+
+  test('a modem that says little leaves no holes and no undefined', async () => {
+    const t = new FakeTransport();
+    t.reply(/.*/, ['\r\nERROR\r\n']);
+    const make = () => Promise.resolve(t);
+    const w = await scanned({ connectors: { serial: make, usb: make } });
+    expect(w.text()).not.toContain('undefined');
+    expect(w.text()).toContain('Unknown model');
+    expect(w.text()).toContain('No reading');
+    // The failed SIM query is itself a finding, so that panel stays and says so.
+    expect(w.findAll('.overview .panel').map((p) => p.attributes('aria-label'))).toEqual(['SIM']);
+    expect(w.find('.bands').exists()).toBe(false);
+  });
+
+  test('while scanning it says how far it is and which command runs', async () => {
+    const make = () => Promise.resolve(createDemoTransport({ delayMs: 5 }));
+    const w = mountApp({ connectors: { serial: make, usb: make } });
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => /[1-9]\d* of \d+ done/.test(w.text()));
+    expect(w.find('.progress code').text()).toMatch(/^AT/);
+    expect(w.find('[role="progressbar"]').attributes('aria-valuemax')).toMatch(/^\d+$/);
+  });
+
+  test('a scan that is stopped during its last command does not claim to be finished', async () => {
+    vi.spyOn(Scanner.prototype, 'runAuto').mockImplementation(function (this: Scanner, signal?: AbortSignal) {
+      return new Promise((resolve) => signal!.addEventListener('abort', () => resolve(this.report)));
+    });
+    const w = mountApp();
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => btn(w, 'Stop') !== undefined);
+    await btn(w, 'Stop')!.trigger('click');
+    await until(() => w.text().includes('Scan stopped'));
+    expect(w.text()).not.toContain('Automatic scan finished');
+    expect(btn(w, 'Deep scan')!.attributes('disabled')).toBeDefined();
+  });
+
+  test('each kind of scan reports its own end', async () => {
+    const w = await scanned();
+    await btn(w, 'Network scan')!.trigger('click');
+    await until(() => w.text().includes('Network scan finished'));
+    expect(w.text()).not.toContain('Automatic scan finished');
+  });
+
+  test('losing the connection withdraws the deep scan question', async () => {
+    const w = await scanned();
+    await btn(w, 'Deep scan')!.trigger('click');
+    lastTransport.disconnect('cable pulled');
+    await flushPromises();
+    expect(w.find('[aria-label="Deep scan warning"]').exists()).toBe(false);
+  });
+
+  test('"Start deep scan" is disabled when a deep scan is not possible', () => {
+    const w = mount(Diagnostics, {
+      props: { items: [], canDeep: false, canNetworkScan: false, autoIncomplete: false, confirmDeep: true, hideIdentifiers: false },
+    });
+    expect(btn(w, 'Start deep scan')!.attributes('disabled')).toBeDefined();
+  });
+
+  test('the export menu opens, and closes on Escape', async () => {
+    const w = await scanned();
+    const menu = w.find('.export .menu');
+    expect((menu.element as HTMLElement).style.display).toBe('none');
+    await w.findAll('button').find((b) => b.text() === 'Export')!.trigger('click');
+    expect((menu.element as HTMLElement).style.display).toBe('');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await flushPromises();
+    expect((menu.element as HTMLElement).style.display).toBe('none');
+  });
+
+  test('no template sets a style attribute: the production CSP has no unsafe-inline', async () => {
+    const files = import.meta.glob('../../src/**/*.vue', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+    expect(Object.keys(files).length).toBeGreaterThan(10);
+    for (const [name, source] of Object.entries(files)) {
+      expect(source, name).not.toMatch(/\sstyle="/);
+      expect(source, name).not.toContain('v-html');
+    }
+  });
+
+  describe('hide identifiers', () => {
+    const toggle = (w: VueWrapper) => w.findAll('input[role="switch"]').find((i) => i.element.closest('label')!.textContent!.includes('Hide identifiers'))!;
+    const SECRETS = ['123456789012345', '001010123456789', '98000000000000000099', '10.0.0.2', 'DEC0DE', 'FACE'];
+
+    test('is off by default and shows the values', async () => {
+      const w = await scanned();
+      expect((toggle(w).element as HTMLInputElement).checked).toBe(false);
+      for (const s of SECRETS) expect(w.text()).toContain(s);
+    });
+
+    test('masks identifiers everywhere on the page, raw responses included', async () => {
+      const w = await scanned();
+      await toggle(w).setValue(true);
+      for (const s of SECRETS) expect(w.text()).not.toContain(s);
+      expect(w.text()).toContain(MASK);
+      expect(w.text()).toContain('EC200A');
+    });
+
+    test('the terminal output is withheld and comes back', async () => {
+      const w = await scanned();
+      await w.find('input[aria-label="AT command"]').setValue('AT+CGSN');
+      await w.find('form').trigger('submit');
+      await until(() => w.find('.terminal .log').text().includes('123456789012345'));
+      await toggle(w).setValue(true);
+      expect(w.find('.terminal .log').text()).not.toContain('123456789012345');
+      await toggle(w).setValue(false);
+      expect(w.find('.terminal .log').text()).toContain('123456789012345');
+    });
+
+    test('exports do not depend on it', async () => {
+      const w = await scanned();
+      await toggle(w).setValue(true);
+      await btn(w, 'Full export')!.trigger('click');
+      await btn(w, 'Download full JSON')!.trigger('click');
+      expect(dl.mock.calls[0][1]).toContain('123456789012345');
+    });
+  });
+
+  describe('live signal', () => {
+    const liveSwitch = (w: VueWrapper) => w.find('.live input[role="switch"]');
+    const polls = (spy: { mock: { calls: unknown[][] } }, from: number) => spy.mock.calls.slice(from).filter((c) => c[0] === LIVE_COMMAND).length;
+
+    test('is off by default and nothing polls', async () => {
+      const send = vi.spyOn(AtEngine.prototype, 'send');
+      const w = await scanned();
+      const before = send.mock.calls.length;
+      await new Promise((r) => setTimeout(r, 30));
+      expect(send.mock.calls.length).toBe(before);
+      expect((liveSwitch(w).element as HTMLInputElement).checked).toBe(false);
+      expect(w.find('.plot').exists()).toBe(false);
+    });
+
+    test('starts from the toggle, draws, and never enters a report', async () => {
+      const send = vi.spyOn(AtEngine.prototype, 'send');
+      const w = await scanned();
+      const before = send.mock.calls.length;
+      const items = (w.findComponent(ScanDetails).props('items') as ScanItem[]).length;
+      await liveSwitch(w).setValue(true);
+      await until(() => w.find('.plot .dot').exists());
+      expect(polls(send, before)).toBe(1);
+      expect((w.findComponent(ScanDetails).props('items') as ScanItem[]).length).toBe(items);
+      await btn(w, 'Full export')!.trigger('click');
+      await btn(w, 'Download full JSON')!.trigger('click');
+      expect(JSON.parse(dl.mock.calls[0][1]).items.filter((i: ScanItem) => i.command === LIVE_COMMAND)).toHaveLength(1);
+    });
+
+    test('pauses during a scan and resumes after it', async () => {
+      const send = vi.spyOn(AtEngine.prototype, 'send');
+      let finishScan!: () => void;
+      const w = await scanned();
+      vi.spyOn(Scanner.prototype, 'runManual').mockReturnValue(new Promise((r) => (finishScan = () => r({} as ScanItem))));
+      await liveSwitch(w).setValue(true);
+      await until(() => w.find('.plot .dot').exists());
+      await btn(w, 'Network scan')!.trigger('click');
+      await flushPromises();
+      expect(w.find('.live').text()).toContain('Paused while a scan runs');
+      const during = send.mock.calls.length;
+      finishScan();
+      await until(() => polls(send, during) === 1);
+      expect(w.find('.live').text()).not.toContain('Paused');
+    });
+
+    test('stops on disconnect and cannot be started again without a modem', async () => {
+      const w = await scanned();
+      await liveSwitch(w).setValue(true);
+      await until(() => w.find('.plot .dot').exists());
+      lastTransport.disconnect('cable pulled');
+      await flushPromises();
+      expect((liveSwitch(w).element as HTMLInputElement).checked).toBe(false);
+      expect(liveSwitch(w).attributes('disabled')).toBeDefined();
+      expect(w.find('.live').text()).toContain('Needs a connected modem');
+    });
+
+    test('stops when a new session replaces the old one', async () => {
+      const w = await scanned();
+      await liveSwitch(w).setValue(true);
+      await until(() => w.find('.plot .dot').exists());
+      await btn(w, 'Serial port')!.trigger('click');
+      await until(() => w.text().includes('Automatic scan finished'));
+      expect((liveSwitch(w).element as HTMLInputElement).checked).toBe(false);
+    });
+  });
+});
+
+describe('a device without an AT channel', () => {
+  const device = {
+    usb: '1782:4056',
+    productName: 'Some Stick',
+    interfaces: [
+      { number: 0, class: 0xe0, subclass: 0x01 },
+      { number: 1, class: 0x0a, subclass: 0x00 },
+      { number: 2, class: 0xff, subclass: 0x00 },
+      { number: 3, class: 0x08, subclass: 0x06 },
+      { number: 4, class: 0x02, subclass: 0x06 },
+    ],
+  };
+  async function rejecting(err: Error) {
+    const usb = vi.fn().mockRejectedValue(err);
+    const w = mount(ConnectBar, { props: { connectors: { serial: connectors().serial, usb } } });
+    await btn(w, 'USB direct')!.trigger('click');
+    await flushPromises();
+    return w;
+  }
+  const classified = (d = device) => new NoAtChannelError('This device has no AT channel.', false, classifyUsbDevice({ usb: d.usb, interfaceClasses: d.interfaces.map((i) => i.class) }), d);
+
+  afterEach(() => {
+    delete (navigator as any).platform;
+  });
+
+  test('shows what can be seen, calmly', async () => {
+    const w = await rejecting(classified());
+    expect(w.find('.seen').text()).toContain('What I can see');
+    expect(w.find('h2').text()).toBe('Unisoc-based stick');
+    expect(w.text()).toContain('1782:4056');
+    expect(w.text()).toContain('Some Stick');
+    expect(w.findAll('.diagram strong').map((s) => s.text())).toEqual(['Network RNDIS', 'Network data', 'Vendor', 'Storage', 'Network CDC']);
+    expect(w.findAll('.diagram code').map((s) => s.text())[0]).toBe('e0/01');
+    expect(w.text()).toContain('Why there is no more data');
+    expect(w.text()).toContain('What to do');
+    expect(w.find('[role="alert"]').exists()).toBe(false);
+  });
+
+  const rndisOnly = { usb: '1782:4056', interfaces: [{ number: 0, class: 0xe0, subclass: 0x01 }, { number: 1, class: 0x0a, subclass: 0 }] };
+
+  test('says plainly when macOS is the limit', async () => {
+    Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
+    const w = await rejecting(classified(rndisOnly as typeof device));
+    expect(w.text()).toContain('limit of macOS');
+    expect(w.text()).toContain('no RNDIS driver');
+  });
+
+  test('does not blame macOS on another system, or for a stick with CDC networking', async () => {
+    Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
+    expect((await rejecting(classified(rndisOnly as typeof device))).text()).not.toContain('macOS');
+    Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
+    expect((await rejecting(classified())).text()).not.toContain('macOS');
+  });
+
+  test('a failed probe also shows the card, with the reason', async () => {
+    const w = await rejecting(new NoAtChannelError('No AT channel found on this modem.', false, undefined, device));
+    expect(w.find('.seen').text()).toContain('No AT channel found');
+    expect(w.findAll('.diagram li')).toHaveLength(5);
+    expect(w.text()).not.toContain('undefined');
+    expect(w.find('[role="alert"]').exists()).toBe(false);
+  });
+
+  test('the demo has one, for trying it out', async () => {
+    const w = await rejecting(demoNoAtError());
+    expect(w.find('.seen').text()).toContain('Demo stick (fake)');
+  });
+
+  test('help covers a disk that appears while the modem is missing from the list', () => {
+    const t = mount(HelpNoModem).text();
+    expect(t).toContain('A disk appears and the modem is not in the list');
+    expect(t).toContain('On a Mac');
+  });
+});
+
 describe('ScanDetails', () => {
+  test('hides sensitive fields and all raw text when asked to', () => {
+    const item: ScanItem = {
+      id: 'cgsn', command: 'AT+CGSN', category: 'identity', state: 'done', parser: 'cgsn',
+      response: { command: 'AT+CGSN', status: 'ok', lines: ['123456789012345'], durationMs: 1 },
+    };
+    const w = mount(ScanDetails, { props: { items: [item], hideIdentifiers: true } });
+    expect(w.text()).not.toContain('123456789012345');
+    expect(w.text()).toContain(MASK);
+    expect(w.find('pre').text()).toContain('Hidden');
+  });
+
   test('unsupported rows show the raw response, not a claim about the modem', () => {
     const item: ScanItem = {
       id: 'x', command: 'AT+X?', category: 'other', state: 'unsupported',
@@ -653,11 +975,21 @@ describe('ScanDetails', () => {
   });
 });
 
-describe('SummaryCard', () => {
+describe('IdentityHero', () => {
+  const hero = (identity: object) => mount(IdentityHero, { props: { identity, chips: [], scanning: false } });
+
   test('unverified badge for unverified profile', () => {
     const p = PROFILES.find((x) => !x.verified)!;
-    const w = mount(SummaryCard, { props: { summary: {}, profile: p } });
-    expect(w.text()).toContain('unverified');
+    const w = hero({ profileId: p.id, profileLabel: p.label, verified: false });
+    expect(w.text()).toContain('Unverified profile');
+    expect(w.text()).toContain(p.id);
+  });
+  test('without a profile it says only generic commands ran', () => {
+    expect(hero({}).text()).toContain('Generic commands only');
+  });
+  test('a missing model is said plainly', () => {
+    expect(hero({}).text()).toContain('Unknown model');
+    expect(hero({}).text()).not.toContain('undefined');
   });
 });
 

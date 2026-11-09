@@ -32,6 +32,18 @@
       </li>
       <li>The vendor's installer on the disk also switches it. On Linux, <code>usb_modeswitch</code> does it.</li>
     </ul>
+    <h3>A disk appears and the modem is not in the list</h3>
+    <ul>
+      <li>
+        On a Mac the browser does not offer a stick in storage mode at all: the system has taken it as a disk, so
+        ModemLens cannot reach it and the list stays empty.
+      </li>
+      <li>Eject the disk and wait a few seconds. If the stick then switches mode, it appears in the list.</li>
+      <li>
+        If it stays a disk, it needs the vendor's installer from that disk (only on a machine where installing vendor
+        software is acceptable), or a Linux machine with <code>usb_modeswitch</code>.
+      </li>
+    </ul>
     <h3>3. Zadig (WinUSB driver)</h3>
     <ol>
       <li>
@@ -54,16 +66,17 @@
 </template>
 
 <style scoped>
-h3 {
-  margin: 0.8rem 0 0.2rem;
+.help {
+  padding: 0.9rem 1.2rem;
   font-size: 0.95rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
 }
-ul,
-ol {
-  margin: 0.2rem 0;
-  padding-left: 1.2rem;
-}
-summary {
-  cursor: pointer;
-}
+summary { cursor: pointer; font-weight: 600; }
+h3 { margin: 1rem 0 0.25rem; font-size: 0.95rem; }
+p { margin-top: 0.6rem; }
+ul, ol { margin: 0.2rem 0; padding-left: 1.2rem; color: var(--ink-2); }
+li { margin-block: 0.2rem; }
+code { font-size: 0.86em; }
 </style>

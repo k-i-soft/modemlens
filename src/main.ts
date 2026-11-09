@@ -1,5 +1,5 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 
-const demo = new URLSearchParams(window.location.search).get('demo') === '1';
-createApp(App, { demo }).mount('#app');
+const param = new URLSearchParams(window.location.search).get('demo');
+createApp(App, { demo: param === '1' || param === 'noat', demoNoAt: param === 'noat' }).mount('#app');

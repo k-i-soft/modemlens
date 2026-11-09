@@ -1,32 +1,40 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { Connector, Connectors, Transport } from './transport/types';
+import './ui/theme.css';
 import { AtEngine } from './at/engine';
 import type { AtResponse } from './at/engine';
 import { Scanner } from './scan/scanner';
 import type { ScanItem, ScanReport } from './scan/scanner';
 import { STANDARD_CATALOG } from './catalog/standard';
-import { buildSummary } from './parse';
 import { redactReport, toJson, toMarkdown } from './report/export';
 import ConnectBar from './ui/ConnectBar.vue';
-import SummaryCard from './ui/SummaryCard.vue';
-import ScanDetails from './ui/ScanDetails.vue';
+import Overview from './ui/Overview.vue';
+import Diagnostics from './ui/Diagnostics.vue';
+import ScanProgress from './ui/ScanProgress.vue';
+import ExportMenu from './ui/ExportMenu.vue';
+import ToggleSwitch from './ui/ToggleSwitch.vue';
 import TerminalPane from './ui/TerminalPane.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
 import DonateLink from './ui/DonateLink.vue';
 import { connectSerial } from './transport/webSerial';
 import { connectUsb } from './transport/webUsb';
-import { createDemoTransport, DEMO_USB } from './ui/demo';
+import { createDemoTransport, demoNoAtError, DEMO_USB } from './ui/demo';
 import { downloadText } from './ui/download';
+import { buildDashboard } from './ui/dashboard';
+import { DONATE_URL } from './config';
+import { LiveSignal } from './ui/liveSignal';
 
 const props = withDefaults(
   defineProps<{
     demo?: boolean;
+    /** Demo of a stick without an AT channel. */
+    demoNoAt?: boolean;
     demoDelayMs?: number;
     connectors?: Connectors;
     donateUrl?: string | null;
   }>(),
-  { demo: false, demoDelayMs: 60, connectors: undefined, donateUrl: undefined },
+  { demo: false, demoNoAt: false, demoDelayMs: 60, connectors: undefined, donateUrl: undefined },
 );
 
 const connectors = computed<Connectors>(() => {
@@ -34,6 +42,7 @@ const connectors = computed<Connectors>(() => {
   if (props.demo) {
     const make: Connector = async ({ beforeOpen }) => {
       await beforeOpen();
+      if (props.demoNoAt) throw demoNoAtError();
       return createDemoTransport({ delayMs: props.demoDelayMs });
     };
     return { serial: make, usb: make };
@@ -45,8 +54,27 @@ const COPS_SCAN = STANDARD_CATALOG.find((e) => e.command === 'AT+COPS=?')!;
 const CLOSE_TIMEOUT_MS = 2000;
 
 type Phase = 'idle' | 'auto' | 'deep' | 'network' | 'finished';
+type ScanKind = 'auto' | 'deep' | 'network';
 
-const tab = ref<'results' | 'terminal'>('results');
+const TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'diagnostics', label: 'Diagnostics' },
+  { id: 'terminal', label: 'Terminal' },
+] as const;
+const SCAN_TITLES: Record<ScanKind, string> = {
+  auto: 'Scanning (automatic, read-only)',
+  deep: 'Scanning (deep scan)',
+  network: 'Scanning (network scan)',
+};
+const FINISHED_TEXT: Record<ScanKind, string> = {
+  auto: 'Automatic scan finished.',
+  deep: 'Deep scan finished.',
+  network: 'Network scan finished.',
+};
+
+const donate = computed(() => (props.donateUrl === undefined ? DONATE_URL : props.donateUrl));
+
+const tab = ref<(typeof TABS)[number]['id']>('overview');
 const phase = ref<Phase>('idle');
 const connected = ref(false);
 const lostReason = ref('');
@@ -59,8 +87,13 @@ const reportMeta = ref<Pick<ScanReport, 'startedAt' | 'usb' | 'profile' | 'comma
   commandList: [],
 });
 const confirmDeep = ref(false);
-const confirmFull = ref(false);
 const label = ref('');
+const hideIdentifiers = ref(false);
+/** Set only by a scan that ran to its end, so that "finished" can never follow a stopped one. */
+const finished = ref<ScanKind | null>(null);
+const currentCommand = ref('');
+const progressBase = ref(0);
+const progressTotal = ref<number | undefined>(undefined);
 
 let engine: AtEngine | null = null;
 let scanner: Scanner | null = null;
@@ -82,9 +115,12 @@ function syncMeta(): void {
   reportMeta.value = { startedAt: r.startedAt, usb: r.usb, profile: r.profile, commandList: [...r.commandList], interrupted: r.interrupted };
 }
 
-const summary = computed(() => (items.value.length ? buildSummary({ ...reportMeta.value, items: items.value }) : {}));
+const dashboard = computed(() =>
+  buildDashboard({ ...reportMeta.value, items: items.value }, { hideIdentifiers: hideIdentifiers.value }),
+);
 const hasResults = computed(() => items.value.length > 0);
 const running = computed(() => phase.value !== 'idle' && phase.value !== 'finished');
+const started = computed(() => hasResults.value || connected.value);
 const canNetworkScan = computed(() => connected.value && autoDone.value && !running.value);
 const canDeep = computed(() => canNetworkScan.value && autoComplete.value);
 const interruptedText = computed(() =>
@@ -92,6 +128,21 @@ const interruptedText = computed(() =>
     ? 'Scan stopped. The results so far are kept.'
     : `Scan interrupted: ${reportMeta.value.interrupted}`,
 );
+
+const live = new LiveSignal((command) => {
+  if (!engine) return Promise.resolve({ command, status: 'disconnected', lines: [], durationMs: 0 });
+  return engine.send(command);
+});
+const liveEnabled = live.enabled;
+const livePaused = live.paused;
+const liveSamples = live.samples;
+// Synchronous, so that no poll can be issued between the start of a scan and its first command.
+watch(running, (isRunning) => live.setPaused(isRunning), { flush: 'sync' });
+
+function toggleLive(on: boolean): void {
+  if (on && connected.value) live.start();
+  else live.stop();
+}
 
 /** A close that hangs must not block the next connection. */
 async function closeBounded(t: Transport): Promise<void> {
@@ -108,6 +159,7 @@ async function closeBounded(t: Transport): Promise<void> {
 function teardown(): Promise<void> {
   // Detach synchronously: while the close is pending, nothing may reach the old session.
   const old = transport;
+  live.stop();
   abort?.abort();
   engine?.dispose();
   abort = null;
@@ -120,16 +172,23 @@ function teardown(): Promise<void> {
   return closing;
 }
 
-async function runScan(s: Scanner, which: Phase, work: () => Promise<unknown>): Promise<void> {
+async function runScan(s: Scanner, which: ScanKind, work: () => Promise<unknown>, controller?: AbortController): Promise<void> {
   phase.value = which;
+  finished.value = null;
+  currentCommand.value = '';
+  progressBase.value = items.value.length;
+  progressTotal.value = which === 'auto' ? s.plannedAutoCommands() : undefined;
   try {
     await work();
   } catch (e) {
     s.report.interrupted = e instanceof Error ? e.message : String(e);
   } finally {
     if (s === scanner) {
+      // A stop that lands during the last command leaves nothing for the scanner to notice.
+      if (controller?.signal.aborted && s.report.interrupted === undefined) s.report.interrupted = 'aborted';
       syncMeta();
       phase.value = 'finished';
+      if (s.report.interrupted === undefined) finished.value = which;
     }
   }
 }
@@ -145,8 +204,10 @@ async function onConnected(t: Transport): Promise<void> {
   label.value = t.label;
   engine = new AtEngine(t);
   engine.onDisconnect((reason) => {
+    live.stop();
     connected.value = false;
     lostReason.value = reason;
+    confirmDeep.value = false;
     syncMeta();
     if (running.value) phase.value = 'finished';
   });
@@ -157,6 +218,10 @@ async function onConnected(t: Transport): Promise<void> {
     if (s !== scanner) return;
     items.value.push(item);
     syncMeta();
+    if (phase.value === 'auto') progressTotal.value = s.plannedAutoCommands();
+  });
+  s.onCommand((command) => {
+    if (s === scanner) currentCommand.value = command;
   });
   items.value = [];
   reportMeta.value = { startedAt: s.report.startedAt, usb: s.report.usb, commandList: [] };
@@ -165,10 +230,9 @@ async function onConnected(t: Transport): Promise<void> {
   autoDone.value = false;
   autoComplete.value = false;
   confirmDeep.value = false;
-  confirmFull.value = false;
   const controller = new AbortController();
   abort = controller;
-  await runScan(s, 'auto', () => s.runAuto(controller.signal));
+  await runScan(s, 'auto', () => s.runAuto(controller.signal), controller);
   if (s === scanner) {
     autoDone.value = true;
     autoComplete.value = s.report.interrupted === undefined;
@@ -181,11 +245,11 @@ function stop(): void {
 
 async function startDeep(): Promise<void> {
   confirmDeep.value = false;
-  if (running.value || !scanner) return;
+  if (running.value || !scanner || !connected.value) return;
   const s = scanner;
   const controller = new AbortController();
   abort = controller;
-  await runScan(s, 'deep', () => s.runDeep(controller.signal));
+  await runScan(s, 'deep', () => s.runDeep(controller.signal), controller);
 }
 
 async function startNetworkScan(): Promise<void> {
@@ -212,7 +276,6 @@ function exportFull(kind: 'json' | 'md'): void {
   const full = snapshot();
   if (kind === 'json') downloadText('modemlens-report-FULL.json', toJson(full), 'application/json');
   else downloadText('modemlens-report-FULL.md', toMarkdown(full), 'text/markdown');
-  confirmFull.value = false;
 }
 
 onBeforeUnmount(() => {
@@ -221,249 +284,179 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main>
-    <header class="top">
+  <header v-if="started" class="topbar">
+    <div class="topbar-inner">
+      <h1 class="brand">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="mark"><rect x="2" y="15" width="4" height="7" rx="1" /><rect x="10" y="9" width="4" height="13" rx="1" /><rect x="18" y="2" width="4" height="20" rx="1" /></svg>
+        ModemLens
+        <span v-if="demo" class="demo-tag" title="A made-up modem with fake identifiers. Nothing is connected.">Demo mode</span>
+      </h1>
+      <nav class="tabs" aria-label="Views">
+        <button v-for="t in TABS" :key="t.id" type="button" :class="{ active: tab === t.id }" :aria-current="tab === t.id ? 'page' : undefined" @click="tab = t.id">
+          {{ t.label }}
+        </button>
+      </nav>
+      <div class="actions">
+        <ToggleSwitch v-model="hideIdentifiers" label="Hide identifiers" />
+        <ExportMenu :disabled="!hasResults" :session="reportMeta.startedAt" @shared="exportShared" @full="exportFull" />
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <p v-if="demo && !started" class="demo">Demo mode: a made-up modem with fake identifiers. Nothing is connected.</p>
+
+    <div v-if="!started" class="landing">
+      <svg viewBox="0 0 122 100" aria-hidden="true" class="landing-mark">
+        <rect x="0" y="80" width="18" height="20" rx="3" /><rect x="26" y="60" width="18" height="40" rx="3" /><rect x="52" y="40" width="18" height="60" rx="3" /><rect x="78" y="20" width="18" height="80" rx="3" /><rect x="104" y="0" width="18" height="100" rx="3" />
+      </svg>
       <h1>ModemLens</h1>
-      <p class="muted">
-        Surveys a USB cellular modem in your browser. Chrome or Edge only. Everything stays on this page; nothing is
-        uploaded.
+      <p class="lede">
+        See what your USB cellular modem is, whether it is on the network and how good the signal is. It runs in Chrome
+        or Edge, and nothing leaves this page.
       </p>
-      <p v-if="demo" class="note">Demo mode: a made-up modem with fake identifiers. Nothing is connected.</p>
-    </header>
+    </div>
 
-    <ConnectBar
-      :connectors="connectors"
-      :force-supported="demo || undefined"
-      :busy="connected && running"
-      :reconnect="!connected && hasResults"
-      :before-open="teardown"
-      @connected="onConnected"
-    />
+    <div :class="started ? 'session' : 'start'">
+      <div v-if="started" class="link">
+        <p :data-tone="connected ? 'ok' : 'neutral'">
+          <span class="dot" aria-hidden="true" />
+          <template v-if="connected">Connected: <span class="mono">{{ label }}</span></template>
+          <template v-else>Not connected</template>
+        </p>
+        <p v-if="!running && !(reportMeta.interrupted && connected) && finished && connected" class="hint" role="status">{{ FINISHED_TEXT[finished] }}</p>
+      </div>
+      <ConnectBar
+        :connectors="connectors"
+        :force-supported="demo || undefined"
+        :busy="connected && running"
+        :reconnect="!connected && hasResults"
+        :compact="started"
+        :before-open="teardown"
+        @connected="onConnected"
+      />
+    </div>
 
-    <p v-if="connected" class="note">Connected: {{ label }}</p>
-    <p v-if="lostReason" class="note warn" role="alert">
-      Connection lost: {{ lostReason }}. The results below are kept. Use the buttons above to reconnect.
+    <p v-if="lostReason" class="notice warn" role="alert">
+      Connection lost: {{ lostReason }}. The results are kept. Use the buttons above to reconnect.
     </p>
 
-    <template v-if="hasResults || connected">
-      <nav class="tabs" aria-label="Views">
-        <button type="button" :class="{ active: tab === 'results' }" @click="tab = 'results'">Results</button>
-        <button type="button" :class="{ active: tab === 'terminal' }" @click="tab = 'terminal'">Terminal</button>
-      </nav>
+    <template v-if="started">
+      <ScanProgress
+        v-if="running"
+        :title="SCAN_TITLES[phase as ScanKind]"
+        :done="items.length - progressBase"
+        :total="progressTotal"
+        :command="currentCommand"
+        :can-stop="phase !== 'network'"
+        :slow-note="phase === 'network' ? 'This can take minutes.' : undefined"
+        @stop="stop"
+      />
+      <p v-else-if="reportMeta.interrupted && connected" class="notice warn" role="status">{{ interruptedText }}</p>
 
-      <div v-show="tab === 'results'">
-        <p v-if="running" class="note" role="status">
-          Scanning ({{ phase === 'auto' ? 'automatic, read-only' : phase === 'deep' ? 'deep scan' : 'network scan' }}),
-          {{ items.length }} results so far.
-          <button v-if="phase !== 'network'" type="button" @click="stop">Stop</button>
-        </p>
-        <p v-else-if="reportMeta.interrupted && connected" class="note warn" role="status">{{ interruptedText }}</p>
-        <p v-else-if="autoDone && connected" class="note" role="status">Automatic scan finished.</p>
-
-        <SummaryCard :summary="summary" :profile="reportMeta.profile" :usb="reportMeta.usb" />
-
-        <section class="card actions">
-          <h2>More</h2>
-          <div class="row">
-            <button type="button" :disabled="!canDeep" @click="confirmDeep = true">Deep scan…</button>
-            <button type="button" :disabled="!canNetworkScan" @click="startNetworkScan">Network scan</button>
-          </div>
-          <p v-if="canNetworkScan && !autoComplete" class="hint">
-            Deep scan is unavailable because the automatic scan did not finish.
-          </p>
-          <p class="hint">
-            Network scan lists the operators around you (AT+COPS=?). It can take minutes and may interrupt the
-            connection.
-          </p>
-          <div v-if="confirmDeep" class="note warn" role="alertdialog" aria-label="Deep scan warning">
-            <p>
-              The deep scan queries unknown commands (ones this tool has no description for), taken from the modem's own command list.
-              When the modem has no list of its own, it tries a built-in list of common command names instead. Only
-              query forms are sent, but a faulty firmware could act on them, and the modem could restart. Stop it any
-              time.
-            </p>
-            <div class="row">
-              <button type="button" @click="startDeep">Start deep scan</button>
-              <button type="button" @click="confirmDeep = false">Cancel</button>
-            </div>
-          </div>
-        </section>
-
-        <ScanDetails :items="items" />
-
-        <section class="card actions">
-          <h2>Export</h2>
-          <p class="hint">Default exports hide IMEI, serial numbers, IMSI, ICCID, IP addresses and similar identifiers.</p>
-          <div class="row">
-            <button type="button" :disabled="!hasResults" @click="exportShared('json')">Export JSON</button>
-            <button type="button" :disabled="!hasResults" @click="exportShared('md')">Export Markdown</button>
-            <button type="button" :disabled="!hasResults" @click="confirmFull = true">Full export…</button>
-          </div>
-          <div v-if="confirmFull" class="note warn" role="alertdialog" aria-label="Full export warning">
-            <p>
-              The full export contains identifiers (IMEI, serial number, IMSI, ICCID, IP addresses, cell ids) and the
-              raw responses. Review and edit the file yourself before you share it with anyone.
-            </p>
-            <div class="row">
-              <button type="button" @click="exportFull('json')">Download full JSON</button>
-              <button type="button" @click="exportFull('md')">Download full Markdown</button>
-              <button type="button" @click="confirmFull = false">Cancel</button>
-            </div>
-          </div>
-        </section>
-
-        <p v-if="phase === 'finished' && autoDone" class="donate-row">
-          Useful? <DonateLink :url="donateUrl" />
-        </p>
-      </div>
-
+      <Overview
+        v-show="tab === 'overview'"
+        :dashboard="dashboard"
+        :scanning="running"
+        :live-enabled="liveEnabled"
+        :live-paused="livePaused"
+        :live-samples="liveSamples"
+        :live-available="connected && !running"
+        @live="toggleLive"
+      />
+      <Diagnostics
+        v-show="tab === 'diagnostics'"
+        :items="items"
+        :can-deep="canDeep"
+        :can-network-scan="canNetworkScan"
+        :auto-incomplete="canNetworkScan && !autoComplete"
+        :confirm-deep="confirmDeep"
+        :hide-identifiers="hideIdentifiers"
+        @ask-deep="confirmDeep = true"
+        @cancel-deep="confirmDeep = false"
+        @start-deep="startDeep"
+        @network-scan="startNetworkScan"
+      />
       <TerminalPane
         v-show="tab === 'terminal'"
         :send="terminalSend"
         :disabled="!connected || running"
         :disabled-reason="running ? 'Sending is off while a scan is running, so that a typed command cannot land between the scan commands.' : ''"
+        :hide-output="hideIdentifiers"
       />
+      <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>
     </template>
 
-    <HelpNoModem />
+    <HelpNoModem :class="{ narrow: !started }" />
 
     <footer>
       <span>ModemLens. Runs only in Chrome or Edge. No tracking, no third-party scripts.</span>
-      <DonateLink :url="donateUrl" />
+      <DonateLink :url="donate" />
     </footer>
   </main>
 </template>
 
-<style>
-:root {
-  --bg: #f6f7f9;
-  --fg: #1d2127;
-  --muted: #5b6470;
-  --card: #ffffff;
-  --border: #d5dae1;
-  --code: #eef1f5;
-  --accent: #1f6feb;
-  --warn: #b25e00;
-  color-scheme: light dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14171b;
-    --fg: #e4e7eb;
-    --muted: #9aa4b0;
-    --card: #1c2025;
-    --border: #343a42;
-    --code: #252a31;
-    --accent: #6ea8ff;
-    --warn: #f0a04b;
-  }
-}
-html,
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.45;
-  overflow-x: hidden;
-}
-main {
-  max-width: 52rem;
-  margin: 0 auto;
-  padding: 1rem;
-  box-sizing: border-box;
-}
-h1 {
-  margin: 0;
-  font-size: 1.4rem;
-}
-a {
-  color: var(--accent);
-}
-button {
-  padding: 0.4rem 0.8rem;
-  font: inherit;
-  color: var(--fg);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.card {
-  margin: 0.75rem 0;
-  padding: 0.75rem 1rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.card h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.05rem;
-}
-.note {
-  margin: 0.75rem 0;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--card);
-}
-.note.warn {
-  border-color: var(--warn);
-}
-.note p {
-  margin: 0 0 0.5rem;
-}
-.muted,
-.hint {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-.hint {
-  margin: 0.5rem 0 0;
-}
-.row {
+<style scoped>
+.topbar { border-bottom: 1px solid var(--line); }
+.topbar-inner {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.25rem 1.75rem;
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 0.6rem var(--gutter) 0;
 }
-.tabs {
+.brand { display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.6rem; font-size: 1.02rem; font-weight: 650; letter-spacing: -0.015em; }
+.mark { width: 1rem; height: 1rem; fill: var(--accent); }
+.demo-tag { padding: 0.05rem 0.45rem; font-size: 0.7rem; font-weight: 600; letter-spacing: 0; color: var(--accent); background: var(--accent-soft); border-radius: 4px; }
+.actions { display: flex; align-items: center; gap: 1rem; margin-left: auto; padding-bottom: 0.6rem; }
+.tabs { display: flex; gap: 1.5rem; order: 0; }
+.tabs button {
+  padding: 0.35rem 0 0.75rem;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+.tabs button:hover:not(:disabled) { color: var(--ink); }
+.tabs button.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+.page {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 1rem var(--gutter) 2.5rem;
 }
-.tabs button.active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.help {
-  margin: 1rem 0;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--card);
-}
+.demo { font-size: 0.82rem; color: var(--ink-3); }
+
+.landing { max-width: 42rem; padding-top: clamp(1rem, 6vh, 4rem); }
+.landing-mark { display: block; width: 3.4rem; height: auto; margin-bottom: 1.5rem; fill: var(--accent); }
+.landing h1 { font-size: clamp(3.2rem, 9vw, 5.75rem); font-weight: 700; line-height: 0.98; letter-spacing: -0.045em; }
+.lede { margin-top: 1rem; font-size: clamp(1.1rem, 2.2vw, 1.35rem); line-height: 1.4; color: var(--ink-2); }
+.start { max-width: 46rem; margin-top: 0.75rem; }
+.narrow { max-width: 46rem; width: 100%; }
+
+.session { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1.5rem; }
+.link { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.1rem 1.25rem; min-width: 0; font-size: 0.85rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.link .mono { font-size: 0.8rem; }
+.link .hint { font-size: 0.8rem; }
+.dot { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 0.45rem; background: var(--tone); border-radius: 50%; }
+
 footer {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
   justify-content: space-between;
-  margin-top: 1.5rem;
-  color: var(--muted);
-  font-size: 0.85rem;
+  gap: 0.5rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.82rem;
+  color: var(--ink-3);
 }
-.donate-row {
-  color: var(--muted);
-  font-size: 0.9rem;
+
+@media (max-width: 720px) {
+  .tabs { order: 3; flex-basis: 100%; }
 }
 </style>

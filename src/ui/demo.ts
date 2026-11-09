@@ -1,4 +1,6 @@
-import type { Transport } from '../transport/types';
+import type { Transport, UsbDeviceDescription } from '../transport/types';
+import { NoAtChannelError } from '../transport/webUsb';
+import { classifyUsbDevice } from '../profiles/known-devices';
 
 /** USB id the demo modem claims. */
 export const DEMO_USB = '2c7c:6005';
@@ -33,11 +35,10 @@ const ANSWERS: Record<string, string[]> = {
   'AT+CEREG?': ['+CEREG: 0,1', OK],
   'AT+C5GREG?': [ERR],
   'AT+CSQ': ['+CSQ: 21,99', OK],
-  'AT+CESQ': ['+CESQ: 99,99,255,255,20,60', OK],
-  'AT+CGDCONT?': ['+CGDCONT: 1,"IP","demo.apn","10.0.0.2",0,0', OK],
-  'AT+CGACT?': ['+CGACT: 1,1', OK],
+  'AT+CGDCONT?': ['+CGDCONT: 1,"IP","demo.apn","10.0.0.2",0,0', '+CGDCONT: 2,"IPV4V6","ims.demo","0.0.0.0",0,0', OK],
+  'AT+CGACT?': ['+CGACT: 1,1', '+CGACT: 2,0', OK],
   'AT+CGATT?': ['+CGATT: 1', OK],
-  'AT+CGPADDR': ['+CGPADDR: 1,"10.0.0.2"', OK],
+  'AT+CGPADDR': ['+CGPADDR: 1,"10.0.0.2"', '+CGPADDR: 2,"0.0.0.0"', OK],
   'AT+CLCC=?': [OK],
   'AT+CLVL?': ['+CLVL: 3', OK],
   'AT+CRSL?': ['+CRSL: 3', OK],
@@ -54,13 +55,32 @@ const ANSWERS: Record<string, string[]> = {
   'AT+QNWINFO': ['+QNWINFO: "FDD LTE","00101","LTE BAND 3",1300', OK],
   'AT+QCSQ': ['+QCSQ: "LTE",-62,-92,150,-10', OK],
   'AT+QTEMP': ['+QTEMP: 38,38,38', OK],
-  'AT+COPS=?': ['+COPS: (2,"Demo Mobile","Demo","00101",7),(1,"Other Demo","Other","00102",7),,(0-4),(0-2)', OK],
+  'AT+QENG="SERVINGCELL"': ['+QENG: "servingcell","NOCONN","LTE","FDD",001,01,DEC0DE,123,1300,3,5,5,FACE,-85,-9,-60,16,20,5', OK],
+  'AT+QENG="NEIGHBOURCELL"': [
+    '+QENG: "neighbourcell intra","LTE",1300,201,-8,-78,-55,14,0,0,0,0',
+    '+QENG: "neighbourcell intra","LTE",1300,202,-11,-93,-68,9,0,0,0,0',
+    '+QENG: "neighbourcell inter","LTE",6300,301,-14,-99,-72,4,0,0,0,0',
+    '+QENG: "neighbourcell inter","LTE",3350,302,-19,-112,-85,-3,0,0,0,0',
+    OK,
+  ],
+  'AT+QCFG="BAND"': ['+QCFG: "band",0x3,0x80800C5', OK],
+  'AT+QCFG="USBNET"': ['+QCFG: "usbnet",1', OK],
+  'AT+QPINC?': ['+QPINC: "SC",2,10', '+QPINC: "P2",3,10', OK],
+  'AT+QGMR': ['EC200ADEMOFAKE01_BUILD', OK],
+  'AT+COPS=?': ['+COPS: (2,"Demo Mobile","Demo","00101",7),(1,"Other Demo","Other","00102",7),(3,"Barred Demo","Barred","00103",2),,(0-4),(0-2)', OK],
   'AT+CLAC': ['AT+CGMI', 'AT+CSQ', 'AT+QDEMOFAKE', 'AT+QDEMOINFO', OK],
   'AT+QDEMOFAKE=?': ['+QDEMOFAKE: (0,1)', OK],
   'AT+QDEMOFAKE?': ['+QDEMOFAKE: 0', OK],
   'AT+QDEMOINFO=?': [OK],
   'AT+QDEMOINFO?': [ERR],
 };
+
+/** A reading that drifts slowly, so that the live view has something to draw. */
+function demoCesq(now: number): string[] {
+  const rsrp = -85 + 8 * Math.sin(now / 17000) + 2 * Math.sin(now / 3100);
+  const rsrq = -10 + 2 * Math.sin(now / 11000);
+  return [`+CESQ: 99,99,255,255,${Math.round((rsrq + 20) * 2)},${Math.round(rsrp + 141)}`, OK];
+}
 
 export interface DemoTransport extends Transport {
   /** Simulates a pulled cable. */
@@ -83,7 +103,8 @@ export function createDemoTransport(opts: { delayMs?: number } = {}): DemoTransp
   };
 
   const answer = (cmd: string): void => {
-    const lines = ANSWERS[cmd.toUpperCase()] ?? [ERR];
+    const name = cmd.toUpperCase();
+    const lines = name === 'AT+CESQ' ? demoCesq(Date.now()) : ANSWERS[name] ?? [ERR];
     emit(`\r\n${lines.join('\r\n')}\r\n`);
   };
 
@@ -110,4 +131,19 @@ export function createDemoTransport(opts: { delayMs?: number } = {}): DemoTransp
       for (const cb of discCbs) cb(reason);
     },
   };
+}
+
+/** A made-up stick for `?demo=noat`: it only offers network and storage interfaces, as a modem without AT does. */
+export function demoNoAtError(): NoAtChannelError {
+  const device: UsbDeviceDescription = {
+    usb: 'f00d:0001',
+    productName: 'Demo stick (fake)',
+    interfaces: [
+      { number: 0, class: 0xe0, subclass: 0x01 },
+      { number: 1, class: 0x0a, subclass: 0x00 },
+      { number: 2, class: 0x08, subclass: 0x06 },
+    ],
+  };
+  const classification = classifyUsbDevice({ usb: device.usb, interfaceClasses: device.interfaces.map((i) => i.class) });
+  return new NoAtChannelError('This device has no AT channel.', false, classification, device);
 }

@@ -8,6 +8,8 @@ const props = defineProps<{
   disabled?: boolean;
   /** Why sending is disabled right now, if that needs explaining. */
   disabledReason?: string;
+  /** Answers carry no marks of what is sensitive, so all of them are withheld while identifiers are hidden. */
+  hideOutput?: boolean;
 }>();
 
 interface Entry { command: string; text: string }
@@ -45,63 +47,57 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <section class="card terminal">
-    <p class="muted">
+  <section class="display terminal" aria-label="Terminal">
+    <p class="intro">
       Free command input. What you type is sent to the modem as is. Terminal traffic is never part of a report
       or export.
     </p>
-    <p v-if="disabledReason" class="note" role="status">{{ disabledReason }}</p>
+    <p v-if="disabledReason" class="reason" role="status">{{ disabledReason }}</p>
     <form @submit.prevent="submit">
-      <input v-model="command" type="text" placeholder="AT+CSQ" autocomplete="off" spellcheck="false" aria-label="AT command" :disabled="disabled" @input="warnFor = null" />
-      <input v-model="body" type="text" placeholder="Optional text for the > prompt (sent followed by Ctrl+Z)" autocomplete="off" aria-label="Body for the prompt" :disabled="disabled" />
-      <button type="submit" :disabled="disabled || sending || !command.trim()">
-        {{ warnFor ? 'Send anyway' : 'Send' }}
-      </button>
+      <div class="prompt">
+        <span aria-hidden="true">&gt;</span>
+        <input v-model="command" type="text" placeholder="AT+CSQ" autocomplete="off" spellcheck="false" aria-label="AT command" :disabled="disabled" @input="warnFor = null" />
+        <button type="submit" class="primary" :disabled="disabled || sending || !command.trim()">
+          {{ warnFor ? 'Send anyway' : 'Send' }}
+        </button>
+      </div>
+      <input v-model="body" class="body" type="text" placeholder="Optional text for the > prompt (sent followed by Ctrl+Z)" autocomplete="off" aria-label="Body for the prompt" :disabled="disabled" />
     </form>
-    <p v-if="warnFor" class="note warn" role="alert">
+    <p v-if="warnFor" class="alert" role="alert">
       {{ warnFor }} does not look like a read-only query. It may change settings or state in the modem. Click "Send
       anyway" to send it.
     </p>
     <div class="log">
       <div v-for="(e, i) in log" :key="i" class="entry">
         <code>&gt; {{ e.command }}</code>
-        <pre>{{ e.text }}</pre>
+        <pre>{{ hideOutput ? 'Hidden while "Hide identifiers" is on.' : e.text }}</pre>
       </div>
     </div>
   </section>
 </template>
 
 <style scoped>
-form {
-  display: grid;
-  gap: 0.5rem;
-}
+.terminal { display: flex; flex-direction: column; gap: 0.9rem; padding: clamp(1.1rem, 3vw, 1.75rem); }
+.intro, .reason { font-size: 0.85rem; color: var(--ink-3); }
+.reason { color: var(--r-fair); }
+form { display: grid; gap: 0.5rem; }
+.prompt { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; font-family: var(--font-mono); color: var(--accent); }
 input {
   width: 100%;
-  box-sizing: border-box;
-  padding: 0.4rem;
-  font: inherit;
-  color: inherit;
-  background: var(--code);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  padding: 0.5rem 0.65rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 6px;
 }
-.muted {
-  margin-top: 0;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-code,
-pre {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85rem;
-}
-pre {
-  margin: 0.2rem 0 0.6rem;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.log {
-  margin-top: 0.75rem;
-}
+input::placeholder { color: var(--ink-3); }
+input:disabled { opacity: 0.6; }
+.body { font-size: 0.82rem; }
+.alert { padding: 0.55rem 0.75rem; font-size: 0.88rem; border: 1px solid var(--r-fair); border-radius: 6px; }
+code, pre { font-size: 0.85rem; }
+code { color: var(--accent); overflow-wrap: anywhere; }
+pre { margin: 0.2rem 0 0.8rem; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.log:empty { display: none; }
 </style>
