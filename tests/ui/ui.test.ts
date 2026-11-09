@@ -285,6 +285,7 @@ describe('App', () => {
     expect(text).toContain('unknown');
     expect(text).toContain('faulty firmware');
     expect(text).toContain('restart');
+    expect(text).toContain('built-in list');
     expect(spy).not.toHaveBeenCalled();
     await btn(w, 'Start deep scan')!.trigger('click');
     await until(() => spy.mock.calls.length > 0 && w.text().includes('AT+QDEMOFAKE=?'));
@@ -598,7 +599,6 @@ describe('App session lifecycle', () => {
     expect(w.text()).toContain('Scan stopped');
     expect(w.text()).not.toContain('Automatic scan finished');
     expect(btn(w, 'Deep scan')!.attributes('disabled')).toBeDefined();
-    expect(w.text()).toContain('command list');
   });
 
   test('the terminal cannot send while a scan runs, and says why', async () => {

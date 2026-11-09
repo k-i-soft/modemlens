@@ -51,6 +51,8 @@ const phase = ref<Phase>('idle');
 const connected = ref(false);
 const lostReason = ref('');
 const autoDone = ref(false);
+/** The automatic scan ran to the end (not stopped, not silent, not cut off). */
+const autoComplete = ref(false);
 const items = ref<ScanItem[]>([]);
 const reportMeta = ref<Pick<ScanReport, 'startedAt' | 'usb' | 'profile' | 'commandList' | 'interrupted'>>({
   startedAt: '',
@@ -84,8 +86,7 @@ const summary = computed(() => (items.value.length ? buildSummary({ ...reportMet
 const hasResults = computed(() => items.value.length > 0);
 const running = computed(() => phase.value !== 'idle' && phase.value !== 'finished');
 const canNetworkScan = computed(() => connected.value && autoDone.value && !running.value);
-const hasCommandList = computed(() => reportMeta.value.commandList.length > 0);
-const canDeep = computed(() => canNetworkScan.value && hasCommandList.value);
+const canDeep = computed(() => canNetworkScan.value && autoComplete.value);
 const interruptedText = computed(() =>
   reportMeta.value.interrupted === 'aborted'
     ? 'Scan stopped. The results so far are kept.'
@@ -162,12 +163,16 @@ async function onConnected(t: Transport): Promise<void> {
   connected.value = true;
   lostReason.value = '';
   autoDone.value = false;
+  autoComplete.value = false;
   confirmDeep.value = false;
   confirmFull.value = false;
   const controller = new AbortController();
   abort = controller;
   await runScan(s, 'auto', () => s.runAuto(controller.signal));
-  if (s === scanner) autoDone.value = true;
+  if (s === scanner) {
+    autoDone.value = true;
+    autoComplete.value = s.report.interrupted === undefined;
+  }
 }
 
 function stop(): void {
@@ -263,16 +268,14 @@ onBeforeUnmount(() => {
             <button type="button" :disabled="!canDeep" @click="confirmDeep = true">Deep scan…</button>
             <button type="button" :disabled="!canNetworkScan" @click="startNetworkScan">Network scan</button>
           </div>
-          <p v-if="canNetworkScan && !hasCommandList" class="hint">
-            Deep scan needs the modem's own command list, which the automatic scan did not get.
-          </p>
           <p class="hint">
             Network scan lists the operators around you (AT+COPS=?). It can take minutes and may interrupt the
             connection.
           </p>
           <div v-if="confirmDeep" class="note warn" role="alertdialog" aria-label="Deep scan warning">
             <p>
-              The deep scan queries unknown commands (ones this tool has no description for), taken from the modem's own command list. Only
+              The deep scan queries unknown commands (ones this tool has no description for), taken from the modem's own command list.
+              When the modem has no list of its own, it tries a built-in list of common command names instead. Only
               query forms are sent, but a faulty firmware could act on them, and the modem could restart. Stop it any
               time.
             </p>

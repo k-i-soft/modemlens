@@ -1,6 +1,7 @@
 import type { AtEngine, AtResponse } from '../at/engine';
 import type { CatalogEntry, Category, Profile } from '../catalog/types';
 import { CLAC_COMMAND, STANDARD_CATALOG } from '../catalog/standard';
+import { CANDIDATE_COMMANDS } from '../catalog/candidates';
 import { discoveryForms, isDiscoverable, parseCommandList } from '../catalog/safety';
 import { matchProfile } from '../profiles';
 
@@ -29,6 +30,10 @@ const CPIN_QUERY = 'AT+CPIN?';
 const NO_RESPONSE = 'no response, wrong port?';
 /** Consecutive identity timeouts after which the port counts as silent. */
 const MAX_IDENTITY_TIMEOUTS = 2;
+/** Deep scan: a silent command costs this long, and this many in a row end the scan. */
+const DEEP_TIMEOUT_MS = 1500;
+const MAX_DEEP_TIMEOUTS = 5;
+const DEEP_SILENT = `deep scan stopped: ${MAX_DEEP_TIMEOUTS} commands in a row got no answer`;
 
 /** "AT+QENG=\"servingcell\"" -> "+QENG"; undefined for plain commands such as ATI. */
 function commandName(command: string): string | undefined {
@@ -108,15 +113,26 @@ export class Scanner {
       const n = commandName(e.command);
       if (n) covered.add(n);
     }
+    // The modem's own list when it gave one, otherwise the built-in candidates.
+    const names = this.report.commandList.length > 0 ? this.report.commandList : CANDIDATE_COMMANDS;
     const seen = new Set<string>();
-    for (const raw of this.report.commandList) {
+    let timeouts = 0;
+    for (const raw of names) {
       const name = raw.trim().toUpperCase();
       if (seen.has(name) || covered.has(name)) continue;
       seen.add(name);
       if (!isDiscoverable(name, profile?.denyCommands)) continue;
+      // Ask whether the name exists first; only a modem that answered OK is asked for the current value.
       for (const command of discoveryForms(name)) {
-        const entry: CatalogEntry = { id: `deep:${command.slice(2)}`, command, category: 'other', phase: 'auto' };
+        const entry: CatalogEntry = { id: `deep:${command.slice(2)}`, command, category: 'other', phase: 'auto', timeoutMs: DEEP_TIMEOUT_MS };
         if (!(await this.step(entry, signal, false, 'discovery'))) return this.report;
+        const last = this.report.items[this.report.items.length - 1].response;
+        timeouts = last?.status === 'timeout' ? timeouts + 1 : 0;
+        if (timeouts >= MAX_DEEP_TIMEOUTS) {
+          this.report.interrupted = DEEP_SILENT;
+          return this.report;
+        }
+        if (last?.status !== 'ok') break;
       }
     }
     return this.report;

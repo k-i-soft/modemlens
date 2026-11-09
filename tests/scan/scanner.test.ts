@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { AtEngine } from '../../src/at/engine';
+import { CANDIDATE_COMMANDS } from '../../src/catalog/candidates';
+import { isDiscoverable } from '../../src/catalog/safety';
 import { CLAC_COMMAND, STANDARD_CATALOG } from '../../src/catalog/standard';
 import { PROFILES } from '../../src/profiles';
 import { Scanner } from '../../src/scan/scanner';
@@ -12,7 +14,10 @@ beforeEach(() => {
   t = new FakeTransport();
   engine = new AtEngine(t, { defaultTimeoutMs: 30, quietAfterTimeoutMs: 5 });
 });
-afterEach(() => engine.dispose());
+afterEach(() => {
+  vi.useRealTimers();
+  engine.dispose();
+});
 
 const OK = ['\r\nOK\r\n'];
 const ERR = ['\r\nERROR\r\n'];
@@ -58,23 +63,71 @@ describe('Scanner', () => {
     expect(sent().some((w) => w.includes('QXYZ'))).toBe(false);
   });
 
-  test('deep sends only ?/=? of allowed extended', async () => {
-    clac('+QXYZ', 'Z', '+QPOWD', '+CREG');
+  test('deep sends only ?/=? of allowed extended, and ? only after =? was OK', async () => {
+    clac('+QXYZ', 'Z', '+QPOWD', '+CREG', '+QOKAY');
+    t.reply('AT+QOKAY=?', ['\r\n+QOKAY: (0,1)\r\n\r\nOK\r\n']);
     defaultError();
     const s = new Scanner(engine, {});
     await s.runAuto();
     const before = t.written.length;
     await s.runDeep();
-    expect(sent().slice(before)).toEqual(['AT+QXYZ=?', 'AT+QXYZ?']);
+    expect(sent().slice(before)).toEqual(['AT+QXYZ=?', 'AT+QOKAY=?', 'AT+QOKAY?']);
     const deep = s.report.items.filter((i) => i.category === 'discovery');
-    expect(deep.map((i) => i.id)).toEqual(['deep:+QXYZ=?', 'deep:+QXYZ?']);
+    expect(deep.map((i) => i.id)).toEqual(['deep:+QXYZ=?', 'deep:+QOKAY=?', 'deep:+QOKAY?']);
   });
 
-  test('deep requires CLAC list', async () => {
+  test('deep without a CLAC list tries the built-in candidates, all through isDiscoverable', async () => {
     defaultError();
     const s = new Scanner(engine, {});
     await s.runDeep();
-    expect(t.written).toEqual([]);
+    const probes = sent();
+    expect(probes.length).toBeGreaterThan(100);
+    for (const w of probes) expect(w).toMatch(/^AT[+$^#!%*][A-Z0-9_]+=\?$/);
+    // every probe is a candidate that passes the safety check; denied candidates are never sent
+    for (const w of probes) {
+      const name = w.slice(2, -2);
+      expect(CANDIDATE_COMMANDS).toContain(name);
+      expect(isDiscoverable(name)).toBe(true);
+    }
+    expect(probes).not.toContain('AT+QPOWD=?');
+    expect(probes).not.toContain('AT+COPS=?');
+    // names the catalog already covers are not probed again
+    expect(probes).not.toContain('AT+CSQ=?');
+  });
+
+  test('deep honours the profile deny list for built-in candidates', async () => {
+    const base = PROFILES.find((p) => p.id === 'quectel-ec200a')!;
+    const profile = { ...base, denyCommands: [...base.denyCommands, '+QLTS'] };
+    defaultError();
+    await new Scanner(engine, { profile }).runDeep();
+    expect(CANDIDATE_COMMANDS).toContain('+QLTS');
+    expect(sent()).not.toContain('AT+QLTS=?');
+    expect(sent()).toContain('AT+QSTK=?');
+  });
+
+  test('deep stops after 5 timeouts in a row and says why', async () => {
+    vi.useFakeTimers();
+    t.reply('AT+QA1=?', ['\r\nOK\r\n']);
+    t.reply('AT+QA1?', ['\r\nOK\r\n']);
+    t.reply(/AT\+QA[2-7]/, []);
+    t.reply(/.*/, ERR);
+    const s = new Scanner(engine, {});
+    s.report.commandList = ['+QA1', '+QA2', '+QA3', '+QA4', '+QA5', '+QA6', '+QA7'];
+    const run = s.runDeep();
+    await vi.advanceTimersByTimeAsync(20_000);
+    await run;
+    vi.useRealTimers();
+    expect(sent()).toEqual(['AT+QA1=?', 'AT+QA1?', 'AT+QA2=?', 'AT+QA3=?', 'AT+QA4=?', 'AT+QA5=?', 'AT+QA6=?']);
+    expect(s.report.interrupted).toMatch(/5 commands in a row/);
+  });
+
+  test('deep uses a 1500 ms timeout per command', async () => {
+    const send = vi.spyOn(engine, 'send');
+    defaultError();
+    const s = new Scanner(engine, {});
+    s.report.commandList = ['+QXYZ'];
+    await s.runDeep();
+    expect(send).toHaveBeenCalledWith('AT+QXYZ=?', { timeoutMs: 1500 });
   });
 
   test('profile detected from identity', async () => {
