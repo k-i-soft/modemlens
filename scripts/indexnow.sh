@@ -23,10 +23,12 @@ URLS=$(curl -s "https://$HOST/sitemap.xml" | grep -oE '<loc>[^<]+</loc>' | sed -
 
 BODY=$(HOST="$HOST" KEY="$KEY" URLS="$URLS" python3 -c '
 import json, os
+h = os.environ["HOST"]
+k = os.environ["KEY"]
 print(json.dumps({
-    "host": os.environ["HOST"],
-    "key": os.environ["KEY"],
-    "keyLocation": f"https://{os.environ[\"HOST\"]}/{os.environ[\"KEY\"]}.txt",
+    "host": h,
+    "key": k,
+    "keyLocation": "https://" + h + "/" + k + ".txt",
     "urlList": os.environ["URLS"].split(),
 }))')
 
