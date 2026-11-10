@@ -64,7 +64,7 @@ export default defineConfig({
         // touches other origins; workbox routes only same-origin GET requests.
         globPatterns: ['**/*.{js,css,html,svg,webmanifest}'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/404\.html$/, /^\/(robots|llms)\.txt$/, /^\/sitemap\.xml$/, /^\/og-image\.png$/],
+        navigateFallbackDenylist: [/^\/404\.html$/, /^\/[^/]+\.txt$/, /^\/sitemap\.xml$/, /^\/og-image\.png$/],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
