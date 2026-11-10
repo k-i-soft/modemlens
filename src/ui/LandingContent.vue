@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { COMPANY_CONTACT_URL, COMPANY_URL, DONATE_URL, REPOSITORY_URL } from '../config';
+import { COMPANY_CONTACT_URL, COMPANY_URL, DONATE_URL, REPOSITORY_URL, SWITCH_HELPER_URL } from '../config';
 import DonateLink from './DonateLink.vue';
 import { FAQ } from './landingCopy';
 
@@ -75,8 +75,10 @@ const steps = [
         <h2 id="modems-heading">Which modems work</h2>
         <p>
           Modems with an AT channel work directly. Tested on the Quectel EC200A and an ASR-based stick, and unknown
-          modems get a best effort scan. Web-based sticks such as Huawei HiLink can be read with a small bookmark. On
-          Windows, USB direct needs a WinUSB driver on the modem's AT interface.
+          modems get a best effort scan. Web-based sticks such as Huawei HiLink can be read with a small bookmark. A
+          stick that first appears as a USB disk needs one switch into network mode, which a browser cannot do, so on
+          macOS and Linux a <a :href="SWITCH_HELPER_URL" target="_blank" rel="noopener">small helper script</a> does
+          it. On Windows, USB direct needs a WinUSB driver on the modem's AT interface.
         </p>
       </section>
       <section aria-labelledby="privacy-heading">

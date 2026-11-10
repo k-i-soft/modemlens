@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import type { DeviceClassification } from '../profiles/known-devices';
 import type { UsbDeviceDescription } from '../transport/types';
 import type { ScanReport } from '../scan/scanner';
+import { SWITCH_HELPER_URL } from '../config';
 import { interfaceCode, interfaceLabel, operatingSystemLimit } from './usbInterfaces';
 import WebModemPanel from './WebModemPanel.vue';
 
@@ -61,8 +62,16 @@ const osLimit = computed(() => operatingSystemLimit(props.device, kind.value, na
           </p>
           <ul>
             <li><strong>Windows:</strong> it usually switches and installs on its own. If not, run the vendor's tool from the disk.</li>
-            <li><strong>macOS and Linux:</strong> run the small helper <code>scripts/huawei-hilink-switch.js</code> from the ModemLens repository once (on Linux <code>usb_modeswitch</code> does the same). It is reversible and writes nothing to the modem.</li>
+            <li>
+              <strong>macOS and Linux:</strong> run the helper
+              <a :href="SWITCH_HELPER_URL" target="_blank" rel="noopener"><code>huawei-hilink-switch.js</code></a> once.
+              It is reversible and writes nothing to the modem.
+            </li>
           </ul>
+          <p class="hint">
+            In a terminal: <code>npm install usb</code>, then <code>node huawei-hilink-switch.js</code> (on macOS
+            <code>sudo node huawei-hilink-switch.js</code>). On Linux <code>usb_modeswitch</code> does the same.
+          </p>
           <p class="hint">Ejecting the disk switches some sticks, but not all, so the Huawei E3372h-320 for example ignores it.</p>
         </template>
         <p v-else-if="kind === 'transient'">Wait a few seconds and connect again.</p>

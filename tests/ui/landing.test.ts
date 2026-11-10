@@ -18,7 +18,7 @@ const COPY = [
   'How it works',
   'Plug in your modem and click USB direct.', "Pick it in your browser's device list.", 'ModemLens reads it, without changing anything.',
   'Which modems work',
-  "Modems with an AT channel work directly. Tested on the Quectel EC200A and an ASR-based stick, and unknown modems get a best effort scan. Web-based sticks such as Huawei HiLink can be read with a small bookmark. On Windows, USB direct needs a WinUSB driver on the modem's AT interface.",
+  "Modems with an AT channel work directly. Tested on the Quectel EC200A and an ASR-based stick, and unknown modems get a best effort scan. Web-based sticks such as Huawei HiLink can be read with a small bookmark. A stick that first appears as a USB disk needs one switch into network mode, which a browser cannot do, so on macOS and Linux a small helper script does it. On Windows, USB direct needs a WinUSB driver on the modem's AT interface.",
   'Your data stays with you',
   'ModemLens runs entirely in your browser. What it reads from your modem is not sent anywhere. Page downloads appear in the server logs, as on any website, and K-I-Soft evaluates those logs for visitor statistics.',
   'Open source', 'ModemLens is free and MIT licensed.',
@@ -28,6 +28,7 @@ const COPY = [
 
 const LANDING_LINKS: Array<[string, string]> = [
   ['Source code on GitHub', 'https://github.com/k-i-soft/modemlens'],
+  ['small helper script', 'https://github.com/k-i-soft/modemlens/blob/main/scripts/huawei-hilink-switch.js'],
   ['Visit k-i-soft.ch', 'https://www.k-i-soft.ch/en/'],
   ['Have a project in mind? Talk to us.', 'https://www.k-i-soft.ch/en/kontakt/'],
 ];
