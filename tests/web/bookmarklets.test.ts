@@ -44,8 +44,8 @@ describe('dialects', () => {
     expect(hilink.verified).toBe(true);
   });
 
-  test('zte stays unverified and only reads', () => {
-    expect(zte.verified).toBe(false);
+  test('zte is confirmed on a real stick and only reads', () => {
+    expect(zte.verified).toBe(true);
     expect(zte.endpoints).toHaveLength(1);
     expect(zte.endpoints[0].path).toMatch(/^\/goform\/goform_get_cmd_process\?/);
     expect(zte.endpoints[0].path).not.toMatch(/set_cmd|goformId/i);

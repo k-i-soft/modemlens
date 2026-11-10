@@ -18,12 +18,12 @@ test('huawei hilink as rndis on windows', () => {
   expect(c.kind).toBe('network-web');
   expect(c.webDialect).toBe('hilink');
 });
-test('mediatek mifi has a dialect but no fixed address', () => {
+test('mediatek mifi has a dialect and the address measured on it', () => {
   const c = classifyUsbDevice({ usb: '0e8d:2004', interfaceClasses: [224, 10, 8] });
   expect(c.kind).toBe('network-web');
   expect(c.webDialect).toBe('zte');
   expect(c.label).toBe('MediaTek MiFi stick');
-  expect(c.webAddress).toBeUndefined();
+  expect(c.webAddress).toBe('192.168.0.1');
 });
 test('unisoc stick is a network stick without a known address', () => {
   const c = classifyUsbDevice({ usb: '1782:4056', interfaceClasses: [224, 10] });

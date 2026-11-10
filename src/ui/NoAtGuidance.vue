@@ -54,14 +54,24 @@ const osLimit = computed(() => operatingSystemLimit(props.device, kind.value, na
 
       <div>
         <h3>What to do</h3>
-        <ul v-if="kind === 'storage'">
-          <li>Eject the disk in your system, then wait a few seconds and connect again.</li>
-          <li>The vendor's installer on that disk also switches the modem. Run it only on a machine where installing vendor software is acceptable.</li>
-          <li>On Linux, <code>usb_modeswitch</code> does the same.</li>
-        </ul>
+        <template v-if="kind === 'storage'">
+          <p>
+            It needs one switch into modem mode, which the browser cannot do: a web page is not allowed to touch a USB
+            disk. Do it once outside the browser, then connect again here.
+          </p>
+          <ul>
+            <li><strong>Windows:</strong> it usually switches and installs on its own. If not, run the vendor's tool from the disk.</li>
+            <li><strong>macOS and Linux:</strong> run the small helper <code>scripts/huawei-hilink-switch.js</code> from the ModemLens repository once (on Linux <code>usb_modeswitch</code> does the same). It is reversible and writes nothing to the modem.</li>
+          </ul>
+          <p class="hint">Ejecting the disk switches some sticks, but not all, so the Huawei E3372h-320 for example ignores it.</p>
+        </template>
         <p v-else-if="kind === 'transient'">Wait a few seconds and connect again.</p>
         <template v-else-if="kind === 'network-web'">
-          <p v-if="osLimit">On Windows or Linux, the address of its web page is the gateway shown in the settings of the new network adapter.</p>
+          <p v-if="osLimit && href && classification?.webOverWifi">
+            It also has its own Wi-Fi, which works on this computer. Join that network, and its web page is at
+            <a :href="href" target="_blank" rel="noopener">{{ classification?.webAddress }}</a>.
+          </p>
+          <p v-else-if="osLimit">On Windows or Linux, the address of its web page is the gateway shown in the settings of the new network adapter.</p>
           <p v-else-if="href">Its web page is at <a :href="href" target="_blank" rel="noopener">{{ classification?.webAddress }}</a>.</p>
           <p v-else>The address of its web page is the gateway shown in the settings of the new network adapter.</p>
         </template>

@@ -19,6 +19,7 @@ If the USB list shows no modem, or the modem has no name, Windows is probably ho
 
 - **AT modems.** Modems that answer AT commands over USB or serial work. Profiles describe the exact commands per model; for other modems ModemLens falls back to a standard 3GPP/V.250 command set. The automatic scan only sends read-only commands. Settings change only in the Actions tab (Quectel EC200A and the ASR stick 1286:4e3c only), one at a time, after you confirm each change.
 - **Modems without AT** (router-style or HiLink devices that expose a web interface instead). Use the web bookmarklet: it captures what the modem's own admin page shows, saves it to a file, and ModemLens imports that file.
+- **Modems that show up as a USB disk** (many Huawei HiLink sticks start like this). They need one switch into network mode first, which a browser is not allowed to do. On Windows this usually happens on its own; on macOS and Linux run [`scripts/huawei-hilink-switch.js`](scripts/huawei-hilink-switch.js) once (reversible, writes nothing to the modem), then use the bookmarklet.
 
 ## Privacy
 

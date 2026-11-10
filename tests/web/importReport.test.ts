@@ -82,7 +82,7 @@ describe('importWebCapture builds a report', () => {
       format: 'modemlens-web-capture', version: 1, dialect: 'zte', capturedAt: '2026-01-02T03:04:05.000Z',
       responses: [{ id: 'status', status: 200, body: '{"modem_model":"DEMO-MIFI"}' }],
     }));
-    expect(zte.profile).toMatchObject({ id: 'web-zte', verified: false });
+    expect(zte.profile).toMatchObject({ id: 'web-zte', verified: true });
   });
 
   test('an answer that failed is kept as failed and not parsed', () => {

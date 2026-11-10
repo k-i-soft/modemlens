@@ -9,6 +9,8 @@ export interface DeviceClassification {
   webDialect?: 'hilink' | 'zte';
   /** Address of the device's web interface, when it is fixed. */
   webAddress?: string;
+  /** Has its own Wi-Fi, so its web interface can be reached without a USB network driver. */
+  webOverWifi?: boolean;
 }
 
 export interface ClassifierInput {
@@ -33,7 +35,7 @@ const NETWORK_CLASSES = [CLASS_CDC_COMMUNICATIONS, CLASS_WIRELESS_CONTROLLER, CL
 const KNOWN: Record<string, Omit<DeviceClassification, 'usb'>> = {
   '12d1:1f01': { kind: 'storage', label: 'Huawei HiLink stick (storage mode)' },
   '12d1:14db': { kind: 'network-web', label: 'Huawei HiLink stick', webDialect: 'hilink', webAddress: '192.168.8.1' },
-  '0e8d:2004': { kind: 'network-web', label: 'MediaTek MiFi stick', webDialect: 'zte' },
+  '0e8d:2004': { kind: 'network-web', label: 'MediaTek MiFi stick', webDialect: 'zte', webAddress: '192.168.0.1', webOverWifi: true },
   '1782:4056': { kind: 'network-web', label: 'Unisoc-based stick' },
   '2ecc:3001': { kind: 'transient', label: 'Stick that switches mode by itself' },
   '1286:4e3c': { kind: 'at', label: 'ASR stick' },

@@ -17,7 +17,7 @@ export interface WebDialect {
 }
 
 const ZTE_READ_VALUES = [
-  'modem_model', 'model', 'cr_version', 'wa_inner_version', 'hw_version', 'imei', 'imsi', 'sim_imsi', 'iccid', 'ziccid', 'msisdn',
+  'modem_model', 'model', 'web_version', 'cr_version', 'wa_inner_version', 'hw_version', 'hardware_version', 'imei', 'imsi', 'sim_imsi', 'iccid', 'ziccid', 'msisdn',
   'mac_address', 'wan_ipaddr', 'ipv6_wan_ipaddr', 'network_provider', 'network_type', 'lte_rsrp', 'lte_rsrq', 'lte_snr', 'Z_SINR',
   'rssi', 'cell_id', 'Z_CELL_ID', 'lac_code',
 ];
@@ -38,7 +38,7 @@ export const WEB_DIALECTS: WebDialect[] = [
   {
     id: 'zte',
     label: 'ZTE-style stick',
-    verified: false,
+    verified: true,
     answerPattern: '^ *[{]',
     endpoints: [
       {

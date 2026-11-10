@@ -225,12 +225,13 @@ describe('ConnectBar', () => {
       return w;
     }
 
-    test('storage mode: eject, installer, usb_modeswitch, and no red alert', async () => {
+    test('storage mode: names the per-OS switch and the helper, no red alert', async () => {
       const w = await rejected('12d1:1f01', [8]);
       const t = w.text();
       expect(t).toContain('Huawei HiLink stick (storage mode)');
-      expect(t).toContain('Eject');
-      expect(t).toContain('installer');
+      expect(t).toContain('the browser cannot do');
+      expect(t).toContain('Windows');
+      expect(t).toContain('huawei-hilink-switch.js');
       expect(t).toContain('usb_modeswitch');
       expect(w.find('[role="alert"]').exists()).toBe(false);
       expect(w.find('.warn').exists()).toBe(false);
@@ -252,9 +253,9 @@ describe('ConnectBar', () => {
     });
 
     test('network stick without a fixed address points to the gateway', async () => {
-      const w = await rejected('0e8d:2004', [224, 10, 8]);
+      const w = await rejected('1782:4056', [224, 10, 8]);
       expect(w.find('a:not(.bookmarklet)').exists()).toBe(false);
-      expect(w.text()).toContain('MediaTek MiFi stick');
+      expect(w.text()).toContain('Unisoc-based stick');
       expect(w.text()).toContain('gateway');
     });
 
@@ -1079,6 +1080,14 @@ describe('a device without an AT channel', () => {
     expect(w.find('.seen a:not(.bookmarklet)').exists()).toBe(false);
   });
 
+  test('a stick with its own Wi-Fi keeps its link even when macOS is the limit', async () => {
+    mac();
+    const w = await rejecting(classified({ ...rndisOnly, usb: '0e8d:2004' } as typeof device));
+    expect(w.text()).toContain('limit of macOS');
+    expect(w.text()).toContain('Wi-Fi');
+    expect(w.find('.seen a:not(.bookmarklet)').attributes('href')).toBe('http://192.168.0.1');
+  });
+
   test.each([
     ['no classification', undefined],
     ['at', { kind: 'at', usb: '2c7c:6005' }],
@@ -1441,11 +1450,11 @@ describe('WebModemPanel', () => {
     delete (navigator as any).clipboard;
   });
 
-  test('without a known dialect both are offered and the ZTE one is marked unverified', () => {
+  test('without a known dialect both are offered, and both are confirmed on real sticks', () => {
     const w = mount(WebModemPanel);
     expect(w.findAll('a.bookmarklet')).toHaveLength(2);
     const zte = w.findAll('.offer').find((o) => o.text().includes('ZTE'))!;
-    expect(zte.text()).toContain('Unverified');
+    expect(zte.text()).not.toContain('Unverified');
     const hilink = w.findAll('.offer').find((o) => o.text().includes('HiLink'))!;
     expect(hilink.text()).not.toContain('Unverified');
   });

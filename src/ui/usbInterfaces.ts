@@ -43,5 +43,5 @@ export function operatingSystemLimit(
   if (!device || kind !== 'network-web' || !/mac/i.test(platform)) return undefined;
   const rndisOnly = device.interfaces.some(isRndis) && !device.interfaces.some((i) => i.class === CDC_COMMUNICATIONS && i.subclass !== SUBCLASS_ACM);
   if (!rndisOnly) return undefined;
-  return 'This is a limit of macOS: it has no RNDIS driver, so on this Mac the stick does not become a network adapter and its own web page cannot be reached. It works on Windows and Linux.';
+  return 'This is a limit of macOS: it has no RNDIS driver, so on this Mac the stick does not become a network adapter over USB and its own web page cannot be reached that way. USB works on Windows and Linux.';
 }

@@ -138,6 +138,17 @@ describe('zte status', () => {
     expect(JSON.stringify(f)).not.toContain('ignored');
   });
 
+  test('shows the software version next to the firmware, and either name for the hardware', () => {
+    const f = parse('zte_status', JSON.stringify({ web_version: 'DEMO-WEB-1', wa_inner_version: 'DEMOFW2', hw_version: '', hardware_version: 'DEMO-HW-1' }));
+    expect(by(f, 'software')?.value).toBe('DEMO-WEB-1');
+    expect(by(f, 'firmware')?.value).toBe('DEMOFW2');
+    expect(by(f, 'hardware')?.value).toBe('DEMO-HW-1');
+  });
+
+  test('reads an RSSI that also names its asu', () => {
+    expect(by(parse('zte_status', JSON.stringify({ rssi: '-86 dBm  54 asu' })), 'rssi_dbm')?.value).toBe('-86');
+  });
+
   test.each([['not json', '{oops'], ['a list', '[1,2]'], ['nothing known', '{"a":"b"}'], ['null', 'null']])('%s gives null', (_n, body) => {
     expect(parse('zte_status', body)).toBeNull();
   });

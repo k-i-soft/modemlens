@@ -8,8 +8,8 @@ type Read = (value: string) => string | undefined;
 /** Source name or names, first one present wins; field key; label; how sensitive; how to read the value. */
 type Spec = [source: string | string[], key: string, label: string, sensitive?: Sensitivity, read?: Read];
 
-/** "-86dBm", "-5.0dB", "20MHz", and a clamped ">=-51dBm". */
-const NUMBER_WITH_UNIT = /^[<>]?=?\s*([+-]?\d+(?:\.\d+)?)\s*[a-z]*$/i;
+/** "-86dBm", "-5.0dB", "20MHz", a clamped ">=-51dBm", and "-86 dBm  54 asu". */
+const NUMBER_WITH_UNIT = /^[<>]?=?\s*([+-]?\d+(?:\.\d+)?)\s*[a-z]*(?:\s+\d+\s*asu)?$/i;
 const number: Read = (v) => NUMBER_WITH_UNIT.exec(v)?.[1];
 
 /** "DL:1850 UL:19850", or a plain number for the downlink. */
@@ -112,8 +112,9 @@ const HILINK_PLMN: Spec[] = [
 /** Unverified: no real capture yet, so every value has its usual alternative names and none is required. */
 const ZTE_STATUS: Spec[] = [
   [['modem_model', 'model'], 'model', 'Model'],
+  ['web_version', 'software', 'Software version'],
   [['cr_version', 'wa_inner_version'], 'firmware', 'Firmware'],
-  ['hw_version', 'hardware', 'Hardware'],
+  [['hw_version', 'hardware_version'], 'hardware', 'Hardware'],
   ['imei', 'imei', 'IMEI', 'imei'],
   [['imsi', 'sim_imsi'], 'imsi', 'IMSI', 'imsi'],
   [['iccid', 'ziccid'], 'iccid', 'ICCID', 'iccid'],
