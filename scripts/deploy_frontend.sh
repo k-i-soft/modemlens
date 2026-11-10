@@ -107,3 +107,8 @@ aws_cmd cloudfront wait invalidation-completed \
   --id "$INVALIDATION_ID"
 
 echo "Deploy complete."
+
+# Tell IndexNow (Bing, and so ChatGPT Search). Best effort: a failed ping must not fail the deploy.
+if [[ -f "$PROJECT_ROOT/scripts/indexnow.sh" ]]; then
+  bash "$PROJECT_ROOT/scripts/indexnow.sh" || echo "IndexNow ping failed (not fatal)." >&2
+fi
