@@ -146,6 +146,17 @@ describe('Scanner', () => {
     expect(sent().some((w) => w.includes('QXYZ'))).toBe(false);
   });
 
+  test('deep uses a single-line +CLAC list (Huawei, Qualcomm)', async () => {
+    t.reply(CLAC_COMMAND, ['\r\n+CLAC:&C,+QXYZ,^QPWRDN,+QOKAY,\r\n\r\nOK\r\n']);
+    defaultError();
+    const s = new Scanner(engine, {});
+    await s.runAuto();
+    expect(s.report.commandList).toEqual(['&C', '+QXYZ', '^QPWRDN', '+QOKAY']);
+    const before = t.written.length;
+    await s.runDeep();
+    expect(sent().slice(before)).toEqual(['AT+QXYZ=?', 'AT+QOKAY=?']);
+  });
+
   test('deep sends only ?/=? of allowed extended, and ? only after =? was OK', async () => {
     clac('+QXYZ', 'Z', '+QPOWD', '+CREG', '+QOKAY');
     t.reply('AT+QOKAY=?', ['\r\n+QOKAY: (0,1)\r\n\r\nOK\r\n']);

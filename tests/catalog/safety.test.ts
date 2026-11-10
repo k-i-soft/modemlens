@@ -52,6 +52,32 @@ test('parse clac', () => expect(parseCommandList(['+CSQ', '&F', 'AT+CREG'])).toE
 test('an answer that is no command list gives no names', () =>
   expect(parseCommandList(['AT+CSCA?', '+CSCA: "+41000000000",145', '+CTZU: 1'])).toEqual([]));
 
+// Huawei and Qualcomm firmware answer with one comma list after the prefix instead of one name per line.
+test('single-line clac list', () =>
+  expect(parseCommandList(['+CLAC:&C,&D,\\S,+CSQ,^SYSCFG,$QCSLOT,^pcmrecord,'])).toEqual(['&C', '&D', '+CSQ', '^SYSCFG', '$QCSLOT', '^pcmrecord']));
+test('single-line clac list with spaces', () =>
+  expect(parseCommandList(['+CLAC: +CSQ, +CREG'])).toEqual(['+CSQ', '+CREG']));
+test('only a +CLAC line is split at commas', () =>
+  expect(parseCommandList(['+CSCA: "+41000000000",145'])).toEqual([]));
+
+// Qualcomm and Huawei names whose query form is not worth the risk: diag/BREW mode, saving or restoring settings, passwords, clearing.
+test.each(['$QCDMG', '$BREW', '+CSAS', '+CRES', '^OPWORD', '^CPWORD', '^DSFLOWCLR', '$QCCLR'])('%s not discoverable', n =>
+  expect(isDiscoverable(n)).toBe(false));
+
+// The real answer of a Huawei K3715 (12d1:1001, firmware 11.113.03.00.00), captured 2026-11-10.
+const K3715_CLAC =
+  '+CLAC:&C,&D,&E,&F,&S,&V,&W,E,I,L,M,Q,V,X,Z,T,P,\\S,\\V,%V,D,A,H,O,S0,S3,S4,S5,S6,S7,S8,S9,S10,S11,S30,S103,S104,+FCLASS,+ICF,+IFC,+IPR,+GMI,+GMM,+GMR,+GCAP,+GSN,+DR,+DS,+WS46,+CLAC,+CCLK,+CBST,+CRLP,+CV120,+CHSN,+CSSN,+CREG,+CGREG,+CFUN,+GCAP,+CSCS,+CSTA,+CR,+CEER,+CRC,+CMEE,+CGDCONT,+CGDSCONT,+CGTFT,+CGEQREQ,+CGEQMIN,+CGQREQ,+CGQMIN,+CGEQNEG,+CGEREP,+CGPADDR,+CGCLASS,+CGSMS,+CSMS,+CMGF,+CSAS,+CRES,+CSCA,+CSMP,+CSDH,+CSCB,+FDD,+FAR,+FCL,+FIT,+ES,+ESA,+CMOD,+CVHU,+CGDATA,+CSQ,+CBC,+CPAS,+CPIN,+CMEC,+CIND,+CMER,+CGATT,+CGACT,+CGCMOD,+CPBS,+CPBR,+CPBF,+CPBW,+CPMS,+CNMI,+CMGL,+CMGR,+CMGS,+CMSS,+CMGW,+CMGD,+CMGC,+CNMA,+CMMS,+FTS,+FRS,+FTH,+FRH,+FTM,+FRM,+CHUP,+CCFC,+CCUG,+COPS,+CLCK,+CPWD,+CUSD,+CAOC,+CACM,+CAMM,+CPUC,+CCWA,+CHLD,+CIMI,+CGMI,+CGMM,+CGMR,+CGSN,+CNUM,+CSIM,+CRSM,+CCLK,+CLVL,+CMUT,+CLCC,+COPN,+CPOL,+CPLS,+CTZR,+CTZU,+CLAC,+CLIP,+COLP,+CDIP,+CTFR,+CLIR,$QCSIMSTAT,$QCCNMI,$QCCLR,$QCDMG,$QCDMR,$QCDNSP,$QCDNSS,$QCTER,$QCSLOT,$QCPINSTAT,$QCPDPP,$QCPDPLT,$QCPWRDN,$QCDGEN,$BREW,$QCSYSMODE,^CVOICE,^DDSETEX,^pcmrecord,^SYSINFO,^SYSCFG,^IMSICHG,^HS,^DTMF,^EARST,^CDUR,^LIGHT,^CPBR,^CPBW,^HWVER,^HVER,^DSFLOWCLR,^DSFLOWQRY,^DSFLOWRPT,^SPN,^PORTSEL,^CPIN,^PNN,^OPL,^CPNN,^SN,^CARDLOCK,^BOOT,^FHVER,^CURC,^FREQLOCK,^HSDPA,^HSUPA,^CARDMODE,^U2DIAG,^CELLMODE,^HSPA,^SCSIOVERTIME,^SETPID,^ADCTEMP,^YJCX,^OPWORD,^CPWORD,^DISLOG,^ANQUERY,^RSCPCFG,^ECIOCFG,^LIGHT,^FPLMN,^FPLMNCTRL,^OPRTMODE,^DIALMODE,';
+
+test('a Huawei K3715 list gives its own names, without the dangerous ones', () => {
+  const names = parseCommandList([K3715_CLAC]);
+  expect(names).toEqual(expect.arrayContaining(['+CSQ', '^SYSCFG', '^HWVER', '$QCSIMSTAT', '^pcmrecord']));
+  const probed = names.filter((n) => isDiscoverable(n));
+  expect(probed).toEqual(expect.arrayContaining(['^SYSCFG', '^HWVER', '^SYSINFO', '$QCSIMSTAT', '+CGDCONT']));
+  for (const bad of ['$QCPWRDN', '$QCDMG', '$BREW', '$QCCLR', '^EARST', '^CARDLOCK', '^FREQLOCK', '^BOOT', '^DSFLOWCLR', '^DIALMODE',
+    '^OPWORD', '^CPWORD', '^CPBW', '^CPIN', '+CSAS', '+CRES', '+CMGS', '+CMGD', '+CHUP', '+CGDATA', '+COPS', '+CPWD', '+CUSD', '+CSIM', '+CRSM'])
+    expect(probed, bad).not.toContain(bad);
+});
+
 // invariant of the catalog
 const CATALOG_READ_FORM = /^AT(I|\+\w+\?|\+\w+=\?|\+(CSQ|CESQ|CIMI|CGSN|GSN|GMI|GMM|GMR|CGMI|CGMM|CGMR|CGPADDR)|\+CLCK="\w\w",2|\+CRSM=176,\d+,\d+,\d+,\d+)$/;
 test('every auto catalog entry is a read form', () => {

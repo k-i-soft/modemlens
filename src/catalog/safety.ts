@@ -5,7 +5,7 @@ const DENY_PATTERN = new RegExp(
   [
     'RESET', 'POW', 'PWR', 'OFF', 'DOWN', 'ERASE', 'DEL', 'FOTA', 'UPDATE', 'FLASH', 'FACTORY', 'RST', 'DFU', 'DIAL',
     'BOOT', 'SHDN', 'HALT', 'SMSO', 'FWUPD', 'FWINST', 'FWSWITCH', 'SCAN', 'NVW', 'NVFW', 'PRTPARA',
-    'CMG[SDRLWC]', 'CMSS', 'HCMG', 'SMG[RLS]', 'CPB', 'CSURV', 'CPIN', 'LOCK', 'CPWD|SPWD',
+    'CMG[SDRLWC]', 'CMSS', 'HCMG', 'SMG[RLS]', 'CPB', 'CSURV', 'CPIN', 'LOCK', 'CPWD|SPWD', 'PWORD', 'CLR',
   ].join('|'),
   'i',
 );
@@ -25,6 +25,8 @@ const DENY_FIXED = new Set([
   '+CGCMOD', '+CNMPSD', '+CSODCP', '#SGACT', '+QNETDEVCTL', '+CESP', '+CHLD', '+CTFR', '+CNTP', '+QNTP',
   '+CRLA', '+CEAP', '+CERP', '+CUAD', '+CPOL', '+CPLS',
   '+QFLST', '+QFLDS', '+QAUDLOOP', '+QLDTMF', '+QTTS', '+QGPSLOC', '+QMBNCFG', '+CNMA',
+  // Qualcomm: the port to diag or BREW mode; saving and restoring settings to and from memory
+  '$QCDMG', '$BREW', '+CSAS', '+CRES',
 ]);
 
 // A name is one prefix character followed by letters, digits or underscores, nothing else.
@@ -34,9 +36,14 @@ const NAME_SHAPE = /^[+$^#!%*][A-Z0-9_]+$/;
 export function parseCommandList(lines: string[]): string[] {
   const names: string[] = [];
   for (const raw of lines) {
-    const name = raw.trim().replace(/^AT(?=[+$^#!%*&])/i, '');
-    // Anything else is not a name, for example the answer to another command.
-    if (/^[&+$^#!%*]?[A-Z0-9_]+$/i.test(name)) names.push(name);
+    // Huawei and Qualcomm answer with one comma list after the prefix: "+CLAC:&C,&D,+CSQ,".
+    // Only such a line is split, so that the answer to another command still gives no names.
+    const listed = /^\s*\+CLAC:(.*)$/i.exec(raw);
+    for (const part of listed ? listed[1].split(',') : [raw]) {
+      const name = part.trim().replace(/^AT(?=[+$^#!%*&])/i, '');
+      // Anything else is not a name, for example the answer to another command.
+      if (/^[&+$^#!%*]?[A-Z0-9_]+$/i.test(name)) names.push(name);
+    }
   }
   return names;
 }
