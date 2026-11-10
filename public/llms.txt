@@ -15,8 +15,8 @@ Model, firmware, SIM state, operator, registration, signal quality (RSRP, RSRQ, 
 
 ## Which modems work
 
-- Modems that answer AT commands over USB or a serial port. Profiles exist for the Quectel EC200A and an ASR-based stick (USB ID 1286:4e3c). Other AT modems get a standard command set.
-- Sticks without AT commands, such as Huawei HiLink devices, are read through a bookmark on the stick's own admin page.
+- Modems that answer AT commands over USB or a serial port. Tested profiles exist for the Quectel EC200A and an ASR-based UFI stick (USB ID 1286:4e3c). Other AT modems get a standard command set.
+- Sticks without AT commands are read through a bookmark on the stick's own admin page, or over the stick's own Wi-Fi. Confirmed on the Huawei E3372h HiLink (web page at 192.168.8.1) and the MediaTek UF909 (ZTE-style web page at 192.168.0.1). A Unisoc-based stick that answers neither AT nor a known web page is not supported yet.
 - On Windows, USB direct needs the WinUSB driver on the modem's AT interface. With the vendor's driver, use Serial port instead.
 - Firefox and Safari do not offer WebUSB or Web Serial, so ModemLens does not work there.
 

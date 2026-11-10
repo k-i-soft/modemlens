@@ -25,6 +25,8 @@ export async function landingHtml(): Promise<string> {
 
 /** Deliberately no Product or SoftwareApplication node: search engines reject those without ratings. */
 export function structuredData(): string {
+  // Build date, so the structured data carries a freshness signal. Set when the site is built.
+  const BUILT = new Date().toISOString().slice(0, 10);
   const graph = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -45,7 +47,7 @@ export function structuredData(): string {
         },
         sameAs: ['https://www.zefix.ch/en/search/entity/list/firm/CHE-366.968.537', 'https://github.com/k-i-soft'],
       },
-      { '@type': 'WebSite', '@id': `${SITE}#website`, url: SITE, name: 'ModemLens', inLanguage: 'en', publisher: { '@id': ORGANIZATION } },
+      { '@type': 'WebSite', '@id': `${SITE}#website`, url: SITE, name: 'ModemLens', inLanguage: 'en', dateModified: BUILT, publisher: { '@id': ORGANIZATION } },
       {
         '@type': 'SoftwareSourceCode',
         '@id': `${SITE}#code`,
@@ -55,6 +57,7 @@ export function structuredData(): string {
         codeRepository: REPOSITORY_URL,
         programmingLanguage: 'TypeScript',
         license: 'https://opensource.org/license/mit',
+        dateModified: BUILT,
         author: { '@id': ORGANIZATION },
       },
       {

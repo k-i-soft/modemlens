@@ -22,7 +22,7 @@ export const FAQ: FaqEntry[] = [
   {
     question: 'Which modems does ModemLens support?',
     answer:
-      'Modems that answer AT commands over USB or a serial port. ModemLens has profiles for the Quectel EC200A and an ASR-based stick, and tries a standard command set on anything else. Sticks without AT commands, such as Huawei HiLink devices, can be read through a bookmark on the stick\'s own admin page.',
+      'Modems that answer AT commands over USB or a serial port. ModemLens has tested profiles for the Quectel EC200A and an ASR-based UFI stick, and tries a standard command set on any other AT modem. Sticks without AT commands are read through a bookmark or over their own Wi-Fi: this is confirmed on the Huawei E3372h HiLink and the MediaTek UF909. A Unisoc-based stick that answers neither is not supported yet.',
   },
   {
     question: 'Why does my modem not show up on Windows?',
