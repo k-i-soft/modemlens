@@ -108,6 +108,8 @@ const connected = ref(false);
 const lostReason = ref('');
 /** The modem went away because of an action: that is not a lost connection. */
 const restarting = ref(false);
+/** The user closed the session: the modem is free for other programs, the results stay. */
+const disconnectedByUser = ref(false);
 /** An action, or the read of its current values, holds the modem. */
 const actionBusy = ref(false);
 const autoDone = ref(false);
@@ -374,7 +376,17 @@ async function onConnected(t: Transport): Promise<void> {
   connected.value = true;
   lostReason.value = '';
   restarting.value = false;
+  disconnectedByUser.value = false;
   await scanFromStart();
+}
+
+/** Ends the session on purpose. Not while an action holds the modem: a change must not be cut off halfway. */
+async function disconnect(): Promise<void> {
+  if (!connected.value || actionBusy.value) return;
+  lostReason.value = '';
+  restarting.value = false;
+  disconnectedByUser.value = true;
+  await teardown();
 }
 
 function stop(): void {
@@ -457,6 +469,7 @@ function onImported(report: ScanReport): void {
   finished.value = null;
   lostReason.value = '';
   restarting.value = false;
+  disconnectedByUser.value = false;
   autoDone.value = false;
   autoComplete.value = false;
   tab.value = 'overview';
@@ -528,6 +541,17 @@ onBeforeUnmount(() => {
           <template v-else-if="imported">Imported capture: <span class="mono">{{ imported.profile?.label }}, {{ imported.startedAt }}</span></template>
           <template v-else>Not connected</template>
         </p>
+        <button
+          v-if="connected"
+          type="button"
+          class="disconnect"
+          :disabled="actionBusy"
+          :title="actionBusy ? 'An action is still running on the modem.' : 'Close the connection. The results stay on the page.'"
+          @click="disconnect"
+        >
+          Disconnect
+        </button>
+        <p v-if="disconnectedByUser && !connected" class="hint" role="status">Disconnected. The modem is free for other programs, the results stay here.</p>
         <p v-if="!running && !(reportMeta.interrupted && connected) && finished && connected && !deepResultInView" class="hint" role="status">{{ finishedText }}</p>
         <AutoRefresh
           v-if="connected && autoDone && autoComplete"
@@ -703,6 +727,7 @@ onBeforeUnmount(() => {
 .link { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.1rem 1.25rem; min-width: 0; font-size: 0.85rem; color: var(--ink-2); overflow-wrap: anywhere; }
 .link .mono { font-size: 0.8rem; }
 .link .hint { font-size: 0.8rem; }
+.link .disconnect { align-self: center; padding: 0.2rem 0.6rem; font-size: 0.8rem; }
 .dot { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 0.45rem; background: var(--tone); border-radius: 50%; }
 
 footer {

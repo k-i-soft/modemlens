@@ -511,6 +511,56 @@ describe('App session lifecycle', () => {
 
   const scanItems = (w: VueWrapper) => w.findComponent(ScanDetails).props('items') as ScanItem[];
 
+  test('Disconnect closes the transport, keeps the results and offers a reconnect', async () => {
+    const { made, connectors: c } = tracked(0);
+    const w = mountApp({ connectors: c });
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.text().includes('Automatic scan finished'));
+    const kept = scanItems(w).length;
+    await btn(w, 'Disconnect')!.trigger('click');
+    await until(() => made[0].closed);
+    expect(w.text()).toContain('Not connected');
+    expect(w.text()).toContain('Disconnected.');
+    expect(w.text()).not.toContain('Connection lost');
+    expect(scanItems(w).length).toBe(kept);
+    expect(btn(w, 'Reconnect')).toBeTruthy();
+    expect(btn(w, 'Disconnect')).toBeUndefined();
+    const writes = made[0].writes;
+    await new Promise((r) => setTimeout(r, 50));
+    await flushPromises();
+    expect(made[0].writes).toBe(writes);
+  });
+
+  test('Disconnect during the automatic scan ends it', async () => {
+    const make = () => Promise.resolve(createDemoTransport({ delayMs: 30 }) as Transport);
+    const w = mountApp({ connectors: { serial: make, usb: make } });
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.findComponent(ScanDetails).exists() && scanItems(w).length >= 2);
+    await btn(w, 'Disconnect')!.trigger('click');
+    await flushPromises();
+    expect(w.text()).toContain('Not connected');
+    const kept = scanItems(w).length;
+    await new Promise((r) => setTimeout(r, 120));
+    await flushPromises();
+    expect(w.text()).not.toContain('Automatic scan finished');
+    expect(scanItems(w).length).toBe(kept);
+    expect(btn(w, 'Reconnect')).toBeTruthy();
+  });
+
+  test('a reconnect after Disconnect starts a fresh session', async () => {
+    const { made, connectors: c } = tracked(0);
+    const w = mountApp({ connectors: c });
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.text().includes('Automatic scan finished'));
+    await btn(w, 'Disconnect')!.trigger('click');
+    await until(() => made[0].closed);
+    await btn(w, 'Reconnect: Serial port')!.trigger('click');
+    await until(() => made.length === 2 && w.text().includes('Automatic scan finished'));
+    expect(w.text()).not.toContain('Disconnected.');
+    expect(btn(w, 'Disconnect')).toBeTruthy();
+    expect(made[1].closed).toBe(false);
+  });
+
   test('reconnecting during a slow close leaves exactly one session', async () => {
     const { made, connectors: c } = tracked(40);
     const w = mountApp({ connectors: c });
