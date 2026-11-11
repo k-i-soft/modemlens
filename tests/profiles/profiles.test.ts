@@ -10,9 +10,27 @@ test('unknown', () => expect(matchProfile({ usb: 'dead:beef' })).toBeUndefined()
 test('the remaining starter profiles are unverified', () =>
   expect(PROFILES.filter(p => p.id !== 'quectel-ec200a').every(p => p.verified === false)).toBe(true));
 
-// same read-only invariant as the standard catalog, plus the Quectel read forms
+test('a Huawei K3715 gets its profile by USB id and by model', () => {
+  expect(matchProfile({ usb: '12d1:1001' })?.id).toBe('huawei-k3715');
+  expect(matchProfile({ model: 'K3715' })?.id).toBe('huawei-k3715');
+  // over a serial port there is no USB id: the model comes from the joined ATI and GMM lines
+  expect(matchProfile({ model: 'Manufacturer: huawei\nModel: K3715\nRevision: 11.113.03.00.00\nK3715' })?.id).toBe('huawei-k3715');
+  expect(matchProfile({ model: 'Model: K37150' })).toBeUndefined();
+});
+test('the K3715 profile reads system info, settings, hardware version and card type', () => {
+  const p = PROFILES.find((x) => x.id === 'huawei-k3715')!;
+  expect(p.verified).toBe(false);
+  expect(p.commands.map((e) => [e.command, e.parser, e.phase])).toEqual([
+    ['AT^SYSINFO', 'hw_sysinfo', 'auto'],
+    ['AT^SYSCFG?', 'hw_syscfg', 'auto'],
+    ['AT^HWVER', 'hw_hwver', 'auto'],
+    ['AT^CARDMODE', 'hw_cardmode', 'auto'],
+  ]);
+});
+
+// same read-only invariant as the standard catalog, plus the Quectel and Huawei read forms
 test('every auto profile command is a read form', () => {
-  const re = /^AT(\+\w+\?|\+\w+=\?|\+Q(CCID|SPN|NWINFO|CSQ|TEMP|GMR)|\+QENG="(servingcell|neighbourcell)"|\+QCFG="(usbnet|band|nat)")$/;
+  const re = /^AT(\+\w+\?|\+\w+=\?|\+Q(CCID|SPN|NWINFO|CSQ|TEMP|GMR)|\+QENG="(servingcell|neighbourcell)"|\+QCFG="(usbnet|band|nat)"|\^(SYSINFO|HWVER|CARDMODE)|\^SYSCFG\?)$/;
   for (const p of PROFILES)
     for (const e of p.commands.filter(e => e.phase === 'auto')) expect(e.command).toMatch(re);
 });

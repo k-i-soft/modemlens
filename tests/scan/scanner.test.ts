@@ -6,6 +6,7 @@ import { AtEngine } from '../../src/at/engine';
 import { CANDIDATE_COMMANDS } from '../../src/catalog/candidates';
 import { isDiscoverable } from '../../src/catalog/safety';
 import { CLAC_COMMAND, STANDARD_CATALOG } from '../../src/catalog/standard';
+import { parseResponse } from '../../src/parse';
 import { PROFILES } from '../../src/profiles';
 import { Scanner } from '../../src/scan/scanner';
 import { FakeTransport } from '../helpers/fakeTransport';
@@ -246,6 +247,23 @@ describe('Scanner', () => {
     const s = new Scanner(engine, { usb: '2c7c:6005' });
     await s.runAuto();
     expect(s.report.profile?.id).toBe('quectel-ec200a');
+  });
+
+  test('a K3715 over a serial port gets its profile from ATI and reads the Huawei values', async () => {
+    t.reply('ATI', ['\r\nManufacturer: huawei\r\nModel: K3715\r\nRevision: 11.113.03.00.00\r\n\r\nOK\r\n']);
+    t.reply('AT^SYSINFO', ['\r\n^SYSINFO:1,4,0,5,4\r\n\r\nOK\r\n']);
+    t.reply('AT^SYSCFG?', ['\r\n^SYSCFG:2,2,2000000780380,1,0\r\n\r\nOK\r\n']);
+    defaultError();
+    const s = new Scanner(engine, {});
+    await s.runAuto();
+    expect(s.report.profile?.id).toBe('huawei-k3715');
+    expect(sent()).toEqual(expect.arrayContaining(['AT^SYSINFO', 'AT^SYSCFG?', 'AT^HWVER']));
+    const value = (id: string, key: string) => {
+      const item = s.report.items.find((i) => i.id === id)!;
+      return parseResponse(item.parser!, item.response!)?.find((f) => f.key === key)?.value;
+    };
+    expect(value('hw-sysinfo', 'sim')).toBe('invalid for CS and PS');
+    expect(value('hw-syscfg', 'service_domain')).toBe('CS only');
   });
 
   test('profile deny respected in deep and auto', async () => {

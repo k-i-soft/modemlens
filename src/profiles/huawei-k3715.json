@@ -1,0 +1,43 @@
+{
+  "id": "huawei-k3715",
+  "label": "Huawei K3715",
+  "verified": false,
+  "match": {
+    "usb": [
+      "12d1:1001"
+    ],
+    "modelPattern": "\\bK3715\\b"
+  },
+  "commands": [
+    {
+      "id": "hw-sysinfo",
+      "command": "AT^SYSINFO",
+      "category": "network",
+      "phase": "auto",
+      "parser": "hw_sysinfo"
+    },
+    {
+      "id": "hw-syscfg",
+      "command": "AT^SYSCFG?",
+      "category": "bands",
+      "phase": "auto",
+      "parser": "hw_syscfg"
+    },
+    {
+      "id": "hw-hwver",
+      "command": "AT^HWVER",
+      "category": "identity",
+      "phase": "auto",
+      "parser": "hw_hwver"
+    },
+    {
+      "id": "hw-cardmode",
+      "command": "AT^CARDMODE",
+      "category": "sim",
+      "phase": "auto",
+      "needsSim": true,
+      "parser": "hw_cardmode"
+    }
+  ],
+  "denyCommands": []
+}
