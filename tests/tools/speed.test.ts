@@ -5,7 +5,7 @@ import { MODEM_SPEED_URL, parseFree, runModemSpeed } from '../../src/tools/modem
 import { fakeIo } from './fakeIo';
 
 /** A network with a fixed speed and round trip, on a clock that only moves when it says so. */
-function network(downMbps: number, upMbps: number, rttMs: number, holder = 'SWISSCOM Swisscom (Schweiz) AG') {
+function network(downMbps: number, upMbps: number, rttMs: number, holder = 'SWISSCOM Swisscom (Schweiz) AG', meta: Record<string, string> = { 'cf-meta-ip': '192.0.2.10' }) {
   let t = 0;
   const calls: string[] = [];
   const env: SpeedEnv = {
@@ -14,6 +14,7 @@ function network(downMbps: number, upMbps: number, rttMs: number, holder = 'SWIS
       const url = new URL(String(input));
       calls.push(`${init?.method ?? 'GET'} ${url.host}${url.pathname}${url.search}`);
       if (init?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (url.host === 'stat.ripe.net' && url.pathname.includes('network-info')) return new Response(JSON.stringify({ data: { asns: ['3303'], prefix: '192.0.2.0/24' } }));
       if (url.host === 'stat.ripe.net') return new Response(JSON.stringify({ data: { holder } }));
       if (url.pathname === '/__up') {
         t += rttMs + ((init!.body as Uint8Array).byteLength * 8) / (upMbps * 1000);
@@ -21,7 +22,7 @@ function network(downMbps: number, upMbps: number, rttMs: number, holder = 'SWIS
       }
       const bytes = Number(url.searchParams.get('bytes'));
       t += rttMs + (bytes * 8) / (downMbps * 1000);
-      return new Response(new Uint8Array(bytes), { headers: { 'cf-meta-asn': '3303', 'cf-meta-country': 'CH' } });
+      return new Response(new Uint8Array(bytes), { headers: meta });
     }) as typeof fetch,
   };
   return { env, calls };
@@ -37,12 +38,33 @@ describe('browser speed test', () => {
     expect(r.downMbps).toBeGreaterThan(38);
     expect(r.downMbps).toBeLessThan(40);
     expect(r.upMbps).toBeGreaterThan(9);
-    expect(r.network).toEqual({ asn: '3303', country: 'CH', holder: 'SWISSCOM Swisscom (Schweiz) AG' });
+    // Cloudflare sends only the address the test came from, RIPE says which network that is.
+    expect(r.network).toEqual({ asn: '3303', holder: 'SWISSCOM Swisscom (Schweiz) AG' });
     expect(r.bytesDown).toBe(6_100_000);
     expect(r.bytesUp).toBe(1_100_000);
-    expect(calls.at(-1)).toBe('GET stat.ripe.net/data/as-overview/data.json?resource=AS3303');
+    expect(calls.slice(-2)).toEqual(['GET stat.ripe.net/data/network-info/data.json?resource=192.0.2.10', 'GET stat.ripe.net/data/as-overview/data.json?resource=AS3303']);
     expect(calls.filter((c) => c.startsWith('GET speed.cloudflare.com/__down?bytes=0'))).toHaveLength(5);
     expect(calls.every((c) => c.includes('speed.cloudflare.com') || c.includes('stat.ripe.net'))).toBe(true);
+  });
+
+  test('when Cloudflare names the network itself, RIPE is only asked for its name', async () => {
+    const { env, calls } = network(40, 10, 30, undefined, { 'cf-meta-asn': '3303', 'cf-meta-country': 'CH', 'cf-meta-ip': '192.0.2.10' });
+    const r = await runSpeedTest(env, 'light');
+    expect(r.network).toEqual({ asn: '3303', country: 'CH', holder: 'SWISSCOM Swisscom (Schweiz) AG' });
+    expect(calls.filter((c) => c.includes('network-info'))).toHaveLength(0);
+  });
+
+  test('without any hint of the network the result says nothing about it, and RIPE is not asked', async () => {
+    const { env, calls } = network(40, 10, 30, undefined, {});
+    const r = await runSpeedTest(env, 'light');
+    expect(r.network).toEqual({});
+    expect(calls.some((c) => c.includes('stat.ripe.net'))).toBe(false);
+  });
+
+  test('an address that is not one is not looked up', async () => {
+    const { env, calls } = network(40, 10, 30, undefined, { 'cf-meta-ip': '1.2.3.4/../x' });
+    await runSpeedTest(env, 'light');
+    expect(calls.some((c) => c.includes('stat.ripe.net'))).toBe(false);
   });
 
   test('a slow network ends a direction early instead of running for minutes', async () => {

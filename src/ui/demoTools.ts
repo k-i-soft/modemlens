@@ -217,6 +217,10 @@ export function createDemoSpeedEnv(): { fetch: typeof fetch; now: () => number }
   const demoFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = new URL(String(input));
     const signal = init?.signal;
+    if (url.hostname === 'stat.ripe.net' && url.pathname.includes('network-info')) {
+      await sleep(120, signal);
+      return new Response(JSON.stringify({ data: { asns: ['64496'], prefix: '192.0.2.0/24' } }), { headers: { 'content-type': 'application/json' } });
+    }
     if (url.hostname === 'stat.ripe.net') {
       await sleep(120, signal);
       return new Response(JSON.stringify({ data: { holder: 'DEMO-MOBILE Demo Mobile Ltd' } }), { headers: { 'content-type': 'application/json' } });
@@ -228,7 +232,7 @@ export function createDemoSpeedEnv(): { fetch: typeof fetch; now: () => number }
     }
     const bytes = Math.min(Number(url.searchParams.get('bytes') ?? 0), 50_000_000);
     await sleep(28 + 3 * Math.random() + (bytes * 8) / 24000, signal);
-    return new Response(new Uint8Array(bytes), { headers: { 'cf-meta-asn': '64496', 'cf-meta-country': 'XX' } });
+    return new Response(new Uint8Array(bytes), { headers: { 'cf-meta-ip': '192.0.2.10' } });
   };
   return { fetch: demoFetch as typeof fetch, now: () => performance.now() };
 }

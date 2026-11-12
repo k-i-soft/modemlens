@@ -123,7 +123,7 @@ onBeforeUnmount(stop);
       v-if="pending === 'browser'"
       label="Speed test through this computer"
       :sends="browserHosts"
-      :warning="`Downloads and uploads up to ${planMegabytes(size)} MB with Cloudflare's speed test service, then asks RIPE which network the test left through. Both see this computer's IP address. Nothing read from the modem is sent. The test runs through whatever connection this computer uses: switch off Wi-Fi and other networks to measure the modem. On a metered plan this uses data volume.`"
+      :warning="`Downloads and uploads up to ${planMegabytes(size)} MB with Cloudflare's speed test service, then asks RIPE which network the test left through. Both see this computer's IP address. Nothing read from the modem is sent. The test runs through whatever connection this computer uses: switch off Wi-Fi, unplug network cables and stop VPNs to measure the modem. On a metered plan this uses data volume.`"
       :unverified="false"
       @confirm="runBrowser"
       @cancel="pending = null"
@@ -144,7 +144,7 @@ onBeforeUnmount(stop);
       <span v-if="running === 'browser' && live !== undefined" class="mono">{{ formatMbps(live).value }} {{ formatMbps(live).unit }}</span>
     </div>
 
-    <div v-if="browser" class="result speed-result" :data-tone="browser.error && !tiles.length ? 'bad' : match === false ? 'warn' : 'ok'" role="status">
+    <div v-if="browser" class="result speed-result" :data-tone="browser.error && !tiles.length ? 'bad' : match === false || !browser.network.asn ? 'warn' : 'ok'" role="status">
       <p class="speed-caption">Through this computer</p>
       <div v-if="tiles.length" class="speed-tiles">
         <div v-for="t in tiles" :key="t.key" class="speed-tile" :data-grade="t.grade">
@@ -159,8 +159,9 @@ onBeforeUnmount(stop);
         Went out through <strong>{{ browser.network.holder ?? `AS${browser.network.asn}` }}</strong>
         <span class="mono"> AS{{ browser.network.asn }}{{ browser.network.country ? `, ${browser.network.country}` : '' }}</span>
       </p>
+      <p v-else-if="!browser.error" class="speed-match warn">Could not tell which network the test went through, so it may not have used the modem.</p>
       <p v-if="match === true" class="speed-match ok">This matches the modem's operator, {{ operator }}.</p>
-      <p v-else-if="match === false" class="speed-match warn">This does not look like the modem's operator ({{ operator }}). The test probably went through another connection, such as Wi-Fi. Switch that off and test again.</p>
+      <p v-else-if="match === false" class="speed-match warn">This does not look like the modem's operator ({{ operator }}). The test probably went through another connection, such as Wi-Fi or a network cable. Switch that off and test again.</p>
       <p class="reason">Used about {{ usedMb }} MB. Measured with {{ transfers.down }} downloads and {{ transfers.up }} uploads of growing size.</p>
     </div>
 

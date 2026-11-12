@@ -1,7 +1,9 @@
 /**
  * Speed test from the browser, through whatever network the computer uses. Downloads and uploads
  * go to Cloudflare's speed test service, the name of the network they left through comes from
- * RIPEstat. Both are contacted only when the person starts the test.
+ * RIPEstat. Both are contacted only when the person starts the test. Cloudflare names the network
+ * (cf-meta-asn) only sometimes, but always says which address the test came from (cf-meta-ip):
+ * RIPE then says which network that address belongs to. The address itself is never kept or shown.
  */
 
 export const SPEED_HOST = 'https://speed.cloudflare.com';
@@ -87,6 +89,23 @@ export function matchesOperator(holder: string | undefined, operator: string | u
   return own.some((w) => theirs.has(w) || [...theirs].some((t) => t.startsWith(w) || w.startsWith(t)));
 }
 
+/** An IPv4 or IPv6 address as Cloudflare reports it, and nothing else. */
+const ADDRESS = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-f:]{2,39})$/i;
+
+/** The network an address belongs to, from RIPE. */
+export async function lookupAsn(env: SpeedEnv, ip: string, signal?: AbortSignal): Promise<string | undefined> {
+  if (!ADDRESS.test(ip)) return undefined;
+  try {
+    const r = await env.fetch(`${ASN_HOST}/data/network-info/data.json?resource=${encodeURIComponent(ip)}`, { signal, cache: 'no-store' });
+    if (!r.ok) return undefined;
+    const body = (await r.json()) as { data?: { asns?: unknown } };
+    const asn = Array.isArray(body.data?.asns) ? body.data.asns[0] : undefined;
+    return typeof asn === 'string' && /^\d{1,10}$/.test(asn) ? asn : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function lookupHolder(env: SpeedEnv, asn: string, signal?: AbortSignal): Promise<string | undefined> {
   if (!/^\d{1,10}$/.test(asn)) return undefined;
   try {
@@ -103,6 +122,7 @@ export async function lookupHolder(env: SpeedEnv, asn: string, signal?: AbortSig
 export async function runSpeedTest(env: SpeedEnv, size: SpeedSize, progress: Progress = () => undefined, signal?: AbortSignal): Promise<SpeedResult> {
   const out: SpeedResult = { bytesDown: 0, bytesUp: 0, network: {} };
   const plan = PLANS[size];
+  let ip: string | undefined;
   try {
     progress('latency');
     const rtts: number[] = [];
@@ -111,7 +131,13 @@ export async function runSpeedTest(env: SpeedEnv, size: SpeedSize, progress: Pro
       const r = await env.fetch(`${SPEED_HOST}/__down?bytes=0`, { signal, cache: 'no-store' });
       await drain(r);
       rtts.push(env.now() - t0);
-      if (i === 0) out.network = { asn: r.headers.get('cf-meta-asn') ?? undefined, country: r.headers.get('cf-meta-country') ?? undefined };
+      if (i === 0) {
+        const asn = r.headers.get('cf-meta-asn');
+        const country = r.headers.get('cf-meta-country');
+        if (asn) out.network.asn = asn;
+        if (country) out.network.country = country;
+        ip = r.headers.get('cf-meta-ip') ?? undefined;
+      }
     }
     // The first request also opens the connection, so it does not count.
     const steady = rtts.length > 1 ? rtts.slice(1) : rtts;
@@ -145,9 +171,11 @@ export async function runSpeedTest(env: SpeedEnv, size: SpeedSize, progress: Pro
   } catch (e) {
     out.error = failure(e);
   }
-  if (out.network.asn && !signal?.aborted) {
+  if ((out.network.asn || ip) && !signal?.aborted) {
     progress('network');
-    out.network.holder = await lookupHolder(env, out.network.asn, signal);
+    out.network.asn ??= ip ? await lookupAsn(env, ip, signal) : undefined;
+    if (out.network.asn) out.network.holder = await lookupHolder(env, out.network.asn, signal);
+    else delete out.network.asn;
   }
   return out;
 }

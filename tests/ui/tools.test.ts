@@ -229,6 +229,7 @@ describe('Speed test in the demo', () => {
     expect(tiles).toEqual(['Download', 'Upload', 'Latency']);
     expect(s.text()).toContain('DEMO-MOBILE Demo Mobile Ltd');
     expect(s.text()).toContain("This matches the modem's operator, Demo Mobile.");
+    expect(s.text()).not.toContain('Could not tell');
 
     await btn(s, 'Test inside the modem')!.trigger('click');
     await btn(s, 'Confirm')!.trigger('click');
