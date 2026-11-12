@@ -21,7 +21,7 @@ describe('rule 1: only the EC200A on a live connection', () => {
   test.each(ALL)('%s is off for another modem', (id) => {
     const a = check(id, { profileId: 'quectel-ec25' });
     expect(a.enabled).toBe(false);
-    expect(a.reason).toBe('Actions are not available for this modem.');
+    expect(a.reason).toBe('Settings are not available for this modem model. The tools below work on any modem that knows their commands.');
   });
   test.each(ALL)('%s is off without a connection', (id) => {
     expect(check(id, { connected: false }).enabled).toBe(false);

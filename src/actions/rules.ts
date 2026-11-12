@@ -32,7 +32,7 @@ export function sessionBlock(state: ActionsState): string | undefined {
   if (state.imported) return 'This report was imported from a file, so there is no modem to change.';
   if (!state.connected) return 'Actions need a connected modem.';
   if (state.profileId === undefined && state.scanning) return 'Waiting for the automatic scan to identify the modem.';
-  if (actionsFor(state.profileId).length === 0) return 'Actions are not available for this modem.';
+  if (actionsFor(state.profileId).length === 0) return 'Settings are not available for this modem model. The tools below work on any modem that knows their commands.';
   if (state.scanning) return 'A scan is running. Actions wait for it, so that no command lands between the scan commands.';
   return undefined;
 }

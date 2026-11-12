@@ -1,6 +1,8 @@
 import type { Transport, UsbDeviceDescription } from '../transport/types';
 import { NoAtChannelError } from '../transport/webUsb';
 import { classifyUsbDevice } from '../profiles/known-devices';
+import { acceptSubmit, cmgsLength, createDemoTools, toolAnswer } from './demoTools';
+import type { DemoTools } from './demoTools';
 
 /** USB id the demo modem claims. */
 export const DEMO_USB = '2c7c:6005';
@@ -88,10 +90,11 @@ export interface DemoSettings {
   data: boolean;
   radio: string;
   qcfg: Record<'usbnet' | 'nat' | 'nwscanmode' | 'roamservice', string>;
+  tools: DemoTools;
 }
 
 export function createDemoSettings(): DemoSettings {
-  return { pdpType: 'IP', apn: 'demo.apn', data: false, radio: '1', qcfg: { usbnet: '1', nat: '0', nwscanmode: '0', roamservice: '2' } };
+  return { pdpType: 'IP', apn: 'demo.apn', data: false, radio: '1', qcfg: { usbnet: '1', nat: '0', nwscanmode: '0', roamservice: '2' }, tools: createDemoTools() };
 }
 
 const qcfgLine = (name: string, value: string): string =>
@@ -181,10 +184,21 @@ export function createDemoTransport(opts: { delayMs?: number; settings?: DemoSet
     for (const cb of dataCbs) cb(bytes);
   };
 
+  const later = (lines: string[], ms: number): void => void setTimeout(() => emit(`\r\n${lines.join('\r\n')}\r\n`), ms);
+  /** Set while the demo waits for the PDU after AT+CMGS. */
+  let bodyLength: number | undefined;
+
   const answer = (cmd: string): void => {
     const name = cmd.toUpperCase();
+    const submit = cmgsLength(cmd);
+    if (submit !== undefined) {
+      bodyLength = submit;
+      emit('\r\n> ');
+      return;
+    }
     const radioOff = settings.radio === '1' ? undefined : RADIO_OFF_ANSWERS[name];
-    const lines = settingsAnswer(cmd, settings, restart) ?? radioOff ?? (name === 'AT+CESQ' ? demoCesq(Date.now()) : ANSWERS[name] ?? [ERR]);
+    const lines = settingsAnswer(cmd, settings, restart) ?? toolAnswer(cmd, settings.tools, later) ?? radioOff
+      ?? (name === 'AT+CESQ' ? demoCesq(Date.now()) : ANSWERS[name] ?? [ERR]);
     emit(`\r\n${lines.join('\r\n')}\r\n`);
   };
 
@@ -194,6 +208,16 @@ export function createDemoTransport(opts: { delayMs?: number; settings?: DemoSet
     async write(data) {
       if (closed) throw new Error('transport closed');
       pending += String.fromCharCode(...data);
+      if (bodyLength !== undefined) {
+        const end = pending.search(/[\x1a\x1b]/);
+        if (end < 0) return;
+        const body = pending.slice(0, end).trim();
+        const cancelled = pending[end] === '\x1b';
+        pending = pending.slice(end + 1);
+        const length = bodyLength;
+        bodyLength = undefined;
+        setTimeout(() => emit(`\r\n${(cancelled ? ['OK'] : acceptSubmit(settings.tools, body, length)).join('\r\n')}\r\n`), Math.max(delayMs, 400));
+      }
       let idx: number;
       while ((idx = pending.search(/[\r\n]/)) >= 0) {
         const cmd = pending.slice(0, idx).trim();

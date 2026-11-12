@@ -17,6 +17,9 @@ import ToggleSwitch from './ui/ToggleSwitch.vue';
 import HelpTip from './ui/HelpTip.vue';
 import TerminalPane from './ui/TerminalPane.vue';
 import ActionsPanel from './ui/ActionsPanel.vue';
+import ToolsPanel from './ui/tools/ToolsPanel.vue';
+import { createListener } from './tools/types';
+import type { ToolIo } from './tools/types';
 import AutoRefresh from './ui/AutoRefresh.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
 import LandingContent from './ui/LandingContent.vue';
@@ -482,6 +485,12 @@ function actionSend(command: string, opts: SendOptions = {}): Promise<AtResponse
   return actionEngine.send(command, opts);
 }
 
+/** The tools share the action lock: they send only while they hold the modem. */
+const toolIo: ToolIo = {
+  send: actionSend,
+  listen: (accept) => createListener((cb) => (actionEngine ? actionEngine.onUrc(cb) : () => undefined), accept),
+};
+
 /** The modem is on its way down: the session ends here, and the reconnect buttons take over. */
 function onRestarted(): void {
   restarting.value = true;
@@ -707,6 +716,20 @@ onBeforeUnmount(() => {
         :end="endAction"
         @restarted="onRestarted"
         @confirmed="refreshAfterAction"
+      />
+      <ToolsPanel
+        :key="`tools-${importCount}`"
+        v-show="tab === 'actions'"
+        :active="tab === 'actions'"
+        :connected="connected"
+        :imported="imported !== null"
+        :scanning="running"
+        :profile-id="reportMeta.profile?.id"
+        :hide-identifiers="hideIdentifiers"
+        :io="toolIo"
+        :begin="beginAction"
+        :end="endAction"
+        @changed="refreshAfterAction"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>
     </template>
