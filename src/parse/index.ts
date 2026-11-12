@@ -4,6 +4,7 @@ import type { Field, Parser } from './standard';
 import { QUECTEL_PARSERS } from './quectel';
 import { WEB_PARSERS } from './web';
 import { HUAWEI_PARSERS } from './huawei';
+import { SIMCOM_PARSERS } from './simcom';
 
 export type { Field, Sensitivity } from './standard';
 export { buildSummary, NO_SIM } from './summary';
@@ -11,7 +12,7 @@ export { LIMITED_ACCESS } from './standard';
 export { WEB_PARSER_NAMES } from './web';
 export type { Summary } from './summary';
 
-const PARSERS: Record<string, Parser> = { ...STANDARD_PARSERS, ...QUECTEL_PARSERS, ...HUAWEI_PARSERS, ...WEB_PARSERS };
+const PARSERS: Record<string, Parser> = { ...STANDARD_PARSERS, ...QUECTEL_PARSERS, ...HUAWEI_PARSERS, ...SIMCOM_PARSERS, ...WEB_PARSERS };
 
 export const KNOWN_PARSERS: string[] = Object.keys(PARSERS);
 

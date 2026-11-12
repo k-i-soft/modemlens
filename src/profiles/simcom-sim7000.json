@@ -1,0 +1,43 @@
+{
+  "id": "simcom-sim7000",
+  "label": "SIMCom SIM7000",
+  "verified": false,
+  "match": {
+    "modelPattern": "\\bSIM7000"
+  },
+  "commands": [
+    {
+      "id": "sim-cpsi",
+      "command": "AT+CPSI?",
+      "category": "signal",
+      "phase": "auto",
+      "parser": "sim_cpsi"
+    },
+    {
+      "id": "sim-cnmp",
+      "command": "AT+CNMP?",
+      "category": "network",
+      "phase": "auto",
+      "parser": "sim_cnmp"
+    },
+    {
+      "id": "sim-cmnb",
+      "command": "AT+CMNB?",
+      "category": "network",
+      "phase": "auto",
+      "parser": "sim_cmnb"
+    },
+    {
+      "id": "sim-cbandcfg",
+      "command": "AT+CBANDCFG?",
+      "category": "bands",
+      "phase": "auto",
+      "parser": "sim_cbandcfg"
+    }
+  ],
+  "denyCommands": [
+    "+CPUC",
+    "+SDEBUG",
+    "+CDAM"
+  ]
+}

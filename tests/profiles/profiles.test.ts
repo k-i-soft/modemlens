@@ -28,6 +28,23 @@ test('the K3715 profile reads system info, settings, hardware version and card t
   ]);
 });
 
+test('a SIMCom SIM7000 gets its profile by model only: 1e0e:9001 is shared by many SIMCom modules', () => {
+  expect(matchProfile({ model: 'SIM7000E R1529\nSIMCOM_SIM7000E' })?.id).toBe('simcom-sim7000');
+  expect(matchProfile({ usb: '1e0e:9001' })).toBeUndefined();
+  expect(matchProfile({ usb: '1e0e:9001', model: 'SIM7600E-H' })).toBeUndefined();
+});
+test('the SIM7000 profile reads cell, mode and bands, and keeps the deep scan off what hung it', () => {
+  const p = PROFILES.find((x) => x.id === 'simcom-sim7000')!;
+  expect(p.verified).toBe(false);
+  expect(p.commands.map((e) => [e.command, e.parser, e.phase])).toEqual([
+    ['AT+CPSI?', 'sim_cpsi', 'auto'],
+    ['AT+CNMP?', 'sim_cnmp', 'auto'],
+    ['AT+CMNB?', 'sim_cmnb', 'auto'],
+    ['AT+CBANDCFG?', 'sim_cbandcfg', 'auto'],
+  ]);
+  expect(p.denyCommands).toEqual(expect.arrayContaining(['+CPUC', '+SDEBUG', '+CDAM']));
+});
+
 // same read-only invariant as the standard catalog, plus the Quectel and Huawei read forms
 test('every auto profile command is a read form', () => {
   const re = /^AT(\+\w+\?|\+\w+=\?|\+Q(CCID|SPN|NWINFO|CSQ|TEMP|GMR)|\+QENG="(servingcell|neighbourcell)"|\+QCFG="(usbnet|band|nat)"|\^(SYSINFO|HWVER|CARDMODE)|\^SYSCFG\?)$/;

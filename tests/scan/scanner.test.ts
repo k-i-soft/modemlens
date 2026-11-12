@@ -266,6 +266,20 @@ describe('Scanner', () => {
     expect(value('hw-syscfg', 'service_domain')).toBe('CS only');
   });
 
+  test('a SIM7000 gets its profile from ATI, and the deep scan leaves out +CPUC', async () => {
+    t.reply('ATI', ['\r\nSIM7000E R1529\r\n\r\nOK\r\n']);
+    t.reply('AT+CPSI?', ['\r\n+CPSI: LTE CAT-M1,Online,228-01,0x1A2B,12345678,123,EUTRAN-BAND20,6300,3,3,-10,-95,-65,15\r\n\r\nOK\r\n']);
+    clac('+CPUC', '+QOKAY');
+    defaultError();
+    const s = new Scanner(engine, { usb: '1e0e:9001' });
+    await s.runAuto();
+    expect(s.report.profile?.id).toBe('simcom-sim7000');
+    expect(sent()).toEqual(expect.arrayContaining(['AT+CPSI?', 'AT+CNMP?', 'AT+CMNB?', 'AT+CBANDCFG?']));
+    const before = t.written.length;
+    await s.runDeep();
+    expect(sent().slice(before)).toEqual(['AT+QOKAY=?']);
+  });
+
   test('profile deny respected in deep and auto', async () => {
     const base = PROFILES.find((p) => p.id === 'quectel-ec200a')!;
     const profile = {

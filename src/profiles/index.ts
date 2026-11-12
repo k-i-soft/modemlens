@@ -4,8 +4,9 @@ import eg800 from './quectel-eg800.json';
 import ec25 from './quectel-ec25.json';
 import asr4e3c from './asr-1286-4e3c.json';
 import k3715 from './huawei-k3715.json';
+import sim7000 from './simcom-sim7000.json';
 
-export const PROFILES: Profile[] = [ec200a, eg800, ec25, asr4e3c, k3715] as Profile[];
+export const PROFILES: Profile[] = [ec200a, eg800, ec25, asr4e3c, k3715, sim7000] as Profile[];
 
 /** USB id ("vvvv:pppp") is tried first, then the model string. */
 export function matchProfile(input: { usb?: string; model?: string }): Profile | undefined {
