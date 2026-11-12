@@ -70,13 +70,53 @@ const description = computed(() =>
   latest.value ? `Data speed over the last minute, now ${speed(latest.value.downMbps)} down and ${speed(latest.value.upMbps)} up` : 'Data speed over the last minute, no reading yet',
 );
 const recent = computed(() => allRates.value.slice(-10).reverse());
+
+type Key = 'downMbps' | 'upMbps';
+/** Highest and lowest speed of the minute shown, per direction, with the reading of the peak. */
+const extremes = computed(() => {
+  const shown = allRates.value.filter((r) => lastAt.value - r.at <= WINDOW_MS);
+  if (shown.length === 0) return null;
+  const of = (key: Key) => {
+    let hi = shown[0];
+    let lo = shown[0];
+    for (const r of shown) {
+      if (r[key] > hi[key]) hi = r;
+      if (r[key] < lo[key]) lo = r;
+    }
+    return { max: hi[key], min: lo[key], peak: hi };
+  };
+  return { down: of('downMbps'), up: of('upMbps') };
+});
+/** The peak of each direction marked on the chart, labelled with its value. */
+const peaks = computed(() => {
+  const e = extremes.value;
+  if (!e) return [];
+  const leftOf = (k: 'down' | 'up') => (xOf(e[k].peak.at) / WIDTH) * 100;
+  // Two peaks close together: the lower label goes beside its dot instead of above it, into the other line.
+  const close = Math.abs(leftOf('down') - leftOf('up')) < 20;
+  const lower = e.down.max >= e.up.max ? 'up' : 'down';
+  return (['down', 'up'] as const)
+    .filter((k) => e[k].max > 0)
+    .map((k) => {
+      const key: Key = k === 'down' ? 'downMbps' : 'upMbps';
+      const left = leftOf(k);
+      const top = (yOf(e[k].peak[key]) / HEIGHT) * 100;
+      return { k, text: speed(e[k].peak[key]), dot: { left: `${left}%`, top: `${top}%` }, flip: left > 80, side: close && k === lower };
+    });
+});
 </script>
 
 <template>
     <div class="traffic-live">
       <div class="traffic-now">
-        <span class="traffic-pair"><span class="traffic-key" data-series="down"><span class="swatch" />Download</span><span class="traffic-num">{{ latest ? speed(latest.downMbps) : '...' }}</span></span>
-        <span class="traffic-pair"><span class="traffic-key" data-series="up"><span class="swatch" />Upload</span><span class="traffic-num">{{ latest ? speed(latest.upMbps) : '...' }}</span></span>
+        <span class="traffic-pair">
+          <span class="traffic-key" data-series="down"><span class="swatch" />Download</span><span class="traffic-num">{{ latest ? speed(latest.downMbps) : '...' }}</span>
+          <span v-if="extremes" class="traffic-range">max {{ speed(extremes.down.max) }}, min {{ speed(extremes.down.min) }}</span>
+        </span>
+        <span class="traffic-pair">
+          <span class="traffic-key" data-series="up"><span class="swatch" />Upload</span><span class="traffic-num">{{ latest ? speed(latest.upMbps) : '...' }}</span>
+          <span v-if="extremes" class="traffic-range">max {{ speed(extremes.up.max) }}, min {{ speed(extremes.up.min) }}</span>
+        </span>
       </div>
       <div class="traffic-plot" role="img" :aria-label="description" @pointermove="onMove" @pointerleave="hover = null">
         <svg :viewBox="`0 0 ${WIDTH} ${HEIGHT}`" preserveAspectRatio="none" aria-hidden="true">
@@ -91,6 +131,9 @@ const recent = computed(() => allRates.value.slice(-10).reverse());
         <span class="tick" aria-hidden="true">{{ topText }}</span>
         <span class="axis-left" aria-hidden="true">60 s ago</span>
         <span class="axis-right" aria-hidden="true">now</span>
+        <span v-for="pk in peaks" :key="pk.k" class="peak" :data-series="pk.k" :style="pk.dot" aria-hidden="true">
+          <span class="peak-label" :class="{ flip: pk.flip, side: pk.side }">max {{ pk.text }}</span>
+        </span>
         <template v-if="hovered">
           <span class="cross" :style="hovered.style" aria-hidden="true" />
           <span class="tip" :style="hovered.tipStyle" aria-hidden="true">
@@ -116,7 +159,13 @@ const recent = computed(() => allRates.value.slice(-10).reverse());
 <style scoped>
 .traffic-live { display: grid; gap: 0.6rem; }
 .traffic-now { display: flex; flex-wrap: wrap; gap: 0.3rem 1.6rem; }
-.traffic-pair { display: inline-flex; align-items: baseline; gap: 0.6rem; white-space: nowrap; }
+.traffic-pair { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0.1rem 0.6rem; }
+.traffic-key, .traffic-num, .traffic-range { white-space: nowrap; }
+.traffic-range { font-family: var(--font-mono); font-size: 0.75rem; color: var(--ink-3); }
+.peak { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; background: var(--series); border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.peak-label { position: absolute; bottom: 0.7rem; left: 50%; padding: 0 0.2rem; transform: translateX(-50%); font-family: var(--font-mono); font-size: 0.64rem; color: var(--ink-2); white-space: nowrap; background: var(--surface); border-radius: 3px; }
+.peak-label.flip { left: auto; right: 0; transform: none; }
+.peak-label.side { bottom: auto; top: 50%; left: auto; right: 0.8rem; transform: translateY(-50%); }
 .traffic-key { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--ink-3); }
 .traffic-num { font-size: 1.35rem; font-weight: 600; letter-spacing: -0.01em; }
 [data-series='down'] { --series: var(--series-down); }

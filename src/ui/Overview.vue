@@ -51,9 +51,9 @@ const hasDevice = computed(() => Object.keys(props.dashboard.device).length > 0)
 
     <div class="columns">
       <div class="column wide">
+        <TrafficPanel v-if="traffic" v-bind="traffic" />
         <NetworkPanel v-if="dashboard.cell.length" :rows="dashboard.cell" />
         <DataPanel v-if="dashboard.data.length || dashboard.hostConnection !== undefined" :contexts="dashboard.data" :host-connection="dashboard.hostConnection" />
-        <TrafficPanel v-if="traffic" v-bind="traffic" />
         <NeighbourBars v-if="dashboard.neighbours.length" :neighbours="dashboard.neighbours" />
       </div>
       <div class="column">

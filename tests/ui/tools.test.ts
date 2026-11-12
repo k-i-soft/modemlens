@@ -153,7 +153,8 @@ describe('Tools in the Actions tab', () => {
     const panel = () => w.find('section[aria-label="Data traffic"]');
     await until(() => panel().exists() && panel().findAll('.trace').length >= 2, 6000);
     expect(panel().find('.totals').text()).toMatch(/Received[\d.]+ MBSent[\d.]+ kBTogether[\d.]+ MB/);
-    expect(panel().find('.traffic-now').text()).toMatch(/Download[\d.]+ [km]?bit\/sUpload/);
+    expect(panel().find('.traffic-now').text()).toMatch(/Download[\d.]+ [km]?bit\/s\s*max [\d.]+ [km]?bit\/s, min [\d.]+ [km]?bit\/s\s*Upload/);
+    expect(panel().findAll('.peak').length).toBeGreaterThan(0);
     expect(panel().find('.traffic-plot').attributes('aria-label')).toContain('now');
     const reads = sent().filter((c) => c.startsWith('AT+QGDCNT'));
     expect(new Set(reads)).toEqual(new Set(['AT+QGDCNT?']));
