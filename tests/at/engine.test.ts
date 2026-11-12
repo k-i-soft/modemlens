@@ -104,6 +104,23 @@ describe('AtEngine', () => {
     expect(urcs).toEqual(['+CREG: 1']);
   });
 
+  // A SIM7000E that has just started sends these into the first answer (captured 2026-11-12).
+  test('SIMCom start and time messages are URCs, not part of an answer', async () => {
+    const urcs: string[] = [];
+    engine.onUrc((l) => urcs.push(l));
+    t.reply('ATI', ['\r\nSMS Ready\r\nDST: 0\r\n*PSUTTZ: 26/11/12,13:34:57","+04",0\r\nSIM7000E R1529\r\n\r\nOK\r\n']);
+    const r = await engine.send('ATI');
+    expect(r.lines).toEqual(['SIM7000E R1529']);
+    expect(urcs).toEqual(['SMS Ready', 'DST: 0', '*PSUTTZ: 26/11/12,13:34:57","+04",0']);
+  });
+
+  test.each(['Call Ready', 'PB DONE', '*PSNWID: "228","01"', '+CTZV: +04,0', '+CTZE: +04,0,"2026/11/12,13:34:57"'])('%s is a URC', async (line) => {
+    const urcs: string[] = [];
+    engine.onUrc((l) => urcs.push(l));
+    t.emit(`\r\n${line}\r\n`);
+    expect(urcs).toEqual([line]);
+  });
+
   test('keeps own prefix during command', async () => {
     const urcs: string[] = [];
     engine.onUrc((l) => urcs.push(l));

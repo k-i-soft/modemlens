@@ -74,6 +74,9 @@ function identityFromCommand(command: string): 'manufacturer' | 'model' | 'firmw
 
 const IDENTITY_LABELS = { manufacturer: 'Manufacturer', model: 'Model', firmware: 'Firmware' } as const;
 
+/** Start and network-time messages a modem can mix into an ATI answer; the engine treats them as URCs since 2026-11-12. */
+const START_MESSAGE = /^(RDY|SMS Ready|Call Ready|PB DONE)$|^(DST|\*PSUTTZ|\*PSNWID|\+CTZV|\+CTZE|\+CPIN|\+CFUN):/i;
+
 const identity: Parser = (r) => {
   const kind = identityFromCommand(r.command);
   if (!kind) return [];
@@ -85,6 +88,7 @@ const identity: Parser = (r) => {
   const out: Field[] = [];
   const rest: string[] = [];
   for (const l of lines) {
+    if (START_MESSAGE.test(l)) continue;
     const rev = /^Revision:\s*(.+)$/i.exec(l);
     const imei = /^IMEI:\s*(.+)$/i.exec(l);
     if (rev) out.push(field('firmware', IDENTITY_LABELS.firmware, rev[1].trim()));
@@ -391,7 +395,72 @@ const copsScan: Parser = (r) => {
   return out;
 };
 
+// ---------- power saving (3GPP TS 27.007 +CPSMS and +CEDRXS, timer coding from TS 24.008) ----------
+
+const plural = (n: number, unit: string): string => `${n} ${unit}`;
+
+/** GPRS Timer 3, the requested periodic update (T3412 extended): bits 8 to 6 are the unit, 5 to 1 the value. */
+function gprsTimer3(bits: string): string | undefined {
+  if (!/^[01]{8}$/.test(bits)) return undefined;
+  const unit = bits.slice(0, 3);
+  const n = parseInt(bits.slice(3), 2);
+  switch (unit) {
+    case '000': return plural(n * 10, 'min');
+    case '001': return plural(n, 'h');
+    case '010': return plural(n * 10, 'h');
+    case '011': return plural(n * 2, 's');
+    case '100': return plural(n * 30, 's');
+    case '101': return plural(n, 'min');
+    case '110': return plural(n * 320, 'h');
+    default: return 'deactivated';
+  }
+}
+
+/** GPRS Timer 2, the requested active time (T3324): other units count as minutes, as the standard says. */
+function gprsTimer2(bits: string): string | undefined {
+  if (!/^[01]{8}$/.test(bits)) return undefined;
+  const unit = bits.slice(0, 3);
+  const n = parseInt(bits.slice(3), 2);
+  if (unit === '111') return 'deactivated';
+  if (unit === '000') return plural(n * 2, 's');
+  if (unit === '010') return plural(n * 6, 'min');
+  return plural(n, 'min');
+}
+
+/** "+CPSMS: <mode>,,,<periodic update>,<active time>". The timers only mean something while PSM is on. */
+const cpsms: Parser = (r) => {
+  const a = prefixed(r.lines, 'CPSMS')[0];
+  if (a === undefined) return [];
+  const args = splitArgs(a);
+  if (args[0] === '0') return [field('psm', 'Power saving (PSM)', 'off')];
+  if (args[0] !== '1') return [];
+  const out: Field[] = [field('psm', 'Power saving (PSM)', 'on')];
+  const tau = gprsTimer3(args[3] ?? '');
+  const active = gprsTimer2(args[4] ?? '');
+  if (tau) out.push(field('psm_periodic_update', 'PSM periodic update (requested)', tau));
+  if (active) out.push(field('psm_active_time', 'PSM active time (requested)', active));
+  return out;
+};
+
+/** eDRX cycle lengths in seconds for LTE-M (WB-S1); NB-IoT (NB-S1) knows only some of them. */
+const EDRX_CYCLE_S = [5.12, 10.24, 20.48, 40.96, 61.44, 81.92, 102.4, 122.88, 143.36, 163.84, 327.68, 655.36, 1310.72, 2621.44, 5242.88, 10485.76];
+const NB_EDRX_CODES = new Set([2, 3, 5, 9, 10, 11, 12, 13, 14, 15]);
+const seconds = (s: number): string => (s >= 60 ? `${s} s (${(s / 60).toFixed(1)} min)` : `${s} s`);
+
+/** "+CEDRXS: <AcT>,"<cycle bits>"" per access technology. GSM and UMTS have other tables and are left out. */
+const cedrxs: Parser = (r) => {
+  const out: Field[] = [];
+  for (const a of prefixed(r.lines, 'CEDRXS')) {
+    const [act, bits] = splitArgs(a);
+    if (!/^[01]{4}$/.test(bits ?? '')) continue;
+    const code = parseInt(bits, 2);
+    if (act === '4') out.push(field('edrx_ltem', 'eDRX, LTE-M (requested)', seconds(EDRX_CYCLE_S[code])));
+    else if (act === '5' && NB_EDRX_CODES.has(code)) out.push(field('edrx_nbiot', 'eDRX, NB-IoT (requested)', seconds(EDRX_CYCLE_S[code])));
+  }
+  return out;
+};
+
 export const STANDARD_PARSERS: Record<string, Parser> = {
   identity, cgsn, cimi, cpin, clck, cops, creg, csq, cesq, cgdcont, cgact, cgpaddr, crsm_iccid: crsmIccid,
-  cfun, cgatt, cmee, cscs, clvl, ctzu, clip, cclk, csca, cops_scan: copsScan,
+  cfun, cgatt, cmee, cscs, clvl, ctzu, clip, cclk, csca, cops_scan: copsScan, cpsms, cedrxs,
 };

@@ -13,6 +13,8 @@ export interface AtResponse {
 const URC_PREFIXES = [
   'RDY', 'RING', '+CREG:', '+CGREG:', '+CEREG:', '+C5GREG:', '+CGEV:', '+CMTI:',
   '+CUSD:', '+CLIP:', '+QIND:', '+QUSIM:', '+CPIN:', '+CFUN:',
+  // SIMCom after a start and on network time: they land in the first answer otherwise (SIM7000E, 2026-11-12).
+  'SMS Ready', 'Call Ready', 'PB DONE', 'DST:', '*PSUTTZ:', '*PSNWID:', '+CTZV:', '+CTZE:',
 ];
 
 const DEFAULT_TIMEOUT_MS = 5000;
