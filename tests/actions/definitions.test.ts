@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 import type { AtResponse } from '../../src/at/engine';
 import { ASR_ACTIONS, ASR_PROFILE_ID } from '../../src/actions/asr';
 import { actionsFor } from '../../src/actions/profiles';
+import { SIM7000_ACTIONS, SIM7000_PROFILE_ID, parseEdrx } from '../../src/actions/sim7000';
 import { ACTIONS, SIM_READ, actionById, apnProblem, apnValue, buildWrite, isVerified, valueLabel } from '../../src/actions/ec200a';
 
 const action = (id: string) => actionById(id)!;
@@ -25,6 +26,8 @@ describe('write commands', () => {
     ['network-mode', '3', 'AT+QCFG="nwscanmode",3'],
     ['roaming', '1', 'AT+QCFG="roamservice",1,1'],
     ['roaming', '2', 'AT+QCFG="roamservice",2,1'],
+    ['time-zone', '1', 'AT+CTZU=1'],
+    ['time-zone', '0', 'AT+CTZU=0'],
     ['restart', 'restart', 'AT+CFUN=1,1'],
     ['apn', apnValue('IP', 'internet'), 'AT+CGDCONT=1,"IP","internet"'],
     ['apn', apnValue('IPV4V6', 'a.b-c'), 'AT+CGDCONT=1,"IPV4V6","a.b-c"'],
@@ -80,12 +83,14 @@ describe('read parsers', () => {
   test('read commands are exactly the read forms', () => {
     expect(ACTIONS.flatMap((a) => (a.read ? [a.read.command] : []))).toEqual([
       'AT+CGDCONT?', 'AT+QNETDEVCTL?', 'AT+CFUN?',
-      'AT+QCFG="usbnet"', 'AT+QCFG="nat"', 'AT+QCFG="nwscanmode"', 'AT+QCFG="roamservice"',
+      'AT+QCFG="usbnet"', 'AT+QCFG="nat"', 'AT+QCFG="nwscanmode"', 'AT+QCFG="roamservice"', 'AT+CTZU?',
     ]);
     expect(SIM_READ.command).toBe('AT+CPIN?');
   });
 
   test.each([
+    ['time-zone', ['+CTZU: 1'], '1'],
+    ['time-zone', ['+CTZU: 0'], '0'],
     ['data', ['+QNETDEVCTL: 0,0,0,0'], 'off'],
     ['data', ['+QNETDEVCTL: 1,1,1,1'], 'on'],
     ['data', ['+qnetdevctl:1, 1, 1, 0'], 'off'],
@@ -158,6 +163,7 @@ describe('what the definitions promise', () => {
 describe('actions per profile', () => {
   test('the EC200A keeps its set', () => expect(actionsFor('quectel-ec200a')).toBe(ACTIONS));
   test('the ASR stick has its own', () => expect(actionsFor(ASR_PROFILE_ID)).toBe(ASR_ACTIONS));
+  test('the SIM7000 has its own', () => expect(actionsFor(SIM7000_PROFILE_ID)).toBe(SIM7000_ACTIONS));
   test.each(['quectel-ec25', 'quectel-eg800', 'nothing', undefined])('%s has none', (id) => {
     expect(actionsFor(id)).toEqual([]);
   });
@@ -228,12 +234,79 @@ describe('ASR definitions', () => {
   });
 });
 
+describe('SIM7000 definitions', () => {
+  const sim = (id: string) => SIM7000_ACTIONS.find((a) => a.id === id)!;
+
+  test('only what this model has', () => {
+    expect(SIM7000_ACTIONS.map((a) => a.id)).toEqual(['apn', 'app-data', 'radio', 'network-mode', 'lte-mode', 'psm', 'edrx', 'restart']);
+  });
+
+  test.each([
+    ['apn', apnValue('IP', 'm2m.demo'), 'AT+CGDCONT=1,"IP","m2m.demo"'],
+    ['app-data', '1', 'AT+CNACT=1'],
+    ['app-data', '0', 'AT+CNACT=0'],
+    ['radio', '4', 'AT+CFUN=4'],
+    ['network-mode', '2', 'AT+CNMP=2'],
+    ['network-mode', '13', 'AT+CNMP=13'],
+    ['network-mode', '38', 'AT+CNMP=38'],
+    ['network-mode', '51', 'AT+CNMP=51'],
+    ['lte-mode', '1', 'AT+CMNB=1'],
+    ['lte-mode', '2', 'AT+CMNB=2'],
+    ['lte-mode', '3', 'AT+CMNB=3'],
+    ['psm', '0', 'AT+CPSMS=0'],
+    ['psm', '1', 'AT+CPSMS=1'],
+    ['edrx', 'off', 'AT+CEDRXS=0,4'],
+    ['edrx', '0010', 'AT+CEDRXS=1,4,"0010"'],
+    ['restart', 'restart', 'AT+CFUN=1,1'],
+  ])('%s %s writes %s', (id, value, command) => {
+    expect(buildWrite(sim(id), value)).toBe(command);
+  });
+
+  test.each([['network-mode', '3'], ['lte-mode', '0'], ['psm', '2'], ['edrx', '0101'], ['app-data', '2']])('%s has no write for %s', (id, value) => {
+    expect(buildWrite(sim(id), value)).toBeNull();
+  });
+
+  test('every value takes the second confirmation', () => {
+    for (const a of SIM7000_ACTIONS) for (const c of a.choices) expect(isVerified(a, c.value), `${a.id} ${c.value}`).toBe(false);
+  });
+
+  test('switching PSM on warns loudly that the modem stops answering', () => {
+    const on = sim('psm').choices.find((c) => c.value === '1')!;
+    expect(on.strongWarning).toBe(true);
+    expect(on.warning).toContain('stops answering');
+  });
+
+  // The answers of a real SIM7000E (1529B02SIM7000E).
+  test.each([
+    ['network-mode', ['+CNMP: 38'], '38'],
+    ['lte-mode', ['+CMNB: 1'], '1'],
+    ['psm', ['+CPSMS: 0,,,"01100000","00000000"'], '0'],
+    ['edrx', ['+CEDRXS: 3,"0000"', '+CEDRXS: 4,"0010"'], '0010'],
+    ['edrx', ['+CEDRXS: 5,"0010"'], 'off'],
+    ['edrx', [], 'off'],
+    ['app-data', ['+CNACT: 1,"10.0.0.2"'], '1'],
+    ['app-data', ['+CNACT: 0,"0.0.0.0"'], '0'],
+    ['radio', ['+CFUN: 1'], '1'],
+  ])('%s: %j reads as %j', (id, lines, value) => {
+    expect(sim(id).read!.parse(ok(...lines))).toBe(value);
+  });
+
+  test('an error is no reading', () => {
+    expect(parseEdrx({ command: 'x', status: 'error', lines: [], durationMs: 1 })).toBeNull();
+  });
+
+  test('a cycle the modem chose itself is named, not hidden', () => {
+    expect(valueLabel(sim('edrx'), '0101')).toBe('Value 0101');
+    expect(valueLabel(sim('edrx'), '0010')).toBe('On, 20.48 s');
+  });
+});
+
 describe('never exposed', () => {
-  const FORBIDDEN = ['band', 'usbid', 'usbmanufacturer', 'usbnetmac', 'imeilock', 'fota', 'poweroffdefault'];
+  const FORBIDDEN = ['band', 'usbid', 'usbmanufacturer', 'usbnetmac', 'imeilock', 'fota', 'poweroffdefault', 'qnwlock', 'prtpara', 'mbncfg', 'cbandcfg'];
   const dir = 'src/actions';
   const sources = readdirSync(dir).map((f) => readFileSync(join(dir, f), 'utf8'));
   const texts = [
-    ...[...ACTIONS, ...ASR_ACTIONS].flatMap((a) => [a.label, a.summary, a.warning, a.read?.command ?? '', ...a.choices.flatMap((c) => [c.label, c.command, c.warning ?? ''])]),
+    ...[...ACTIONS, ...ASR_ACTIONS, ...SIM7000_ACTIONS].flatMap((a) => [a.label, a.summary, a.warning, a.read?.command ?? '', ...a.choices.flatMap((c) => [c.label, c.command, c.warning ?? ''])]),
     ...sources,
   ].map((t) => t.toLowerCase());
 

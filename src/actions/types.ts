@@ -1,6 +1,8 @@
 import type { AtResponse } from '../at/engine';
 
-export type ActionId = 'apn' | 'data' | 'data-context' | 'radio' | 'usb-mode' | 'nat' | 'network-mode' | 'roaming' | 'restart';
+export type ActionId =
+  | 'apn' | 'data' | 'data-context' | 'app-data' | 'radio' | 'usb-mode' | 'nat' | 'network-mode' | 'lte-mode'
+  | 'psm' | 'edrx' | 'roaming' | 'time-zone' | 'restart';
 
 /** How an action is operated: pick from fixed values, type an APN, or just trigger it. */
 export type ActionKind = 'choice' | 'apn' | 'trigger';

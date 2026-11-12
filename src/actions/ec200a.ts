@@ -184,6 +184,20 @@ export const ACTIONS: ActionDefinition[] = [
     warning: 'Roaming can cost money, depending on the SIM contract.',
   },
   {
+    id: 'time-zone',
+    kind: 'choice',
+    label: 'Automatic time zone',
+    summary: 'Whether the modem takes its clock from the network.',
+    read: { command: 'AT+CTZU?', parse: (r) => capture(r, /^\+CTZU:\s*(\d+)/i) },
+    choices: [
+      { value: '1', label: 'On', command: 'AT+CTZU=1' },
+      { value: '0', label: 'Off', command: 'AT+CTZU=0', warning: 'The modem clock is no longer corrected by the network.' },
+    ],
+    needsRestart: false,
+    verified: false,
+    warning: '',
+  },
+  {
     id: 'restart',
     kind: 'trigger',
     label: 'Restart',

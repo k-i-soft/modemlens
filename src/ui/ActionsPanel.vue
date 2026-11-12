@@ -43,7 +43,8 @@ interface Pending {
 }
 
 const ACTION_HELP: Record<ActionId, GlossaryTerm> = {
-  apn: 'APN', data: 'Host connection', 'data-context': 'Data connection', radio: 'Radio', 'usb-mode': 'USB mode', nat: 'NAT', 'network-mode': 'Network mode', roaming: 'Roaming', restart: 'Restart',
+  apn: 'APN', data: 'Host connection', 'data-context': 'Data connection', 'app-data': 'Modem data', radio: 'Radio', 'usb-mode': 'USB mode', nat: 'NAT',
+  'network-mode': 'Network mode', 'lte-mode': 'LTE mode', psm: 'PSM', edrx: 'eDRX', roaming: 'Roaming', 'time-zone': 'Automatic time zone', restart: 'Restart',
 };
 /** Allowed values that have an explanation of their own, by the action definitions' labels. */
 const CHOICE_HELP = new Map<string, GlossaryTerm>([
