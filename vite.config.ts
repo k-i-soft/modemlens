@@ -60,15 +60,29 @@ export default defineConfig({
       // The manifest lives in public/ and is linked from index.html.
       manifest: false,
       workbox: {
-        // Precache the app shell only. No runtime caching, so the worker never
-        // touches other origins; workbox routes only same-origin GET requests.
+        // Precache the app shell only. The one runtime route below is the page itself, so the worker
+        // never touches other origins; workbox routes only same-origin GET requests.
         globPatterns: ['**/*.{js,css,html,svg,webmanifest}'],
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/404\.html$/, /^\/[^/]+\.txt$/, /^\/sitemap\.xml$/, /^\/og-image\.png$/],
+        // The page itself loads network first: online it is always the newest build. A page served from
+        // the cache kept people on an old build after a deploy. The precached index.html is only the
+        // offline fallback, and with directoryIndex off it never answers "/" on its own.
+        navigateFallback: null,
+        directoryIndex: null,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request, url }) => request.mode === 'navigate' && url.pathname === '/',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'modemlens-page',
+              networkTimeoutSeconds: 4,
+              matchOptions: { ignoreSearch: true },
+              precacheFallback: { fallbackURL: 'index.html' },
+            },
+          },
+        ],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        runtimeCaching: [],
       },
     }),
   ],

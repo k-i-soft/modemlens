@@ -36,6 +36,7 @@ import type { Overlay, RefreshState } from './ui/statusRefresh';
 
 const appVersion = __APP_VERSION__;
 const gitCommit = __GIT_COMMIT__;
+const BUILD = `${appVersion} (${gitCommit})`;
 
 const props = withDefaults(
   defineProps<{
@@ -158,7 +159,7 @@ function snapshot(): ScanReport | null {
   if (imported.value) return imported.value;
   if (!scanner) return null;
   const r = scanner.report;
-  return { ...r, items: [...items.value], commandList: [...r.commandList] };
+  return { ...r, app: BUILD, items: [...items.value], commandList: [...r.commandList] };
 }
 
 function syncMeta(): void {
@@ -231,13 +232,41 @@ const refreshHeld = computed(() => modemBusy.value || terminalBusy.value > 0 || 
 // Synchronous for the same reason as above.
 watch(refreshHeld, (held) => refresher.setPaused(held), { flush: 'sync', immediate: true });
 
+/** A newer build has taken over this page in the background: what runs here is the old one until a reload. */
+const updateReady = ref(false);
+/** Only a page that already had a worker can be out of date; the very first install is no update. */
+let hadWorker = false;
+const serviceWorker = (): ServiceWorkerContainer | undefined =>
+  'serviceWorker' in navigator ? navigator.serviceWorker : undefined;
+
+function onControllerChange(): void {
+  if (hadWorker) updateReady.value = true;
+}
+
+/** A tab that stays open for days would otherwise never learn about a deploy. */
+function checkForUpdate(): void {
+  const sw = serviceWorker();
+  if (!sw?.getRegistration) return;
+  sw.getRegistration().then((r) => r?.update()).catch(() => { /* offline or no worker */ });
+}
+
+function reloadForUpdate(): void {
+  window.location.reload();
+}
+
 function onVisibilityChange(): void {
   pageHidden.value = document.visibilityState === 'hidden';
+  if (!pageHidden.value) checkForUpdate();
 }
 let clockTimer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange);
   clockTimer = setInterval(() => (clock.value = Date.now()), 1000);
+  const sw = serviceWorker();
+  if (sw) {
+    hadWorker = !!sw.controller;
+    sw.addEventListener('controllerchange', onControllerChange);
+  }
 });
 
 function toggleLive(on: boolean): void {
@@ -496,6 +525,7 @@ function exportFull(kind: 'json' | 'md'): void {
 
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange);
+  serviceWorker()?.removeEventListener('controllerchange', onControllerChange);
   clearInterval(clockTimer);
   clearTimeout(progressHoldTimer);
   void teardown();
@@ -577,6 +607,12 @@ onBeforeUnmount(() => {
         <ImportCapture @imported="onImported" />
         <button v-if="demoWeb" type="button" @click="loadDemoCapture">Load the demo capture</button>
       </div>
+    </div>
+
+    <div v-if="updateReady" class="notice update" role="status">
+      <span>A new version of ModemLens is ready. This page still runs {{ BUILD }}.</span>
+      <span v-if="connected"> Reloading ends the connection and clears the results on screen, so export them first if you need them.</span>
+      <button type="button" class="primary" @click="reloadForUpdate">Reload</button>
     </div>
 
     <p v-if="lostReason" class="notice warn" role="alert">
@@ -728,6 +764,8 @@ onBeforeUnmount(() => {
 .link .mono { font-size: 0.8rem; }
 .link .hint { font-size: 0.8rem; }
 .link .disconnect { align-self: center; padding: 0.2rem 0.6rem; font-size: 0.8rem; }
+.notice.update { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; border-color: var(--accent); }
+.notice.update button { padding: 0.25rem 0.75rem; }
 .dot { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 0.45rem; background: var(--tone); border-radius: 50%; }
 
 footer {

@@ -413,6 +413,16 @@ describe('App', () => {
     expect(dl.mock.calls[1][1]).not.toContain('123456789012345');
   });
 
+  test('both exports name the build that made them', async () => {
+    const w = await scanned();
+    await btn(w, 'Export JSON')!.trigger('click');
+    const build = `${__APP_VERSION__} (${__GIT_COMMIT__})`;
+    expect(JSON.parse(dl.mock.calls[0][1]).app).toBe(build);
+    await btn(w, 'Full export')!.trigger('click');
+    await btn(w, 'Download full JSON')!.trigger('click');
+    expect(JSON.parse(dl.mock.calls[1][1]).app).toBe(build);
+  });
+
   test('full export asks confirmation', async () => {
     const w = await scanned();
     await btn(w, 'Full export')!.trigger('click');
@@ -483,6 +493,60 @@ describe('App', () => {
     const w = mountApp({ donateUrl: 'https://example.org/donate' });
     expect(w.find('.landing-content a.donate').attributes('href')).toBe('https://example.org/donate');
     expect(mountApp({ donateUrl: null }).find('.landing-content a.donate').exists()).toBe(false);
+  });
+});
+
+describe('new version notice', () => {
+  /** A stand-in for navigator.serviceWorker: fires controllerchange and counts update checks. */
+  function fakeServiceWorker(controlled: boolean) {
+    const sw = Object.assign(new EventTarget(), {
+      controller: controlled ? {} : null,
+      updates: 0,
+      getRegistration: () => Promise.resolve({ update: () => { sw.updates++; return Promise.resolve(); } }),
+    });
+    Object.defineProperty(navigator, 'serviceWorker', { value: sw, configurable: true });
+    return sw;
+  }
+  afterEach(() => {
+    delete (navigator as any).serviceWorker;
+  });
+
+  test('a new worker taking over an older page asks for a reload', async () => {
+    const sw = fakeServiceWorker(true);
+    const w = mountApp();
+    await flushPromises();
+    expect(w.text()).not.toContain('A new version of ModemLens');
+    sw.dispatchEvent(new Event('controllerchange'));
+    await flushPromises();
+    expect(w.text()).toContain('A new version of ModemLens');
+    expect(btn(w, 'Reload')).toBeTruthy();
+  });
+
+  test('the first install of the worker is no new version', async () => {
+    const sw = fakeServiceWorker(false);
+    const w = mountApp();
+    sw.dispatchEvent(new Event('controllerchange'));
+    await flushPromises();
+    expect(w.text()).not.toContain('A new version of ModemLens');
+  });
+
+  test('a reload during a session warns that it ends the connection', async () => {
+    const sw = fakeServiceWorker(true);
+    const w = await scanned();
+    sw.dispatchEvent(new Event('controllerchange'));
+    await flushPromises();
+    expect(w.text()).toContain('ends the connection');
+  });
+
+  test('coming back to the tab looks for a new version', async () => {
+    const sw = fakeServiceWorker(true);
+    mountApp();
+    await flushPromises();
+    const before = sw.updates;
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushPromises();
+    expect(sw.updates).toBe(before + 1);
   });
 });
 

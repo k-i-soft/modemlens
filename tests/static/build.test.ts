@@ -67,6 +67,15 @@ describe.skipIf(!existsSync('dist/index.html'))('built output', () => {
   test('service worker has no runtime caching of other origins', () => {
     const sw = readFileSync('dist/sw.js', 'utf8');
     expect(sw).not.toMatch(/https?:\/\//);
-    expect(sw).not.toMatch(/CacheFirst|StaleWhileRevalidate|NetworkFirst/);
+    expect(sw).not.toMatch(/CacheFirst|StaleWhileRevalidate/);
+  });
+  // A page load from the cache kept people on an old build after a deploy (2026-11-12).
+  test('the page itself loads network first, and the cached copy is only the offline fallback', () => {
+    const sw = readFileSync('dist/sw.js', 'utf8');
+    expect(sw).toMatch(/NetworkFirst/);
+    expect(sw).toMatch(/"navigate"===\w+\.mode&&"\/"===\w+\.pathname|\w+\.mode==="navigate"&&\w+\.pathname==="\/"/);
+    expect(sw).toMatch(/PrecacheFallbackPlugin\(\{fallbackURL:"index\.html"\}\)/);
+    expect(sw).toMatch(/directoryIndex:null/);
+    expect(sw).not.toMatch(/createHandlerBoundToURL|NavigationRoute/);
   });
 });
