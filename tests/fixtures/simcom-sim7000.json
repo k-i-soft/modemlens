@@ -1,0 +1,3234 @@
+{
+ "startedAt": "2026-01-01T12:00:00.000Z",
+ "items": [
+  {
+   "id": "ati",
+   "command": "ATI",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "ATI",
+    "status": "ok",
+    "lines": [
+     "SMS Ready",
+     "DST: 0",
+     "*PSUTTZ: 26/11/12,13:34:57\",\"+04\",0",
+     "SIM7000E R1529"
+    ],
+    "durationMs": 12
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "gmi",
+   "command": "AT+GMI",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+GMI",
+    "status": "ok",
+    "lines": [
+     "SIMCOM_Ltd"
+    ],
+    "durationMs": 5
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "gmm",
+   "command": "AT+GMM",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+GMM",
+    "status": "ok",
+    "lines": [
+     "SIMCOM_SIM7000E"
+    ],
+    "durationMs": 3
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "gmr",
+   "command": "AT+GMR",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+GMR",
+    "status": "ok",
+    "lines": [
+     "Revision:1529B02SIM7000E"
+    ],
+    "durationMs": 2
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "cgmi",
+   "command": "AT+CGMI",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+CGMI",
+    "status": "ok",
+    "lines": [
+     "SIMCOM_Ltd"
+    ],
+    "durationMs": 1
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "cgmm",
+   "command": "AT+CGMM",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+CGMM",
+    "status": "ok",
+    "lines": [
+     "SIMCOM_SIM7000E"
+    ],
+    "durationMs": 2
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "cgmr",
+   "command": "AT+CGMR",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+CGMR",
+    "status": "ok",
+    "lines": [
+     "Revision:1529B02SIM7000E"
+    ],
+    "durationMs": 5
+   },
+   "parser": "identity"
+  },
+  {
+   "id": "cgsn",
+   "command": "AT+CGSN",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+CGSN",
+    "status": "ok",
+    "lines": [
+     "123456789012345"
+    ],
+    "durationMs": 3
+   },
+   "parser": "cgsn"
+  },
+  {
+   "id": "gsn",
+   "command": "AT+GSN",
+   "category": "identity",
+   "state": "done",
+   "response": {
+    "command": "AT+GSN",
+    "status": "ok",
+    "lines": [
+     "123456789012345"
+    ],
+    "durationMs": 1
+   },
+   "parser": "cgsn"
+  },
+  {
+   "id": "cpin",
+   "command": "AT+CPIN?",
+   "category": "sim",
+   "state": "done",
+   "response": {
+    "command": "AT+CPIN?",
+    "status": "ok",
+    "lines": [
+     "+CPIN: READY"
+    ],
+    "durationMs": 7
+   },
+   "parser": "cpin"
+  },
+  {
+   "id": "cimi",
+   "command": "AT+CIMI",
+   "category": "sim",
+   "state": "done",
+   "response": {
+    "command": "AT+CIMI",
+    "status": "ok",
+    "lines": [
+     "001010123456789"
+    ],
+    "durationMs": 4
+   },
+   "parser": "cimi"
+  },
+  {
+   "id": "crsm-iccid",
+   "command": "AT+CRSM=176,12258,0,0,10",
+   "category": "sim",
+   "state": "done",
+   "response": {
+    "command": "AT+CRSM=176,12258,0,0,10",
+    "status": "ok",
+    "lines": [
+     "+CRSM: 144,0,\"98000000000000000091\""
+    ],
+    "durationMs": 8
+   },
+   "parser": "crsm_iccid"
+  },
+  {
+   "id": "clck-sc",
+   "command": "AT+CLCK=\"SC\",2",
+   "category": "locks",
+   "state": "done",
+   "response": {
+    "command": "AT+CLCK=\"SC\",2",
+    "status": "ok",
+    "lines": [
+     "+CLCK: 0"
+    ],
+    "durationMs": 3
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-pn",
+   "command": "AT+CLCK=\"PN\",2",
+   "category": "locks",
+   "state": "done",
+   "response": {
+    "command": "AT+CLCK=\"PN\",2",
+    "status": "ok",
+    "lines": [
+     "+CLCK: 0"
+    ],
+    "durationMs": 4
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-pu",
+   "command": "AT+CLCK=\"PU\",2",
+   "category": "locks",
+   "state": "done",
+   "response": {
+    "command": "AT+CLCK=\"PU\",2",
+    "status": "ok",
+    "lines": [
+     "+CLCK: 0"
+    ],
+    "durationMs": 5
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-pp",
+   "command": "AT+CLCK=\"PP\",2",
+   "category": "locks",
+   "state": "done",
+   "response": {
+    "command": "AT+CLCK=\"PP\",2",
+    "status": "ok",
+    "lines": [
+     "+CLCK: 0"
+    ],
+    "durationMs": 5
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-ps",
+   "command": "AT+CLCK=\"PS\",2",
+   "category": "locks",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLCK=\"PS\",2",
+    "status": "error",
+    "lines": [],
+    "durationMs": 2
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "clck-pf",
+   "command": "AT+CLCK=\"PF\",2",
+   "category": "locks",
+   "state": "done",
+   "response": {
+    "command": "AT+CLCK=\"PF\",2",
+    "status": "ok",
+    "lines": [
+     "+CLCK: 0"
+    ],
+    "durationMs": 5
+   },
+   "parser": "clck"
+  },
+  {
+   "id": "cops",
+   "command": "AT+COPS?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+COPS?",
+    "status": "ok",
+    "lines": [
+     "+COPS: 0,0,\"Demo Mobile\",7"
+    ],
+    "durationMs": 2
+   },
+   "parser": "cops"
+  },
+  {
+   "id": "creg",
+   "command": "AT+CREG?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+CREG?",
+    "status": "ok",
+    "lines": [
+     "+CREG: 0,1"
+    ],
+    "durationMs": 2
+   },
+   "parser": "creg"
+  },
+  {
+   "id": "cgreg",
+   "command": "AT+CGREG?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+CGREG?",
+    "status": "ok",
+    "lines": [
+     "+CGREG: 0,1"
+    ],
+    "durationMs": 2
+   },
+   "parser": "creg"
+  },
+  {
+   "id": "cereg",
+   "command": "AT+CEREG?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+CEREG?",
+    "status": "ok",
+    "lines": [
+     "+CEREG: 0,1"
+    ],
+    "durationMs": 7
+   },
+   "parser": "creg"
+  },
+  {
+   "id": "c5greg",
+   "command": "AT+C5GREG?",
+   "category": "network",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+C5GREG?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 1
+   },
+   "parser": "creg"
+  },
+  {
+   "id": "csq",
+   "command": "AT+CSQ",
+   "category": "signal",
+   "state": "done",
+   "response": {
+    "command": "AT+CSQ",
+    "status": "ok",
+    "lines": [
+     "+CSQ: 17,99"
+    ],
+    "durationMs": 1
+   },
+   "parser": "csq"
+  },
+  {
+   "id": "cesq",
+   "command": "AT+CESQ",
+   "category": "signal",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CESQ",
+    "status": "error",
+    "lines": [],
+    "durationMs": 7
+   },
+   "parser": "cesq"
+  },
+  {
+   "id": "cgdcont",
+   "command": "AT+CGDCONT?",
+   "category": "data",
+   "state": "done",
+   "response": {
+    "command": "AT+CGDCONT?",
+    "status": "ok",
+    "lines": [
+     "+CGDCONT: 1,\"IP\",\"m2m.demo\",\"0.0.0.0\",0,0,0,0",
+     "+CGDCONT: 13,\"IP\",\"internet.demo\",\"0.0.0.0\",0,0,0,0",
+     "+CGDCONT: 2,\"IP\",\"ims\",\"0.0.0.0\",0,0,0,0"
+    ],
+    "durationMs": 4
+   },
+   "parser": "cgdcont"
+  },
+  {
+   "id": "cgact",
+   "command": "AT+CGACT?",
+   "category": "data",
+   "state": "done",
+   "response": {
+    "command": "AT+CGACT?",
+    "status": "ok",
+    "lines": [
+     "+CGACT: 1,1",
+     "+CGACT: 13,0",
+     "+CGACT: 2,0"
+    ],
+    "durationMs": 2
+   },
+   "parser": "cgact"
+  },
+  {
+   "id": "cgatt",
+   "command": "AT+CGATT?",
+   "category": "data",
+   "state": "done",
+   "response": {
+    "command": "AT+CGATT?",
+    "status": "ok",
+    "lines": [
+     "+CGATT: 1"
+    ],
+    "durationMs": 8
+   },
+   "parser": "cgatt"
+  },
+  {
+   "id": "cgpaddr",
+   "command": "AT+CGPADDR",
+   "category": "data",
+   "state": "done",
+   "response": {
+    "command": "AT+CGPADDR",
+    "status": "ok",
+    "lines": [
+     "+CGPADDR: 1,10.0.0.2",
+     "+CGPADDR: 13,0.0.0.0",
+     "+CGPADDR: 2,0.0.0.0"
+    ],
+    "durationMs": 4
+   },
+   "parser": "cgpaddr"
+  },
+  {
+   "id": "clcc-test",
+   "command": "AT+CLCC=?",
+   "category": "voice",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLCC=?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "clvl",
+   "command": "AT+CLVL?",
+   "category": "voice",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLVL?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 4
+   },
+   "parser": "clvl"
+  },
+  {
+   "id": "crsl",
+   "command": "AT+CRSL?",
+   "category": "voice",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CRSL?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "calm",
+   "command": "AT+CALM?",
+   "category": "voice",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CALM?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "clip",
+   "command": "AT+CLIP?",
+   "category": "voice",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLIP?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 2
+   },
+   "parser": "clip"
+  },
+  {
+   "id": "cfun",
+   "command": "AT+CFUN?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CFUN?",
+    "status": "ok",
+    "lines": [
+     "+CFUN: 1"
+    ],
+    "durationMs": 3
+   },
+   "parser": "cfun"
+  },
+  {
+   "id": "cmee",
+   "command": "AT+CMEE?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CMEE?",
+    "status": "ok",
+    "lines": [
+     "+CMEE: 0"
+    ],
+    "durationMs": 2
+   },
+   "parser": "cmee"
+  },
+  {
+   "id": "cscs",
+   "command": "AT+CSCS?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CSCS?",
+    "status": "ok",
+    "lines": [
+     "+CSCS: \"IRA\""
+    ],
+    "durationMs": 2
+   },
+   "parser": "cscs"
+  },
+  {
+   "id": "cclk",
+   "command": "AT+CCLK?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CCLK?",
+    "status": "ok",
+    "lines": [
+     "+CCLK: \"26/11/12,14:35:02+04\""
+    ],
+    "durationMs": 2
+   },
+   "parser": "cclk"
+  },
+  {
+   "id": "ctzu",
+   "command": "AT+CTZU?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CTZU?",
+    "status": "ok",
+    "lines": [
+     "+CTZU: 1"
+    ],
+    "durationMs": 4
+   },
+   "parser": "ctzu"
+  },
+  {
+   "id": "csca",
+   "command": "AT+CSCA?",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CSCA?",
+    "status": "ok",
+    "lines": [
+     "+CSCA: \"+10000000000\",145"
+    ],
+    "durationMs": 4
+   },
+   "parser": "csca"
+  },
+  {
+   "id": "sim-cpsi",
+   "command": "AT+CPSI?",
+   "category": "signal",
+   "state": "done",
+   "response": {
+    "command": "AT+CPSI?",
+    "status": "ok",
+    "lines": [
+     "+CPSI: LTE CAT-M1,Online,001-01,0xFACE,12345678,123,EUTRAN-BAND20,6300,3,3,-12,-108,-80,12"
+    ],
+    "durationMs": 3
+   },
+   "parser": "sim_cpsi"
+  },
+  {
+   "id": "sim-cnmp",
+   "command": "AT+CNMP?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+CNMP?",
+    "status": "ok",
+    "lines": [
+     "+CNMP: 38"
+    ],
+    "durationMs": 2
+   },
+   "parser": "sim_cnmp"
+  },
+  {
+   "id": "sim-cmnb",
+   "command": "AT+CMNB?",
+   "category": "network",
+   "state": "done",
+   "response": {
+    "command": "AT+CMNB?",
+    "status": "ok",
+    "lines": [
+     "+CMNB: 1"
+    ],
+    "durationMs": 1
+   },
+   "parser": "sim_cmnb"
+  },
+  {
+   "id": "sim-cbandcfg",
+   "command": "AT+CBANDCFG?",
+   "category": "bands",
+   "state": "done",
+   "response": {
+    "command": "AT+CBANDCFG?",
+    "status": "ok",
+    "lines": [
+     "+CBANDCFG: \"CAT-M\"",
+     "+CBANDCFG: \"NB-IOT\""
+    ],
+    "durationMs": 2
+   },
+   "parser": "sim_cbandcfg"
+  },
+  {
+   "id": "clac",
+   "command": "AT+CLAC",
+   "category": "other",
+   "state": "done",
+   "response": {
+    "command": "AT+CLAC",
+    "status": "ok",
+    "lines": [
+     "&C",
+     "&D",
+     "&F",
+     "&V",
+     "Q",
+     "V",
+     "X",
+     "Z",
+     "&E",
+     "&W",
+     "&S",
+     "E",
+     "I",
+     "L",
+     "M",
+     "A",
+     "D",
+     "H",
+     "O",
+     "S0",
+     "S4",
+     "S5",
+     "S6",
+     "S7",
+     "S8",
+     "S10",
+     "S3",
+     "S2",
+     "+ICF",
+     "+IFC",
+     "+GMI",
+     "+GMM",
+     "+GMR",
+     "+GSN",
+     "+GCAP",
+     "+CMEE",
+     "+WS46",
+     "+CEREG",
+     "+CEMODE",
+     "+CSCS",
+     "+CRC",
+     "+CGDCONT",
+     "+CGDSCONT",
+     "+CGEREP",
+     "+CGCONTRDP",
+     "+CGPADDR",
+     "+CGSMS",
+     "+CSMS",
+     "+CMGF",
+     "+CSAS",
+     "+CRES",
+     "+CSCA",
+     "+CSMP",
+     "+CREG",
+     "+CGREG",
+     "+CGSCONTRDP",
+     "+CGPIAF",
+     "+CSDH",
+     "+CSSN",
+     "+CSTA",
+     "+CR",
+     "+CEER",
+     "+CGTFT",
+     "+CGEQOS",
+     "+CGTFTRDP",
+     "+CGEQOSRDP",
+     "+CGQREQ",
+     "+CGQMIN",
+     "+CGDATA",
+     "+CGCLASS",
+     "+CSCB",
+     "+CMOD",
+     "+CVHU",
+     "+QCGEQOS",
+     "+QCGQMIN",
+     "+QCGQREQ",
+     "+QCGTFT",
+     "+CSQ",
+     "+CPIN",
+     "+CMER",
+     "+CPMS",
+     "+CNMI",
+     "+CMGL",
+     "+CMGR",
+     "+CMGS",
+     "+CMSS",
+     "+CMGW",
+     "+CMGD",
+     "+CMGC",
+     "+CNMA",
+     "+CMMS",
+     "+COPS",
+     "+CIMI",
+     "+CGMI",
+     "+CGMM",
+     "+CGMR",
+     "+CGSN",
+     "+CLAC",
+     "+CVMOD",
+     "+CGATT",
+     "+CGACT",
+     "+CPAS",
+     "+CGCMOD",
+     "+CLCK",
+     "+CPWD",
+     "+CSIM",
+     "+CRSM",
+     "+CCLK",
+     "+COPN",
+     "+CPOL",
+     "+CPLS",
+     "+CTZR",
+     "+CTZU",
+     "+CUAD",
+     "+CSDF",
+     "+CSTF",
+     "+CUSD",
+     "+ICCID",
+     "+CBC",
+     "+CMEC",
+     "+CIND",
+     "+CHUP",
+     "+CCFC",
+     "+CCUG",
+     "+CAOC",
+     "+CACM",
+     "+CAMM",
+     "+CPUC",
+     "+CCWA",
+     "+CHLD",
+     "+CLIP",
+     "+COLP",
+     "+CDIP",
+     "+CTFR",
+     "+CLIR",
+     "+VTS",
+     "+CEN",
+     "+CNMPSD",
+     "+CPSMS",
+     "+CEDRXS",
+     "+CEDRXRDP",
+     "+CFUN",
+     "$QCPWRDN",
+     "+CMUX",
+     "+IPR",
+     "$QCRMCALL",
+     "$QCPDPP",
+     "$QCDGEN",
+     "$QCPDPIMSCFGE",
+     "$QCPDPCFGE",
+     "$QCSIMSTAT",
+     "$QCPRFMOD",
+     "$QCRSRP",
+     "$QCRSRQ",
+     "$QCRATSTATE",
+     "$QCEXTCLTSTATE"
+    ],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:+ICF=?",
+   "command": "AT+ICF=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+ICF=?",
+    "status": "ok",
+    "lines": [
+     "+ICF: (3),(0-3)"
+    ],
+    "durationMs": 8
+   }
+  },
+  {
+   "id": "deep:+ICF?",
+   "command": "AT+ICF?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+ICF?",
+    "status": "ok",
+    "lines": [
+     "+ICF: 3,3"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+IFC=?",
+   "command": "AT+IFC=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+IFC=?",
+    "status": "ok",
+    "lines": [
+     "+IFC: (0-2),(0-2)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+IFC?",
+   "command": "AT+IFC?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+IFC?",
+    "status": "ok",
+    "lines": [
+     "+IFC: 0,0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+GCAP=?",
+   "command": "AT+GCAP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+GCAP=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+GCAP?",
+   "command": "AT+GCAP?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+GCAP?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+WS46=?",
+   "command": "AT+WS46=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+WS46=?",
+    "status": "ok",
+    "lines": [
+     "+WS46: (12,22,25,28,29)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+WS46?",
+   "command": "AT+WS46?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+WS46?",
+    "status": "ok",
+    "lines": [
+     "28"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CEMODE=?",
+   "command": "AT+CEMODE=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CEMODE=?",
+    "status": "ok",
+    "lines": [
+     "+CEMODE: (0-3)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CEMODE?",
+   "command": "AT+CEMODE?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CEMODE?",
+    "status": "ok",
+    "lines": [
+     "+CEMODE: 2"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CRC=?",
+   "command": "AT+CRC=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CRC=?",
+    "status": "ok",
+    "lines": [
+     "+CRC: (0,1)"
+    ],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+CRC?",
+   "command": "AT+CRC?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CRC?",
+    "status": "ok",
+    "lines": [
+     "+CRC: 0"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CGDSCONT=?",
+   "command": "AT+CGDSCONT=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGDSCONT=?",
+    "status": "ok",
+    "lines": [
+     "+CGDSCONT: (1-24,100-179),(13,2),\"IP\",(0-2),(0-4)",
+     "+CGDSCONT: (1-24,100-179),(13,2),\"PPP\",(0-2),(0-4)",
+     "+CGDSCONT: (1-24,100-179),(13,2),\"IPV6\",(0-2),(0-4)",
+     "+CGDSCONT: (1-24,100-179),(13,2),\"IPV4V6\",(0-2),(0-4)",
+     "+CGDSCONT: (1-24,100-179),(13,2),\"Non-IP\",(0-2),(0-4)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CGDSCONT?",
+   "command": "AT+CGDSCONT?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGDSCONT?",
+    "status": "ok",
+    "lines": [
+     "+CGDSCONT:"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CGEREP=?",
+   "command": "AT+CGEREP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGEREP=?",
+    "status": "ok",
+    "lines": [
+     "+CGEREP: (0-2),(0-1)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGEREP?",
+   "command": "AT+CGEREP?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGEREP?",
+    "status": "ok",
+    "lines": [
+     "+CGEREP: 0,0"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGCONTRDP=?",
+   "command": "AT+CGCONTRDP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGCONTRDP=?",
+    "status": "ok",
+    "lines": [
+     "+CGCONTRDP: ( 1 )"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGCONTRDP?",
+   "command": "AT+CGCONTRDP?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CGCONTRDP?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CGSMS=?",
+   "command": "AT+CGSMS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGSMS=?",
+    "status": "ok",
+    "lines": [
+     "+CGSMS: (0-3)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGSMS?",
+   "command": "AT+CGSMS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGSMS?",
+    "status": "ok",
+    "lines": [
+     "+CGSMS: 1"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CSMS=?",
+   "command": "AT+CSMS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSMS=?",
+    "status": "ok",
+    "lines": [
+     "+CSMS: (0-1)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CSMS?",
+   "command": "AT+CSMS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSMS?",
+    "status": "ok",
+    "lines": [
+     "+CSMS: 0,1,1,1"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CMGF=?",
+   "command": "AT+CMGF=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMGF=?",
+    "status": "ok",
+    "lines": [
+     "+CMGF: (0-1)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CMGF?",
+   "command": "AT+CMGF?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMGF?",
+    "status": "ok",
+    "lines": [
+     "+CMGF: 0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CSMP=?",
+   "command": "AT+CSMP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSMP=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+CSMP?",
+   "command": "AT+CSMP?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSMP?",
+    "status": "ok",
+    "lines": [
+     "+CSMP: 17,167,0,0"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGSCONTRDP=?",
+   "command": "AT+CGSCONTRDP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGSCONTRDP=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGSCONTRDP?",
+   "command": "AT+CGSCONTRDP?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CGSCONTRDP?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CGPIAF=?",
+   "command": "AT+CGPIAF=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGPIAF=?",
+    "status": "ok",
+    "lines": [
+     "+CGPIAF: (0-1),(0-1),(0-1),(0-1)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGPIAF?",
+   "command": "AT+CGPIAF?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGPIAF?",
+    "status": "ok",
+    "lines": [
+     "+CGPIAF: 0,0,0,0"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CSDH=?",
+   "command": "AT+CSDH=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSDH=?",
+    "status": "ok",
+    "lines": [
+     "+CSDH: (0-1)"
+    ],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+CSDH?",
+   "command": "AT+CSDH?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSDH?",
+    "status": "ok",
+    "lines": [
+     "+CSDH: 0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CSSN=?",
+   "command": "AT+CSSN=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSSN=?",
+    "status": "ok",
+    "lines": [
+     "+CSSN: (0-1),(0-1)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CSSN?",
+   "command": "AT+CSSN?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSSN?",
+    "status": "ok",
+    "lines": [
+     "+CSSN: 0,0"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CSTA=?",
+   "command": "AT+CSTA=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSTA=?",
+    "status": "ok",
+    "lines": [
+     "+CSTA: (129,145)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CSTA?",
+   "command": "AT+CSTA?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSTA?",
+    "status": "ok",
+    "lines": [
+     "+CSTA: 129"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CR=?",
+   "command": "AT+CR=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CR=?",
+    "status": "ok",
+    "lines": [
+     "+CR: (0,1)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CR?",
+   "command": "AT+CR?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CR?",
+    "status": "ok",
+    "lines": [
+     "+CR: 0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CEER=?",
+   "command": "AT+CEER=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CEER=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:+CEER?",
+   "command": "AT+CEER?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CEER?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGTFT=?",
+   "command": "AT+CGTFT=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGTFT=?",
+    "status": "ok",
+    "lines": [
+     "+CGTFT: \"IP\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)",
+     "+CGTFT: \"PPP\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)",
+     "+CGTFT: \"IPV6\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)",
+     "+CGTFT: \"IPV4V6\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)",
+     "+CGTFT: \"Non-IP\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CGTFT?",
+   "command": "AT+CGTFT?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGTFT?",
+    "status": "ok",
+    "lines": [
+     "+CGTFT:"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CGEQOS=?",
+   "command": "AT+CGEQOS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGEQOS=?",
+    "status": "ok",
+    "lines": [
+     "+CGEQOS: (1-24,100-179),(0-9),(0-150000),(0-50000),(0-150000),(0-50000)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CGEQOS?",
+   "command": "AT+CGEQOS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGEQOS?",
+    "status": "ok",
+    "lines": [
+     "+CGEQOS:"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CGTFTRDP=?",
+   "command": "AT+CGTFTRDP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGTFTRDP=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGTFTRDP?",
+   "command": "AT+CGTFTRDP?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CGTFTRDP?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CGEQOSRDP=?",
+   "command": "AT+CGEQOSRDP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGEQOSRDP=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+CGEQOSRDP?",
+   "command": "AT+CGEQOSRDP?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CGEQOSRDP?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CGQREQ=?",
+   "command": "AT+CGQREQ=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGQREQ=?",
+    "status": "ok",
+    "lines": [
+     "+CGQREQ: \"IP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+CGQREQ: \"PPP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+CGQREQ: \"IPV6\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+CGQREQ: \"IPV4V6\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+CGQREQ: \"Non-IP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CGQREQ?",
+   "command": "AT+CGQREQ?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGQREQ?",
+    "status": "ok",
+    "lines": [
+     "+CGQREQ:"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CGQMIN=?",
+   "command": "AT+CGQMIN=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGQMIN=?",
+    "status": "ok",
+    "lines": [
+     "+CGQMIN: \"IP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+CGQMIN: \"PPP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+CGQMIN: \"IPV6\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+CGQMIN: \"IPV4V6\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+CGQMIN: \"Non-IP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CGQMIN?",
+   "command": "AT+CGQMIN?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGQMIN?",
+    "status": "ok",
+    "lines": [
+     "+CGQMIN:"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CGCLASS=?",
+   "command": "AT+CGCLASS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGCLASS=?",
+    "status": "ok",
+    "lines": [
+     "+CGCLASS: (\"B\")"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CGCLASS?",
+   "command": "AT+CGCLASS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CGCLASS?",
+    "status": "ok",
+    "lines": [
+     "+CGCLASS: \"B\""
+    ],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+CSCB=?",
+   "command": "AT+CSCB=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSCB=?",
+    "status": "ok",
+    "lines": [
+     "+CSCB: (0-1)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CSCB?",
+   "command": "AT+CSCB?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSCB?",
+    "status": "ok",
+    "lines": [
+     "+CSCB: 0, \"4356\",\"\""
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CMOD=?",
+   "command": "AT+CMOD=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMOD=?",
+    "status": "ok",
+    "lines": [
+     "+CMOD: (0)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CMOD?",
+   "command": "AT+CMOD?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMOD?",
+    "status": "ok",
+    "lines": [
+     "+CMOD: 0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CVHU=?",
+   "command": "AT+CVHU=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CVHU=?",
+    "status": "ok",
+    "lines": [
+     "+CVHU: (0-1)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CVHU?",
+   "command": "AT+CVHU?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CVHU?",
+    "status": "ok",
+    "lines": [
+     "+CVHU: 1"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+QCGEQOS=?",
+   "command": "AT+QCGEQOS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+QCGEQOS=?",
+    "status": "ok",
+    "lines": [
+     "+QCGEQOS: (100-179),(0-9),(0-150000),(0-50000),(0-150000),(0-50000)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+QCGEQOS?",
+   "command": "AT+QCGEQOS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+QCGEQOS?",
+    "status": "ok",
+    "lines": [
+     "+QCGEQOS:"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+QCGQMIN=?",
+   "command": "AT+QCGQMIN=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+QCGQMIN=?",
+    "status": "ok",
+    "lines": [
+     "+QCGQMIN: \"IP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+QCGQMIN: \"PPP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+QCGQMIN: \"IPV6\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+QCGQMIN: \"IPV4V6\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+QCGQMIN: \"Non-IP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+QCGQMIN?",
+   "command": "AT+QCGQMIN?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+QCGQMIN?",
+    "status": "ok",
+    "lines": [
+     "+QCGQMIN:"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+QCGQREQ=?",
+   "command": "AT+QCGQREQ=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+QCGQREQ=?",
+    "status": "ok",
+    "lines": [
+     "+QCGQREQ: \"IP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+QCGQREQ: \"PPP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+QCGQREQ: \"IPV6\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+QCGQREQ: \"IPV4V6\",(0-3),(0-4),(0-5),(0-9),(0-18,31)",
+     "+QCGQREQ: \"Non-IP\",(0-3),(0-4),(0-5),(0-9),(0-18,31)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+QCGQREQ?",
+   "command": "AT+QCGQREQ?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+QCGQREQ?",
+    "status": "ok",
+    "lines": [
+     "+QCGQREQ:"
+    ],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+QCGTFT=?",
+   "command": "AT+QCGTFT=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+QCGTFT=?",
+    "status": "ok",
+    "lines": [
+     "+QCGTFT: \"IP\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)",
+     "+QCGTFT: \"PPP\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)",
+     "+QCGTFT: \"IPV6\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)",
+     "+QCGTFT: \"IPV4V6\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)",
+     "+QCGTFT: \"Non-IP\",(1-16),(0-255),,(0-255),(0-65535.0-65535),(0-65535.0-65535),(0-FFFFFFFF),(0-255.0-255),(0-FFFFF)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+QCGTFT?",
+   "command": "AT+QCGTFT?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+QCGTFT?",
+    "status": "ok",
+    "lines": [
+     "+QCGTFT:"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CMER=?",
+   "command": "AT+CMER=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMER=?",
+    "status": "ok",
+    "lines": [
+     "+CMER: (0-3),(0),(0),(0-1),(0-1)"
+    ],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+CMER?",
+   "command": "AT+CMER?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMER?",
+    "status": "ok",
+    "lines": [
+     "+CMER: 0,0,0,0,0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CPMS=?",
+   "command": "AT+CPMS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CPMS=?",
+    "status": "ok",
+    "lines": [
+     "+CPMS: (\"SM\"),(\"SM\"),(\"SM\")"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CPMS?",
+   "command": "AT+CPMS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CPMS?",
+    "status": "ok",
+    "lines": [
+     "+CPMS: \"SM\",2,50,\"SM\",2,50,\"SM\",2,50"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CNMI=?",
+   "command": "AT+CNMI=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CNMI=?",
+    "status": "ok",
+    "lines": [
+     "+CNMI: (0,1,2),(0,1,2,3),(0,2),(0,1,2),(0,1)"
+    ],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:+CNMI?",
+   "command": "AT+CNMI?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CNMI?",
+    "status": "ok",
+    "lines": [
+     "+CNMI: 2,1,0,0,0"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CMMS=?",
+   "command": "AT+CMMS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMMS=?",
+    "status": "ok",
+    "lines": [
+     "+CMMS: (0-2)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CMMS?",
+   "command": "AT+CMMS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMMS?",
+    "status": "ok",
+    "lines": [
+     "+CMMS: 0"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CLAC=?",
+   "command": "AT+CLAC=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CLAC=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CLAC?",
+   "command": "AT+CLAC?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CLAC?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CVMOD=?",
+   "command": "AT+CVMOD=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CVMOD=?",
+    "status": "ok",
+    "lines": [
+     "+CVMOD: (0-3)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CVMOD?",
+   "command": "AT+CVMOD?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CVMOD?",
+    "status": "ok",
+    "lines": [
+     "+CVMOD: 1"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CPAS=?",
+   "command": "AT+CPAS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CPAS=?",
+    "status": "ok",
+    "lines": [
+     "+CPAS: (0,3,4)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CPAS?",
+   "command": "AT+CPAS?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CPAS?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+COPN=?",
+   "command": "AT+COPN=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+COPN=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+COPN?",
+   "command": "AT+COPN?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+COPN?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CTZR=?",
+   "command": "AT+CTZR=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CTZR=?",
+    "status": "ok",
+    "lines": [
+     "+CTZR: (0-1)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CTZR?",
+   "command": "AT+CTZR?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CTZR?",
+    "status": "ok",
+    "lines": [
+     "+CTZR: 0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CSDF=?",
+   "command": "AT+CSDF=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSDF=?",
+    "status": "ok",
+    "lines": [
+     "+CSDF: (1-7),(1-2)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CSDF?",
+   "command": "AT+CSDF?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CSDF?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CSTF=?",
+   "command": "AT+CSTF=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CSTF=?",
+    "status": "ok",
+    "lines": [
+     "+CSTF: (1,2)"
+    ],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:+CSTF?",
+   "command": "AT+CSTF?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CSTF?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:+ICCID=?",
+   "command": "AT+ICCID=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+ICCID=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+ICCID?",
+   "command": "AT+ICCID?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+ICCID?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CBC=?",
+   "command": "AT+CBC=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CBC=?",
+    "status": "ok",
+    "lines": [
+     "+CBC: (0-3),(0-100)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CBC?",
+   "command": "AT+CBC?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CBC?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CMEC=?",
+   "command": "AT+CMEC=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMEC=?",
+    "status": "ok",
+    "lines": [
+     "+CMEC: (0-2),(0),(0),(0-2)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CMEC?",
+   "command": "AT+CMEC?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMEC?",
+    "status": "ok",
+    "lines": [
+     "+CMEC: 0,0,0,0"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CIND=?",
+   "command": "AT+CIND=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CIND=?",
+    "status": "ok",
+    "lines": [
+     "+CIND: (\"battchg\",(0-5)),(\"signal\",(0-5)),(\"service\",(0-1)),(\"call\",(0-1)),(\"roam\",(0-1)),(\"smsfull\",(0-1)),(\"GPRS coverage\",(0-1)),(\"callsetup\",(0-3))"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CIND?",
+   "command": "AT+CIND?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CIND?",
+    "status": "ok",
+    "lines": [
+     "+CIND: 0,3,1,1,0,0,1,0"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CCFC=?",
+   "command": "AT+CCFC=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CCFC=?",
+    "status": "ok",
+    "lines": [
+     "+CCFC: (0,1,2,3,4,5)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CCFC?",
+   "command": "AT+CCFC?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CCFC?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CCUG=?",
+   "command": "AT+CCUG=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CCUG=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+CCUG?",
+   "command": "AT+CCUG?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CCUG?",
+    "status": "ok",
+    "lines": [
+     "+CCUG: 0,0,0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CAOC=?",
+   "command": "AT+CAOC=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CAOC=?",
+    "status": "ok",
+    "lines": [
+     "+CAOC: (0-2)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CAOC?",
+   "command": "AT+CAOC?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CAOC?",
+    "status": "ok",
+    "lines": [
+     "+CAOC: 1"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CACM=?",
+   "command": "AT+CACM=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CACM=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 1
+   }
+  },
+  {
+   "id": "deep:+CACM?",
+   "command": "AT+CACM?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CACM?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CAMM=?",
+   "command": "AT+CAMM=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CAMM=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CAMM?",
+   "command": "AT+CAMM?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CAMM?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CCWA=?",
+   "command": "AT+CCWA=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CCWA=?",
+    "status": "ok",
+    "lines": [
+     "+CCWA: (0-1)"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CCWA?",
+   "command": "AT+CCWA?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CCWA?",
+    "status": "ok",
+    "lines": [
+     "+CCWA: 0"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+VTS=?",
+   "command": "AT+VTS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+VTS=?",
+    "status": "ok",
+    "lines": [
+     "+VTS: (0-9,A-D,*,#)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+VTS?",
+   "command": "AT+VTS?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+VTS?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 6
+   }
+  },
+  {
+   "id": "deep:+CEN=?",
+   "command": "AT+CEN=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CEN=?",
+    "status": "ok",
+    "lines": [
+     "+CEN: (0-1)"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CEN?",
+   "command": "AT+CEN?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CEN?",
+    "status": "ok",
+    "lines": [
+     "+CEN1: 0,228,1",
+     "+CEN2: 1,117",
+     "+CEN2: 4,118",
+     "+CEN2: 16,1414",
+     "+CEN2: 2,144"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CPSMS=?",
+   "command": "AT+CPSMS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CPSMS=?",
+    "status": "ok",
+    "lines": [
+     "+CPSMS: (0-1),(<Units(0-6)><TimerValue(0-31)> in bits),(<Units(0-2)><TimerValue(0-31)> in bits),(<Units(0-6)><TimerValue(0-31)> in bits),(<Units(0-2)><TimerValue(0-31)> in bits)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CPSMS?",
+   "command": "AT+CPSMS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CPSMS?",
+    "status": "ok",
+    "lines": [
+     "+CPSMS: 0,,,\"01100000\",\"00000000\""
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CEDRXS=?",
+   "command": "AT+CEDRXS=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CEDRXS=?",
+    "status": "ok",
+    "lines": [
+     "+CEDRXS: (0-3),<AcT-type(1-5)>,<Requested_eDRX_value(0-15) in bits>"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:+CEDRXS?",
+   "command": "AT+CEDRXS?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CEDRXS?",
+    "status": "ok",
+    "lines": [
+     "+CEDRXS: 3,\"0000\"",
+     "+CEDRXS: 4,\"0010\""
+    ],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:+CEDRXRDP=?",
+   "command": "AT+CEDRXRDP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CEDRXRDP=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:+CEDRXRDP?",
+   "command": "AT+CEDRXRDP?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT+CEDRXRDP?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+CMUX=?",
+   "command": "AT+CMUX=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMUX=?",
+    "status": "ok",
+    "lines": [
+     "+CMUX:(0),(0-2),(1-6),(1-32786),(1-255),(0-100),(2-255),(1-255),(1-7)"
+    ],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:+CMUX?",
+   "command": "AT+CMUX?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+CMUX?",
+    "status": "ok",
+    "lines": [
+     "+CMUX: 0,0,1,31,10,3,30,10,2"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:+IPR=?",
+   "command": "AT+IPR=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+IPR=?",
+    "status": "ok",
+    "lines": [
+     "+IPR: (),(0,300,600,1200,2400,4800,9600,19200,38400,57600,115200,230400,921600,2000000,2900000,3000000,3200000,3686400,4000000)"
+    ],
+    "durationMs": 6
+   }
+  },
+  {
+   "id": "deep:+IPR?",
+   "command": "AT+IPR?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT+IPR?",
+    "status": "ok",
+    "lines": [
+     "+IPR: 0"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:$QCPDPP=?",
+   "command": "AT$QCPDPP=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCPDPP=?",
+    "status": "ok",
+    "lines": [
+     "$QCPDPP: (1-24,100-179),(0-3),,"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:$QCPDPP?",
+   "command": "AT$QCPDPP?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCPDPP?",
+    "status": "ok",
+    "lines": [
+     "$QCPDPP: 1,0",
+     "$QCPDPP: 13,0",
+     "$QCPDPP: 2,0"
+    ],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:$QCDGEN=?",
+   "command": "AT$QCDGEN=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCDGEN=?",
+    "status": "ok",
+    "lines": [],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:$QCDGEN?",
+   "command": "AT$QCDGEN?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT$QCDGEN?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 3
+   }
+  },
+  {
+   "id": "deep:$QCPDPIMSCFGE=?",
+   "command": "AT$QCPDPIMSCFGE=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCPDPIMSCFGE=?",
+    "status": "ok",
+    "lines": [
+     "$QCPDPIMSCFGE: (1-24,100-179),(0-1),(0-1),(0-1)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:$QCPDPIMSCFGE?",
+   "command": "AT$QCPDPIMSCFGE?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCPDPIMSCFGE?",
+    "status": "ok",
+    "lines": [
+     "$QCPDPIMSCFGE: 1 , 0 , 0 , 0",
+     "$QCPDPIMSCFGE: 13 , 0 , 0 , 0",
+     "$QCPDPIMSCFGE: 2 , 0 , 0 , 0"
+    ],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:$QCPDPCFGE=?",
+   "command": "AT$QCPDPCFGE=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCPDPCFGE=?",
+    "status": "ok",
+    "lines": [
+     "$QCPDPCFGE: (1-24,100-179),(0-1),(0-122820),(0-16),(1-15,255),(0-1023),(0-3600),(0-1023),(0-1),(65280-65535),(0-999),(0-999)"
+    ],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:$QCPDPCFGE?",
+   "command": "AT$QCPDPCFGE?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCPDPCFGE?",
+    "status": "ok",
+    "lines": [
+     "$QCPDPCFGE: 1,0,0,0,255,20,300,0,0,0,0,0",
+     "$QCPDPCFGE: 13,0,0,0,255,20,300,0,0,0,0,0",
+     "$QCPDPCFGE: 2,0,0,0,255,20,300,0,0,0,0,0"
+    ],
+    "durationMs": 9
+   }
+  },
+  {
+   "id": "deep:$QCSIMSTAT=?",
+   "command": "AT$QCSIMSTAT=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCSIMSTAT=?",
+    "status": "ok",
+    "lines": [
+     "$QCSIMSTAT: (0-1)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:$QCSIMSTAT?",
+   "command": "AT$QCSIMSTAT?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCSIMSTAT?",
+    "status": "ok",
+    "lines": [
+     "$QCSIMSTAT: 0,SIM INIT COMPLETED"
+    ],
+    "durationMs": 2
+   }
+  },
+  {
+   "id": "deep:$QCPRFMOD=?",
+   "command": "AT$QCPRFMOD=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCPRFMOD=?",
+    "status": "ok",
+    "lines": [
+     "$QCPRFMOD:",
+     "PDPCOPID:(0-255)",
+     "PDPCOSFLG:(0-1)",
+     "PDNCOBLK:(0-65535)",
+     "PDNCOTMR:(0-65535)",
+     "APNBR:(0-255)",
+     "EMERCALL:(0-1)",
+     "IMCNFLAG:(0-1)",
+     "INACTTO:(0-4294967295)",
+     "PCSCFDHCP:(0-1)",
+     "PDPDCOMP:(0-3)",
+     "PDPHCOMP:(0-4)",
+     "PDPCONUM:(0-255)",
+     "PDPV4:\"\"",
+     "PDPV6:\"\"",
+     "PDPTYPE:\"\"",
+     "RODISALLW:(0-1)",
+     "PDNREQTMR:(0-65535)",
+     "PDNDTMR:(0-255)",
+     "V4ALLOC:(0-1)",
+     "OVRRIDEHOPDP:\"\"",
+     "ATTCWOPDN:(0-1)",
+     "PPFLRTMR1:(0-4294967295)",
+     "PPFLRTMR2:(0-4294967295)",
+     "PPFLRTMR3:(0-4294967295)",
+     "PPFLRTMR4:(0-4294967295)",
+     "PPFLRTMR5:(0-4294967295)",
+     "PPFLRTMR6:(0-4294967295)",
+     "PPFLRTMR7:(0-4294967295)",
+     "PPFLRTMR8:(0-4294967295)",
+     "PPFLRTMR9:(0-4294967295)",
+     "PPFLRTMR10:(0-4294967295)",
+     "LTEROPDP:\"\"",
+     "UMTSROPDP:\"\"",
+     "PAPNCLASS:(0-5,16)",
+     "PAPNFLAG:(0-1)",
+     "PAUPWD:\"\"",
+     "PAUPROT:(0-3)",
+     "PLNGRTMR:(0-65535)",
+     "PMCC:(0-999)",
+     "PMNC:(0-999)",
+     "POPRPCO:(65280-65535)",
+     "PPCRFLG:(0-1)",
+     "PUID:\"\"",
+     "PV4DNSPR:\"\"",
+     "PV4DNSSE:\"\"",
+     "PV6DNSPR:\"\"",
+     "PV6DNSSE:\"\"",
+     "PUAPPDATA:(0-4294967295)",
+     "APPPRT:(0-255)",
+     "APPTYPE:(0-4294967295)",
+     "AUTHRCNT:(0-255)",
+     "AUTHTO:(0-65535)",
+     "DMODE:(0-2)",
+     "DRATE:(0-2)",
+     "DISATMR1:(0-4294967295)",
+     "DISATMR2:(0-4294967295)",
+     "DISATMR3:(0-4294967295)",
+     "DISATMR4:(0-4294967295)",
+     "DISATMR5:(0-4294967295)",
+     "DISATMR6:(0-4294967295)",
+     "FLRTMR1:(0-4294967295)",
+     "FLRTMR2:(0-4294967295)",
+     "FLRTMR3:(0-4294967295)",
+     "FLRTMR4:(0-4294967295)",
+     "FLRTMR5:(0-4294967295)",
+     "FLRTMR6:(0-4294967295)",
+     "IPACK_TO:(0-65535)",
+     "IPCRCNT:(0-255)",
+     "LACKTO:(0-65535)",
+     "LCRCNT:(0-255)",
+     "DNSFLG:(0-1)",
+     "PINACTTO:(0-71582)",
+     "PDNLBL:\"\"",
+     "PDNAPROT:(0-3)",
+     "PDNAPWD:\"\"",
+     "PDNUID:\"\"",
+     "PDNTYPE:\"\"",
+     "RAT:(1-3)",
+     "SCT1X:(0-4294967295)",
+     "SCTDO:(0-4294967295)",
+     "P2APNCLASS:(0-5,16)",
+     "P2APNFLAG:(0-1)",
+     "P2AUPWD:\"\"",
+     "P2AUPROT:(0-3)",
+     "P2LNGRTMR:(0-65535)",
+     "P2MCC:(0-999)",
+     "P2MNC:(0-999)",
+     "P2OPRPCO:(65280-65535)",
+     "P2PCRFLG:(0-1)",
+     "P2UID:\"\"",
+     "P2V4DNSPR:\"\"",
+     "P2V4DNSSE:\"\"",
+     "P2V6DNSPR:\"\"",
+     "P2V6DNSSE:\"\"",
+     "P2UAPPDATA:(0-4294967295)",
+     "CPDPTYPE:\"\"",
+     "CAPNCLASS:(0-5,16)",
+     "CAPNFLAG:(0-1)",
+     "CAUPWD:\"\"",
+     "CAUPROT:(0-3)",
+     "CLNGRTMR:(0-65535)",
+     "CMCC:(0-999)",
+     "CMNC:(0-999)",
+     "COPRPCO:(65280-65535)",
+     "CPCRFLG:(0-1)",
+     "CUID:\"\"",
+     "CV4DNSPR:\"\"",
+     "CV4DNSSE:\"\"",
+     "CV6DNSPR:\"\"",
+     "CV6DNSSE:\"\"",
+     "CUAPPDATA:(0-4294967295)",
+     "APNNAME:\"\""
+    ],
+    "durationMs": 5
+   }
+  },
+  {
+   "id": "deep:$QCPRFMOD?",
+   "command": "AT$QCPRFMOD?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCPRFMOD?",
+    "status": "ok",
+    "lines": [
+     "$QCPRFMOD: PID:1 TECH:0",
+     "PDPCOPID:0",
+     "PDPCOSFLG:0",
+     "PDNCOBLK:20",
+     "PDNCOTMR:300",
+     "APNBR:255",
+     "EMERCALL:0",
+     "IMCNFLAG:0",
+     "INACTTO:0",
+     "PCSCFDHCP:0",
+     "PDPDCOMP:0",
+     "PDPHCOMP:0",
+     "PDPCONUM:1",
+     "PDPV4:\"0.0.0.0\"",
+     "PDPV6:\"0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0\"",
+     "PDPTYPE:\"IP\"",
+     "RODISALLW:0",
+     "PDNREQTMR:0",
+     "PDNDTMR:0",
+     "V4ALLOC:0",
+     "OVRRIDEHOPDP:\"\"",
+     "PPFLRTMR1:0",
+     "PPFLRTMR2:0",
+     "PPFLRTMR3:0",
+     "PPFLRTMR4:0",
+     "PPFLRTMR5:0",
+     "PPFLRTMR6:0",
+     "PPFLRTMR7:0",
+     "PPFLRTMR8:0",
+     "PPFLRTMR9:0",
+     "PPFLRTMR10:0",
+     "LTEROPDP:\"d user clearing\"",
+     "UMTSROPDP:\"d user clearing\"",
+     "PAPNCLASS:0",
+     "PAPNFLAG:0",
+     "PAUPWD:\"\"",
+     "PAUPROT:0",
+     "PMCC:0",
+     "PMNC:0",
+     "POPRPCO:0",
+     "PPCRFLG:0",
+     "PUID:\"\"",
+     "PV4DNSPR:\"0.0.0.0\"",
+     "PV4DNSSE:\"0.0.0.0\"",
+     "PUAPPDATA:0",
+     "APNNAME:\"m2m.demo\"",
+     "$QCPRFMOD: PID:13 TECH:0",
+     "PDPCOPID:0",
+     "PDPCOSFLG:0",
+     "PDNCOBLK:20",
+     "PDNCOTMR:300",
+     "APNBR:255",
+     "EMERCALL:0",
+     "IMCNFLAG:0",
+     "INACTTO:0",
+     "PCSCFDHCP:0",
+     "PDPDCOMP:0",
+     "PDPHCOMP:0",
+     "PDPCONUM:13",
+     "PDPV4:\"0.0.0.0\"",
+     "PDPV6:\"0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0\"",
+     "PDPTYPE:\"IP\"",
+     "RODISALLW:0",
+     "PDNREQTMR:0",
+     "PDNDTMR:0",
+     "V4ALLOC:0",
+     "OVRRIDEHOPDP:\"\"",
+     "PPFLRTMR1:0",
+     "PPFLRTMR2:0",
+     "PPFLRTMR3:0",
+     "PPFLRTMR4:0",
+     "PPFLRTMR5:0",
+     "PPFLRTMR6:0",
+     "PPFLRTMR7:0",
+     "PPFLRTMR8:0",
+     "PPFLRTMR9:0",
+     "PPFLRTMR10:0",
+     "LTEROPDP:\"d user clearing\"",
+     "UMTSROPDP:\"d user clearing\"",
+     "PAPNCLASS:0",
+     "PAPNFLAG:0",
+     "PAUPWD:\"\"",
+     "PAUPROT:0",
+     "PMCC:0",
+     "PMNC:0",
+     "POPRPCO:0",
+     "PPCRFLG:0",
+     "PUID:\"\"",
+     "PV4DNSPR:\"0.0.0.0\"",
+     "PV4DNSSE:\"0.0.0.0\"",
+     "PUAPPDATA:0",
+     "APNNAME:\"internet.demo\"",
+     "$QCPRFMOD: PID:2 TECH:0",
+     "PDPCOPID:0",
+     "PDPCOSFLG:0",
+     "PDNCOBLK:20",
+     "PDNCOTMR:300",
+     "APNBR:255",
+     "EMERCALL:0",
+     "IMCNFLAG:0",
+     "INACTTO:0",
+     "PCSCFDHCP:0",
+     "PDPDCOMP:0",
+     "PDPHCOMP:0",
+     "PDPCONUM:2",
+     "PDPV4:\"0.0.0.0\"",
+     "PDPV6:\"0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0\"",
+     "PDPTYPE:\"IP\"",
+     "RODISALLW:0",
+     "PDNREQTMR:0",
+     "PDNDTMR:0",
+     "V4ALLOC:0",
+     "OVRRIDEHOPDP:\"\"",
+     "PPFLRTMR1:0",
+     "PPFLRTMR2:0",
+     "PPFLRTMR3:0",
+     "PPFLRTMR4:0",
+     "PPFLRTMR5:0",
+     "PPFLRTMR6:0",
+     "PPFLRTMR7:0",
+     "PPFLRTMR8:0",
+     "PPFLRTMR9:0",
+     "PPFLRTMR10:0",
+     "LTEROPDP:\"d user clearing\"",
+     "UMTSROPDP:\"d user clearing\"",
+     "PAPNCLASS:0",
+     "PAPNFLAG:0",
+     "PAUPWD:\"\"",
+     "PAUPROT:0",
+     "PMCC:0",
+     "PMNC:0",
+     "POPRPCO:0",
+     "PPCRFLG:0",
+     "PUID:\"\"",
+     "PV4DNSPR:\"0.0.0.0\"",
+     "PV4DNSSE:\"0.0.0.0\"",
+     "PUAPPDATA:0",
+     "APNNAME:\"ims\""
+    ],
+    "durationMs": 7
+   }
+  },
+  {
+   "id": "deep:$QCRSRP=?",
+   "command": "AT$QCRSRP=?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT$QCRSRP=?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:$QCRSRQ=?",
+   "command": "AT$QCRSRQ=?",
+   "category": "discovery",
+   "state": "unsupported",
+   "response": {
+    "command": "AT$QCRSRQ=?",
+    "status": "error",
+    "lines": [],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:$QCRATSTATE=?",
+   "command": "AT$QCRATSTATE=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCRATSTATE=?",
+    "status": "ok",
+    "lines": [
+     "$QCRATSTATE: (0-1)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:$QCRATSTATE?",
+   "command": "AT$QCRATSTATE?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCRATSTATE?",
+    "status": "ok",
+    "lines": [
+     "0,1,19"
+    ],
+    "durationMs": 7
+   }
+  },
+  {
+   "id": "deep:$QCEXTCLTSTATE=?",
+   "command": "AT$QCEXTCLTSTATE=?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCEXTCLTSTATE=?",
+    "status": "ok",
+    "lines": [
+     "$QCEXTCLTSTATE: (0-1)"
+    ],
+    "durationMs": 4
+   }
+  },
+  {
+   "id": "deep:$QCEXTCLTSTATE?",
+   "command": "AT$QCEXTCLTSTATE?",
+   "category": "discovery",
+   "state": "done",
+   "response": {
+    "command": "AT$QCEXTCLTSTATE?",
+    "status": "ok",
+    "lines": [
+     "$QCEXTCLTSTATE: 0"
+    ],
+    "durationMs": 4
+   }
+  }
+ ],
+ "commandList": [
+  "&C",
+  "&D",
+  "&F",
+  "&V",
+  "Q",
+  "V",
+  "X",
+  "Z",
+  "&E",
+  "&W",
+  "&S",
+  "E",
+  "I",
+  "L",
+  "M",
+  "A",
+  "D",
+  "H",
+  "O",
+  "S0",
+  "S4",
+  "S5",
+  "S6",
+  "S7",
+  "S8",
+  "S10",
+  "S3",
+  "S2",
+  "+ICF",
+  "+IFC",
+  "+GMI",
+  "+GMM",
+  "+GMR",
+  "+GSN",
+  "+GCAP",
+  "+CMEE",
+  "+WS46",
+  "+CEREG",
+  "+CEMODE",
+  "+CSCS",
+  "+CRC",
+  "+CGDCONT",
+  "+CGDSCONT",
+  "+CGEREP",
+  "+CGCONTRDP",
+  "+CGPADDR",
+  "+CGSMS",
+  "+CSMS",
+  "+CMGF",
+  "+CSAS",
+  "+CRES",
+  "+CSCA",
+  "+CSMP",
+  "+CREG",
+  "+CGREG",
+  "+CGSCONTRDP",
+  "+CGPIAF",
+  "+CSDH",
+  "+CSSN",
+  "+CSTA",
+  "+CR",
+  "+CEER",
+  "+CGTFT",
+  "+CGEQOS",
+  "+CGTFTRDP",
+  "+CGEQOSRDP",
+  "+CGQREQ",
+  "+CGQMIN",
+  "+CGDATA",
+  "+CGCLASS",
+  "+CSCB",
+  "+CMOD",
+  "+CVHU",
+  "+QCGEQOS",
+  "+QCGQMIN",
+  "+QCGQREQ",
+  "+QCGTFT",
+  "+CSQ",
+  "+CPIN",
+  "+CMER",
+  "+CPMS",
+  "+CNMI",
+  "+CMGL",
+  "+CMGR",
+  "+CMGS",
+  "+CMSS",
+  "+CMGW",
+  "+CMGD",
+  "+CMGC",
+  "+CNMA",
+  "+CMMS",
+  "+COPS",
+  "+CIMI",
+  "+CGMI",
+  "+CGMM",
+  "+CGMR",
+  "+CGSN",
+  "+CLAC",
+  "+CVMOD",
+  "+CGATT",
+  "+CGACT",
+  "+CPAS",
+  "+CGCMOD",
+  "+CLCK",
+  "+CPWD",
+  "+CSIM",
+  "+CRSM",
+  "+CCLK",
+  "+COPN",
+  "+CPOL",
+  "+CPLS",
+  "+CTZR",
+  "+CTZU",
+  "+CUAD",
+  "+CSDF",
+  "+CSTF",
+  "+CUSD",
+  "+ICCID",
+  "+CBC",
+  "+CMEC",
+  "+CIND",
+  "+CHUP",
+  "+CCFC",
+  "+CCUG",
+  "+CAOC",
+  "+CACM",
+  "+CAMM",
+  "+CPUC",
+  "+CCWA",
+  "+CHLD",
+  "+CLIP",
+  "+COLP",
+  "+CDIP",
+  "+CTFR",
+  "+CLIR",
+  "+VTS",
+  "+CEN",
+  "+CNMPSD",
+  "+CPSMS",
+  "+CEDRXS",
+  "+CEDRXRDP",
+  "+CFUN",
+  "$QCPWRDN",
+  "+CMUX",
+  "+IPR",
+  "$QCRMCALL",
+  "$QCPDPP",
+  "$QCDGEN",
+  "$QCPDPIMSCFGE",
+  "$QCPDPCFGE",
+  "$QCSIMSTAT",
+  "$QCPRFMOD",
+  "$QCRSRP",
+  "$QCRSRQ",
+  "$QCRATSTATE",
+  "$QCEXTCLTSTATE"
+ ],
+ "usb": "1e0e:9001",
+ "profile": {
+  "id": "simcom-sim7000",
+  "label": "SIMCom SIM7000",
+  "verified": false,
+  "match": {
+   "modelPattern": "\\bSIM7000"
+  },
+  "commands": [
+   {
+    "id": "sim-cpsi",
+    "command": "AT+CPSI?",
+    "category": "signal",
+    "phase": "auto",
+    "parser": "sim_cpsi"
+   },
+   {
+    "id": "sim-cnmp",
+    "command": "AT+CNMP?",
+    "category": "network",
+    "phase": "auto",
+    "parser": "sim_cnmp"
+   },
+   {
+    "id": "sim-cmnb",
+    "command": "AT+CMNB?",
+    "category": "network",
+    "phase": "auto",
+    "parser": "sim_cmnb"
+   },
+   {
+    "id": "sim-cbandcfg",
+    "command": "AT+CBANDCFG?",
+    "category": "bands",
+    "phase": "auto",
+    "parser": "sim_cbandcfg"
+   }
+  ],
+  "denyCommands": [
+   "+CPUC",
+   "+SDEBUG",
+   "+CDAM"
+  ]
+ },
+ "app": "0.1.0 (ca2a7bc)"
+}

@@ -53,7 +53,8 @@ svg { display: block; width: 100%; height: auto; }
 .value { stroke: var(--accent); stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray 0.4s ease; }
 .reading { position: absolute; left: 0; right: 0; bottom: -0.1rem; text-align: center; }
 .num { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.01em; }
-dl { flex: 1 1 11rem; min-width: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.25rem 1rem; margin: 0; }
+/* A long label wraps instead of squeezing the values into a column a letter wide. */
+dl { flex: 1 1 11rem; min-width: 0; display: grid; grid-template-columns: fit-content(10rem) minmax(7rem, 1fr); gap: 0.25rem 1rem; margin: 0; }
 dt { font-size: 0.82rem; color: var(--ink-3); }
 dd { margin: 0; font-size: 0.9rem; overflow-wrap: anywhere; }
 </style>

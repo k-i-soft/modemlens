@@ -34,6 +34,8 @@ const ANSWERS: Record<string, string[]> = {
   'AT+CGREG?': ['+CGREG: 0,1', OK],
   'AT+CEREG?': ['+CEREG: 0,1', OK],
   'AT+C5GREG?': [ERR],
+  'AT+CPSMS?': ['+CPSMS: 0,,,"00100100","00000101"', OK],
+  'AT+CEDRXS?': ['+CEDRXS: 4,"0101"', OK],
   'AT+CSQ': ['+CSQ: 21,99', OK],
   'AT+CGACT?': ['+CGACT: 1,1', '+CGACT: 2,0', OK],
   'AT+CGATT?': ['+CGATT: 1', OK],

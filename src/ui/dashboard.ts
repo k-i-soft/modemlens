@@ -99,7 +99,14 @@ function reading(value: string | undefined): number | undefined {
 /** What a temperature sensor reports when it is not there; named sensors reach us unfiltered. */
 const NO_TEMPERATURE_SENSOR = 255;
 const SIGNAL_KEYS: Record<Metric, string> = { rsrp: 'rsrp_dbm', rsrq: 'rsrq_db', sinr: 'sinr_db', rssi: 'rssi_dbm' };
-const SIGNAL_SOURCES = ['qeng_serving', 'qcsq', 'cesq', 'csq', ...WEB_PARSER_NAMES];
+const SIGNAL_SOURCES = ['qeng_serving', 'sim_cpsi', 'qcsq', 'cesq', 'csq', ...WEB_PARSER_NAMES];
+/** Settings a profile or the standard reads, shown under the device in this order. */
+const SETTING_ROWS: Array<[string, string]> = [
+  ['sim_cnmp', 'mode_preference'], ['sim_cmnb', 'lte_mode'],
+  ['cpsms', 'psm'], ['cpsms', 'psm_periodic_update'], ['cpsms', 'psm_active_time'],
+  ['cedrxs', 'edrx_ltem'], ['cedrxs', 'edrx_nbiot'],
+];
+const BAND_NAME = /^B(\d+)$/;
 /** What only a modem's own web page reports, shown with the label its parser gave. */
 const WEB_CELL_KEYS = ['ul_earfcn', 'lac', 'enodeb_id', 'nei_cellid', 'dl_bandwidth_mhz', 'ul_bandwidth_mhz', 'dl_frequency_khz', 'ul_frequency_khz'];
 const WEB_DEVICE_KEYS = [
@@ -169,7 +176,10 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   const simState = summary.simState === undefined ? undefined : summary.simState === 'READY' ? 'Ready' : capitalise(summary.simState);
   const workMode = webField('work_mode')?.value;
   const noService = workMode !== undefined && NO_SERVICE.test(workMode);
-  const technology = summary.rat ?? text('qeng_serving', 'rat') ?? (noService ? undefined : workMode);
+  // +CPSI names the kind of LTE (CAT-M1, NB-IOT), which the registration alone does not.
+  const cpsiMode = find('sim_cpsi', 'system_mode')?.value;
+  const cpsiTechnology = cpsiMode === undefined || NO_SERVICE.test(cpsiMode) ? undefined : cpsiMode;
+  const technology = cpsiTechnology ?? summary.rat ?? text('qeng_serving', 'rat') ?? (noService ? undefined : workMode);
   const functionality = find('cfun', 'functionality')?.value;
   const radioOff = functionality !== undefined && RADIO_OFF_MODES.includes(functionality);
   const chips: Chip[] = [];
@@ -200,10 +210,15 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   }
 
   // ---- bands ----
-  const enabled = find('qcfg', 'lte_bands')?.value.split(',').map(Number).filter((n) => Number.isInteger(n)) ?? [];
+  const bandNumber = (name: string): number => Number(BAND_NAME.exec(name.trim())?.[1]);
+  const simcomBands = [find('sim_cbandcfg', 'catm_bands'), find('sim_cbandcfg', 'nbiot_bands')]
+    .flatMap((f) => f?.value.split(',').map(bandNumber) ?? []);
+  const enabled = [...(find('qcfg', 'lte_bands')?.value.split(',').map(Number) ?? []), ...simcomBands].filter((n) => Number.isInteger(n));
   const reportedBand = find('qnwinfo', 'band')?.value;
   const lteBand = reportedBand === undefined ? undefined : /^LTE BAND (\d+)$/i.exec(reportedBand.trim())?.[1];
-  const servingBand = reading((find('qeng_serving', 'band') ?? webField('band'))?.value);
+  const cpsiBand = find('sim_cpsi', 'band')?.value;
+  const servingBand = reading((find('qeng_serving', 'band') ?? webField('band'))?.value)
+    ?? (cpsiBand === undefined ? undefined : reading(String(bandNumber(cpsiBand))));
   const active = lteBand !== undefined ? Number(lteBand) : reportedBand === undefined ? servingBand : undefined;
   const bandNumbers = [...new Set(active === undefined ? enabled : [...enabled, active])].sort((a, b) => a - b);
   const bands: Dashboard['bands'] = { items: bandNumbers.map((band) => ({ band, active: band === active })) };
@@ -212,12 +227,13 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
   // ---- cell ----
   const mcc = find('qeng_serving', 'mcc')?.value;
   const mnc = find('qeng_serving', 'mnc')?.value;
+  const cpsiPlmn = text('sim_cpsi', 'plmn')?.replace('-', '');
   const cellRows: Array<[string, string, string | undefined]> = [
-    ['plmn', 'PLMN', text('qnwinfo', 'plmn') ?? text('qspn', 'plmn') ?? (mcc && mnc ? `${mcc}${mnc}` : undefined) ?? text('cops', 'plmn') ?? web('plmn')],
-    ['earfcn', 'EARFCN', text('qeng_serving', 'earfcn') ?? text('qnwinfo', 'channel') ?? web('earfcn')],
-    ['cell_id', 'Cell ID', text('qeng_serving', 'cell_id') ?? text('creg', 'cell_id') ?? web('cell_id')],
-    ['pci', 'PCI', text('qeng_serving', 'pci') ?? web('pci')],
-    ['tac', 'TAC', text('qeng_serving', 'tac') ?? text('creg', 'tac') ?? web('tac')],
+    ['plmn', 'PLMN', text('qnwinfo', 'plmn') ?? text('qspn', 'plmn') ?? (mcc && mnc ? `${mcc}${mnc}` : undefined) ?? cpsiPlmn ?? text('cops', 'plmn') ?? web('plmn')],
+    ['earfcn', 'EARFCN', text('qeng_serving', 'earfcn') ?? text('qnwinfo', 'channel') ?? text('sim_cpsi', 'earfcn') ?? web('earfcn')],
+    ['cell_id', 'Cell ID', text('qeng_serving', 'cell_id') ?? text('sim_cpsi', 'cell_id') ?? text('creg', 'cell_id') ?? web('cell_id')],
+    ['pci', 'PCI', text('qeng_serving', 'pci') ?? text('sim_cpsi', 'pci') ?? web('pci')],
+    ['tac', 'TAC', text('qeng_serving', 'tac') ?? text('sim_cpsi', 'tac') ?? text('creg', 'tac') ?? web('tac')],
     ['state', 'State', text('qeng_serving', 'state')],
     ['duplex', 'Duplex', text('qeng_serving', 'duplex')],
   ];
@@ -293,7 +309,11 @@ export function buildDashboard(report: ScanReport, opts: DashboardOptions = {}):
 
   const firstField = (key: string): Field | undefined => find('identity', key) ?? webField(key);
   const imei = find('cgsn', 'imei') ?? webField('imei');
-  const deviceDetails = webRows(WEB_DEVICE_KEYS);
+  const settingRows: Row[] = SETTING_ROWS.flatMap(([parser, key]) => {
+    const f = find(parser, key);
+    return f ? [{ key, label: f.label, value: shown(f) }] : [];
+  });
+  const deviceDetails = [...settingRows, ...webRows(WEB_DEVICE_KEYS)];
   const profile = report.profile;
 
   return {

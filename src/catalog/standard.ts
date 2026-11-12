@@ -34,6 +34,9 @@ export const STANDARD_CATALOG: CatalogEntry[] = [
   auto('cgreg', 'AT+CGREG?', 'network', false, 'creg'),
   auto('cereg', 'AT+CEREG?', 'network', false, 'creg'),
   auto('c5greg', 'AT+C5GREG?', 'network', false, 'creg'),
+  // power saving: what an IoT module asked the network for (standard read forms, answered from local settings)
+  auto('cpsms', 'AT+CPSMS?', 'network', false, 'cpsms'),
+  auto('cedrxs', 'AT+CEDRXS?', 'network', false, 'cedrxs'),
   // signal
   auto('csq', 'AT+CSQ', 'signal', false, 'csq'),
   auto('cesq', 'AT+CESQ', 'signal', false, 'cesq'),

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import raw from './quectel-ec200a.json';
+import rawSim7000 from './simcom-sim7000.json';
 import type { ScanReport } from '../../src/scan/scanner';
 import { buildSummary, parseResponse } from '../../src/parse';
 import { buildDashboard } from '../../src/ui/dashboard';
@@ -87,9 +88,65 @@ describe('quectel-ec200a fixture', () => {
   });
 });
 
+// A real SIM7000E scan (1529B02SIM7000E, 2026-11-12) with every identifier, the operator and the APNs replaced.
+// It was taken with the old engine, so the start messages of the module still sit in the ATI answer.
+describe('simcom-sim7000 fixture', () => {
+  const sim = rawSim7000 as unknown as ScanReport;
+  const simField = (id: string, key: string): string | undefined => {
+    const item = sim.items.find(i => i.id === id);
+    const f = item?.response && item.parser ? parseResponse(item.parser, item.response) : null;
+    return f?.find(x => x.key === key)?.value;
+  };
+
+  test('the profile matches on the model and the summary ignores the start messages', () => {
+    const s = buildSummary(sim);
+    expect(s.model).toBe('SIMCOM_SIM7000E');
+    expect(s.registration).toBe('registered, home');
+    expect(simField('ati', 'model')).toBeUndefined();
+  });
+
+  test('dashboard from +CPSI, PSM and eDRX', () => {
+    const d = buildDashboard({ ...sim, profile: PROFILES.find(p => p.id === 'simcom-sim7000') });
+    const sig = (m: string) => d.signal.values.find(v => v.metric === m);
+    expect([sig('rsrp')?.value, sig('rsrq')?.value, sig('sinr')?.value, sig('rssi')?.value]).toEqual([-108, -12, 12, -80]);
+    expect(sig('rsrp')?.source).toBe('sim_cpsi');
+    expect(d.bands.items).toEqual([{ band: 20, active: true }]);
+    expect(d.chips.find(c => c.key === 'technology')?.value).toBe('LTE CAT-M1');
+    expect(d.identity.verified).toBe(true);
+    const rows = Object.fromEntries((d.device.details ?? []).map(r => [r.key, r.value]));
+    expect(rows).toMatchObject({ mode_preference: 'LTE only', lte_mode: 'CAT-M' });
+    expect(d.data.find(c => c.cid === 1)?.apn).toBe('m2m.demo');
+  });
+
+  // The capture predates the automatic +CPSMS? and +CEDRXS?; its deep scan holds the real answers.
+  test('the real PSM and eDRX answers read as expected', () => {
+    const deep = (command: string) => sim.items.find(i => i.command === command)!.response!;
+    const fields = (parser: string, command: string) =>
+      Object.fromEntries((parseResponse(parser, deep(command)) ?? []).map(f => [f.key, f.value]));
+    expect(fields('cpsms', 'AT+CPSMS?')).toEqual({ psm: 'off' });
+    expect(fields('cedrxs', 'AT+CEDRXS?')).toEqual({ edrx_ltem: '20.48 s' });
+  });
+
+  test('every answered parser item yields fields, except legitimately empty ones', () => {
+    // This firmware names the band modes without listing bands.
+    const empty = new Set(['clcc-test', 'sim-cbandcfg']);
+    for (const item of sim.items) {
+      if (!item.parser || !item.response || item.response.status !== 'ok' || empty.has(item.id)) continue;
+      expect(parseResponse(item.parser, item.response), item.id).not.toBeNull();
+    }
+  });
+
+  test('the redacted export contains no identifier and no cell', () => {
+    const out = toJson(redactReport(sim)) + toMarkdown(redactReport(sim));
+    for (const v of [FAKE.imei, FAKE.imsi, '98000000000000000091', '+10000000000', '10.0.0.2', '0xFACE', '12345678']) expect(out, v).not.toContain(v);
+    expect(out).toContain('1529B02SIM7000E');
+  });
+});
+
 test('profile verification status', () => {
-  expect(PROFILES.find(p => p.id === 'quectel-ec200a')?.verified).toBe(true);
-  for (const p of PROFILES.filter(p => p.id !== 'quectel-ec200a')) expect(p.verified, p.id).toBe(false);
+  const verified = ['quectel-ec200a', 'simcom-sim7000'];
+  for (const id of verified) expect(PROFILES.find(p => p.id === id)?.verified, id).toBe(true);
+  for (const p of PROFILES.filter(p => !verified.includes(p.id))) expect(p.verified, p.id).toBe(false);
 });
 
 // Public repository: every capture in this folder may hold only obviously fake values.

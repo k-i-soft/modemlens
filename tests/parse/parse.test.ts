@@ -41,6 +41,45 @@ describe('parseResponse', () => {
     for (const id of ids) expect(KNOWN_PARSERS).toContain(id);
   });
 
+  // The answers of a SIM7000E (1529B02SIM7000E), captured 2026-11-12.
+  test('PSM that is off says only that', () => {
+    expect(parseResponse('cpsms', ok(['+CPSMS: 0,,,"01100000","00000000"']))!.map((f) => [f.key, f.value])).toEqual([['psm', 'off']]);
+  });
+  test('PSM that is on names the requested periodic update and active time', () => {
+    expect(parseResponse('cpsms', ok(['+CPSMS: 1,,,"00100100","00000101"']))!.map((f) => [f.key, f.value])).toEqual([
+      ['psm', 'on'],
+      ['psm_periodic_update', '4 h'],
+      ['psm_active_time', '10 s'],
+    ]);
+  });
+  test('PSM timers: units, and a deactivated timer', () => {
+    expect(val('cpsms', ['+CPSMS: 1,,,"10100011","00100010"'], 'psm_periodic_update')).toBe('3 min');
+    expect(val('cpsms', ['+CPSMS: 1,,,"11100000","00100010"'], 'psm_periodic_update')).toBe('deactivated');
+    expect(val('cpsms', ['+CPSMS: 1,,,"10100011","00100010"'], 'psm_active_time')).toBe('2 min');
+  });
+  test.each([['+CPSMS: 2'], ['+CPSMS:'], ['+CSQ: 20,99']])('PSM %j says nothing', (line) => {
+    expect(parseResponse('cpsms', ok([line]))).toBeNull();
+  });
+
+  test('eDRX names the requested cycle per LTE kind and leaves out GSM and UMTS', () => {
+    expect(parseResponse('cedrxs', ok(['+CEDRXS: 3,"0000"', '+CEDRXS: 4,"0010"']))!.map((f) => [f.key, f.value])).toEqual([
+      ['edrx_ltem', '20.48 s'],
+    ]);
+    expect(val('cedrxs', ['+CEDRXS: 5,"0101"'], 'edrx_nbiot')).toBe('81.92 s (1.4 min)');
+    expect(val('cedrxs', ['+CEDRXS: 5,"0000"'], 'edrx_nbiot')).toBeUndefined();
+    expect(val('cedrxs', ['+CEDRXS: 4,"1011"'], 'edrx_ltem')).toBe('655.36 s (10.9 min)');
+  });
+  test.each([['+CEDRXS:'], ['+CEDRXS: 4,"12"'], ['+CEDRXS: 3,"0000"']])('eDRX %j says nothing', (line) => {
+    expect(parseResponse('cedrxs', ok([line]))).toBeNull();
+  });
+
+  // An imported or older report can still hold the start messages of a SIM7000E inside the ATI answer.
+  test('identity skips start and time messages in an ATI answer', () => {
+    const lines = ['SMS Ready', 'DST: 0', '*PSUTTZ: 26/11/12,13:34:57","+04",0', 'SIM7000E R1529'];
+    const fields = parseResponse('identity', ok(lines, 'ATI'))!;
+    expect(fields.map((f) => [f.key, f.value])).toEqual([['manufacturer', 'SIM7000E R1529']]);
+  });
+
   test('identity uses the command', () => {
     const ati = parseResponse('identity', ok(['Quectel', 'EC25', 'Revision: EC25EFAR06A', 'IMEI: 861234567890123'], 'ATI'))!;
     expect(ati).toContainEqual(expect.objectContaining({ key: 'manufacturer', value: 'Quectel' }));

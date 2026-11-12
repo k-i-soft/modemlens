@@ -1,7 +1,7 @@
 {
   "id": "simcom-sim7000",
   "label": "SIMCom SIM7000",
-  "verified": false,
+  "verified": true,
   "match": {
     "modelPattern": "\\bSIM7000"
   },

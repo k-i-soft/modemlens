@@ -435,3 +435,63 @@ describe('hide identifiers', () => {
     expect(d.data[0].addresses).toEqual([MASK, MASK]);
   });
 });
+
+// The answers of a SIM7000E (1529B02SIM7000E) captured 2026-11-12, with made-up cell identifiers.
+describe('SIMCom SIM7000 on the Overview', () => {
+  const CPSI = '+CPSI: LTE CAT-M1,Online,228-01,0x1A2B,12345678,123,EUTRAN-BAND20,6300,3,3,-12,-108,-80,12';
+  const sim7000 = () => [
+    item('cops', ['+COPS: 0,0,"Swisscom Swisscom",7'], 'AT+COPS?', 'cops'),
+    item('creg', ['+CEREG: 0,1'], 'AT+CEREG?', 'cereg'),
+    item('csq', ['+CSQ: 17,99'], 'AT+CSQ', 'csq'),
+    item('sim_cpsi', [CPSI], 'AT+CPSI?', 'sim-cpsi'),
+    item('sim_cnmp', ['+CNMP: 38'], 'AT+CNMP?', 'sim-cnmp'),
+    item('sim_cmnb', ['+CMNB: 1'], 'AT+CMNB?', 'sim-cmnb'),
+    item('cpsms', ['+CPSMS: 0,,,"01100000","00000000"'], 'AT+CPSMS?', 'cpsms'),
+    item('cedrxs', ['+CEDRXS: 3,"0000"', '+CEDRXS: 4,"0010"'], 'AT+CEDRXS?', 'cedrxs'),
+  ];
+
+  test('the signal comes from +CPSI, before the coarse CSQ', () => {
+    const d = buildDashboard(report(sim7000()));
+    const v = Object.fromEntries(d.signal.values.map((s) => [s.metric, [s.value, s.source]]));
+    expect(v).toEqual({ rsrp: [-108, 'sim_cpsi'], rsrq: [-12, 'sim_cpsi'], sinr: [12, 'sim_cpsi'], rssi: [-80, 'sim_cpsi'] });
+    expect(d.signal.basis).toBe('rsrp');
+  });
+
+  test('technology, band and cell come from +CPSI', () => {
+    const d = buildDashboard(report(sim7000()));
+    expect(d.chips.find((c) => c.key === 'technology')?.value).toBe('LTE CAT-M1');
+    expect(d.bands.items).toEqual([{ band: 20, active: true }]);
+    const cell = Object.fromEntries(d.cell.map((r) => [r.key, r.value]));
+    expect(cell).toMatchObject({ plmn: '22801', earfcn: '6300', cell_id: '12345678', pci: '123', tac: '0x1A2B' });
+  });
+
+  test('the cell is masked with the identifiers', () => {
+    const d = buildDashboard(report(sim7000()), { hideIdentifiers: true });
+    const cell = Object.fromEntries(d.cell.map((r) => [r.key, r.value]));
+    expect(cell).toMatchObject({ cell_id: MASK, pci: MASK, tac: MASK, earfcn: '6300', plmn: '22801' });
+  });
+
+  test('a module without service names no technology from +CPSI', () => {
+    const d = buildDashboard(report([item('sim_cpsi', ['+CPSI: NO SERVICE,Online'], 'AT+CPSI?', 'sim-cpsi')]));
+    expect(d.chips.find((c) => c.key === 'technology')).toBeUndefined();
+  });
+
+  test('mode, PSM and eDRX are device details', () => {
+    const d = buildDashboard(report(sim7000()));
+    const rows = Object.fromEntries((d.device.details ?? []).map((r) => [r.key, [r.label, r.value]]));
+    expect(rows).toMatchObject({
+      mode_preference: ['Mode preference', 'LTE only'],
+      lte_mode: ['LTE mode', 'CAT-M'],
+      psm: ['Power saving (PSM)', 'off'],
+      edrx_ltem: ['eDRX, LTE-M (requested)', '20.48 s'],
+    });
+  });
+
+  test('the enabled Cat-M bands join the band list when the module names them', () => {
+    const d = buildDashboard(report([
+      item('sim_cpsi', [CPSI], 'AT+CPSI?', 'sim-cpsi'),
+      item('sim_cbandcfg', ['+CBANDCFG: "CAT-M",3,8,20'], 'AT+CBANDCFG?', 'sim-cbandcfg'),
+    ]));
+    expect(d.bands.items).toEqual([{ band: 3, active: false }, { band: 8, active: false }, { band: 20, active: true }]);
+  });
+});

@@ -7,8 +7,10 @@ test('matches by model', () => expect(matchProfile({ model: 'EC25EUFAR' })?.id).
 test.each([['EC200A', 'quectel-ec200a'], ['EG800', 'quectel-eg800'], ['EG800Q-EU', 'quectel-eg800']])('model %s', (m, id) =>
   expect(matchProfile({ model: m })?.id).toBe(id));
 test('unknown', () => expect(matchProfile({ usb: 'dead:beef' })).toBeUndefined());
+// Verified means checked against a real capture: the EC200A, and the SIM7000E on 2026-11-12.
+const VERIFIED = ['quectel-ec200a', 'simcom-sim7000'];
 test('the remaining starter profiles are unverified', () =>
-  expect(PROFILES.filter(p => p.id !== 'quectel-ec200a').every(p => p.verified === false)).toBe(true));
+  expect(PROFILES.filter(p => !VERIFIED.includes(p.id)).every(p => p.verified === false)).toBe(true));
 
 test('a Huawei K3715 gets its profile by USB id and by model', () => {
   expect(matchProfile({ usb: '12d1:1001' })?.id).toBe('huawei-k3715');
@@ -35,7 +37,7 @@ test('a SIMCom SIM7000 gets its profile by model only: 1e0e:9001 is shared by ma
 });
 test('the SIM7000 profile reads cell, mode and bands, and keeps the deep scan off what hung it', () => {
   const p = PROFILES.find((x) => x.id === 'simcom-sim7000')!;
-  expect(p.verified).toBe(false);
+  expect(p.verified).toBe(true);
   expect(p.commands.map((e) => [e.command, e.parser, e.phase])).toEqual([
     ['AT+CPSI?', 'sim_cpsi', 'auto'],
     ['AT+CNMP?', 'sim_cnmp', 'auto'],
