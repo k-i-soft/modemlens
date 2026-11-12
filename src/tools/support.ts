@@ -1,5 +1,6 @@
 import { MODEM_SPEED_TEST, modemSpeedDialect } from './modemSpeed';
 import { PING_TEST, pingDialect } from './ping';
+import { COUNTER_READ, counterDialect } from './traffic';
 import type { ToolId, ToolIo } from './types';
 
 /**
@@ -18,6 +19,7 @@ export async function probeTools(io: ToolIo, profileId: string | undefined): Pro
   if (dialect) probes.push(['ping', PING_TEST[dialect]]);
   const http = modemSpeedDialect(profileId);
   if (http) probes.push(['modem-speed', MODEM_SPEED_TEST[http]]);
+  if (counterDialect(profileId)) probes.push(['traffic', COUNTER_READ]);
   for (const [tool, command] of probes) {
     const r = await io.send(command);
     if (r.status === 'disconnected') break;
@@ -29,8 +31,9 @@ export async function probeTools(io: ToolIo, profileId: string | undefined): Pro
 
 /** Tools that have been run on a real modem of this profile. The others take the second confirmation. */
 const VERIFIED: Partial<Record<string, ToolId[]>> = {
-  // Four of four answered through AT+QPING on 2026-11-12.
-  'quectel-ec200a': ['ping'],
+  // Four of four answered through AT+QPING on 2026-11-12. The download test inside the modem ran
+  // through on the same day: 1 MB, the URL after CONNECT, +QHTTPGET after the headers, the file deleted.
+  'quectel-ec200a': ['ping', 'modem-speed'],
 };
 
 export function toolVerified(tool: ToolId, profileId: string | undefined): boolean {

@@ -62,7 +62,7 @@ describe('Tools in the Actions tab', () => {
 
   test('every tool the demo modem answers is shown, and only read and test forms were sent to find them', async () => {
     const w = await opened();
-    expect(['pin', 'ping', 'ussd', 'operator', 'sms'].filter((t) => tool(w, t).exists())).toEqual(['pin', 'ping', 'ussd', 'operator', 'sms']);
+    expect(['pin', 'ping', 'traffic', 'ussd', 'operator', 'sms'].filter((t) => tool(w, t).exists())).toEqual(['pin', 'ping', 'traffic', 'ussd', 'operator', 'sms']);
     // The settings read their QCFG values in the bare form, which is a read too.
     for (const c of sent().slice(atOpen)) expect(c, c).toMatch(/(\?|=\?|="SC",2|="SC")$|^AT\+QCFG="[a-z]+"$/);
     expect(tool(w, 'pin').text()).toContain('PIN 3, PUK 10');
@@ -146,6 +146,41 @@ describe('Tools in the Actions tab', () => {
     await until(() => u.text().includes('Your balance is 12.50.'));
   });
 
+  test('data traffic: totals, a live chart that only reads, a reset with two clicks', async () => {
+    const w = await opened();
+    const t = tool(w, 'traffic');
+    await until(() => t.find('.traffic-totals').exists());
+    expect(t.find('.traffic-totals').text()).toMatch(/Received[\d.]+ MBSent[\d.]+ kBTogether[\d.]+ MB/);
+
+    const before = sent().length;
+    await btn(t, 'Watch live')!.trigger('click');
+    await until(() => t.findAll('.trace').length >= 2, 5000);
+    expect(t.find('.traffic-now').text()).toMatch(/Download[\d.]+ [km]?bit\/sUpload/);
+    expect(t.find('.traffic-plot').attributes('aria-label')).toContain('now');
+    // Other tools may read meanwhile; nothing is written.
+    expect(sent().slice(before)).toContain('AT+QGDCNT?');
+    for (const c of sent().slice(before)) expect(c, c).toMatch(/\?$/);
+
+    // Leaving the tab stops the reading.
+    await btn(w.find('nav.tabs'), 'Overview')!.trigger('click');
+    await flushPromises();
+    expect(btn(t, 'Watch live')).toBeDefined();
+    const stopped = sent().length;
+    await new Promise((r) => setTimeout(r, 1300));
+    expect(sent().length).toBe(stopped);
+    await btn(w.find('nav.tabs'), 'Actions')!.trigger('click');
+
+    await btn(t, 'Reset counter')!.trigger('click');
+    expect(t.text()).toContain('AT+QGDCNT=0');
+    await btn(t, 'Confirm')!.trigger('click');
+    expect(t.text()).toContain('cannot be brought back');
+    await pastGuard();
+    await btn(t, 'Send anyway')!.trigger('click');
+    await until(() => t.text().includes('starts again from zero'));
+    expect(t.find('.traffic-totals').text()).toMatch(/Received\d+ B/);
+    expect(sent().filter((c) => c.startsWith('AT+QGDCNT=') && c !== 'AT+QGDCNT=?')).toEqual(['AT+QGDCNT=0']);
+  }, 15000);
+
   test('ping: four answers, no confirmation, nothing written', async () => {
     const w = await opened();
     const p = tool(w, 'ping');
@@ -228,13 +263,13 @@ describe('Speed test in the demo', () => {
     const tiles = s.findAll('.speed-tile').map((t) => t.find('.speed-label').text());
     expect(tiles).toEqual(['Download', 'Upload', 'Latency']);
     expect(s.text()).toContain('DEMO-MOBILE Demo Mobile Ltd');
-    expect(s.text()).toContain("This matches the modem's operator, Demo Mobile.");
+    // The demo modem counts the demo's transfers, so the counter tells the route, before the operator name could.
+    expect(s.text()).toMatch(/The modem counted [\d.]+ MB during the test: it went through the modem\./);
     expect(s.text()).not.toContain('Could not tell');
 
     await btn(s, 'Test inside the modem')!.trigger('click');
+    // Tested on a real EC200A, so one confirmation is enough.
     await btn(s, 'Confirm')!.trigger('click');
-    await pastGuard();
-    await btn(s, 'Send anyway')!.trigger('click');
     await until(() => s.text().includes('Inside the modem') && s.text().includes('MB in'), 8000);
     // Only the page's own files: the speed test went to the stand-in.
     for (const c of realFetch.mock.calls) expect(String(c[0])).not.toMatch(/cloudflare|ripe/);

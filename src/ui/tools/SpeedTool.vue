@@ -5,6 +5,8 @@ import type { SpeedEnv, SpeedPhase, SpeedResult, SpeedSize } from '../../tools/s
 import { MODEM_SIZES, MODEM_SPEED_URL, modemSpeedDialect, runModemSpeed } from '../../tools/modemSpeed';
 import type { ModemSpeedResult } from '../../tools/modemSpeed';
 import type { ToolOutcome } from '../../tools/types';
+import { formatBytes, routedThroughModem } from '../../tools/traffic';
+import type { Counter } from '../../tools/traffic';
 import ToolConfirm from './ToolConfirm.vue';
 import ToolResult from './ToolResult.vue';
 import { BUSY, hold } from './props';
@@ -16,6 +18,8 @@ const props = defineProps<ToolProps & {
   /** The operator the modem is registered with, to compare with the network the test went out through. */
   operator?: string;
   env: SpeedEnv;
+  /** Reads the modem's data counter, when it has one: before and after the test it tells whether the test went through the modem. */
+  counter?: () => Promise<Counter | null>;
 }>();
 
 const size = ref<SpeedSize>('light');
@@ -27,6 +31,8 @@ const phase = ref<SpeedPhase | null>(null);
 const live = ref<number | undefined>(undefined);
 const browser = shallowRef<SpeedResult | null>(null);
 const modem = shallowRef<ModemSpeedResult | ToolOutcome | null>(null);
+/** What the modem counted during the browser test, and what that says about the route. */
+const counted = shallowRef<{ bytes: number; through: boolean | undefined } | null>(null);
 let controller: AbortController | null = null;
 
 const dialect = computed(() => modemSpeedDialect(props.profileId));
@@ -59,6 +65,14 @@ const tiles = computed(() => {
   return t;
 });
 const match = computed(() => matchesOperator(browser.value?.network.holder, props.operator));
+const through = computed(() => counted.value?.through);
+const tone = computed(() => {
+  const r = browser.value!;
+  if (r.error && !tiles.value.length) return 'bad';
+  if (through.value === true) return 'ok';
+  if (through.value === false || match.value === false || !r.network.asn) return 'warn';
+  return 'ok';
+});
 const usedMb = computed(() => (browser.value ? ((browser.value.bytesDown + browser.value.bytesUp) / 1_000_000).toFixed(1) : '0'));
 const modemTile = computed(() => {
   const m = modem.value;
@@ -73,9 +87,17 @@ async function runBrowser(): Promise<void> {
   browser.value = null;
   testedSize.value = size.value;
   live.value = undefined;
+  counted.value = null;
   controller = new AbortController();
   try {
-    browser.value = await runSpeedTest(props.env, size.value, (p, v) => { phase.value = p; live.value = v; }, controller.signal);
+    const before = await props.counter?.();
+    const r = await runSpeedTest(props.env, size.value, (p, v) => { phase.value = p; live.value = v; }, controller.signal);
+    const after = before ? await props.counter?.() : null;
+    if (before && after) {
+      const bytes = after.received - before.received + (after.sent - before.sent);
+      if (bytes >= 0) counted.value = { bytes, through: routedThroughModem(r.bytesDown + r.bytesUp, bytes) };
+    }
+    browser.value = r;
   } finally {
     running.value = null;
     phase.value = null;
@@ -144,7 +166,7 @@ onBeforeUnmount(stop);
       <span v-if="running === 'browser' && live !== undefined" class="mono">{{ formatMbps(live).value }} {{ formatMbps(live).unit }}</span>
     </div>
 
-    <div v-if="browser" class="result speed-result" :data-tone="browser.error && !tiles.length ? 'bad' : match === false || !browser.network.asn ? 'warn' : 'ok'" role="status">
+    <div v-if="browser" class="result speed-result" :data-tone="tone" role="status">
       <p class="speed-caption">Through this computer</p>
       <div v-if="tiles.length" class="speed-tiles">
         <div v-for="t in tiles" :key="t.key" class="speed-tile" :data-grade="t.grade">
@@ -159,8 +181,10 @@ onBeforeUnmount(stop);
         Went out through <strong>{{ browser.network.holder ?? `AS${browser.network.asn}` }}</strong>
         <span class="mono"> AS{{ browser.network.asn }}{{ browser.network.country ? `, ${browser.network.country}` : '' }}</span>
       </p>
-      <p v-else-if="!browser.error" class="speed-match warn">Could not tell which network the test went through, so it may not have used the modem.</p>
-      <p v-if="match === true" class="speed-match ok">This matches the modem's operator, {{ operator }}.</p>
+      <p v-else-if="!browser.error && through === undefined" class="speed-match warn">Could not tell which network the test went through, so it may not have used the modem.</p>
+      <p v-if="through === true" class="speed-match ok">The modem counted {{ formatBytes(counted!.bytes) }} during the test: it went through the modem.</p>
+      <p v-else-if="through === false" class="speed-match warn">The modem counted only {{ formatBytes(counted!.bytes) }} while the test moved {{ formatBytes(browser.bytesDown + browser.bytesUp) }}: it did not go through the modem. Unplug network cables, switch off Wi-Fi and test again.</p>
+      <p v-else-if="match === true" class="speed-match ok">This matches the modem's operator, {{ operator }}.</p>
       <p v-else-if="match === false" class="speed-match warn">This does not look like the modem's operator ({{ operator }}). The test probably went through another connection, such as Wi-Fi or a network cable. Switch that off and test again.</p>
       <p class="reason">Used about {{ usedMb }} MB. Measured with {{ transfers.down }} downloads and {{ transfers.up }} uploads of growing size.</p>
     </div>

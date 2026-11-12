@@ -20,6 +20,8 @@ import ActionsPanel from './ui/ActionsPanel.vue';
 import ToolsPanel from './ui/tools/ToolsPanel.vue';
 import { createListener } from './tools/types';
 import type { ToolIo } from './tools/types';
+import { COUNTER_READ, parseCounter } from './tools/traffic';
+import type { Counter } from './tools/traffic';
 import AutoRefresh from './ui/AutoRefresh.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
 import LandingContent from './ui/LandingContent.vue';
@@ -494,6 +496,16 @@ const toolIo: ToolIo = {
   listen: (accept) => createListener((cb) => (actionEngine ? actionEngine.onUrc(cb) : () => undefined), accept),
 };
 
+/**
+ * The data counter, read without taking the modem, like the live signal. It waits during a scan, so no
+ * read lands between scan commands, but it may run between an action's commands: it changes nothing,
+ * and the speed test inside the modem is exactly when its traffic is worth seeing.
+ */
+function counterRead(): Promise<Counter | null> {
+  if (!engine || !connected.value || running.value) return Promise.resolve(null);
+  return engine.send(COUNTER_READ).then(parseCounter);
+}
+
 /** The modem is on its way down: the session ends here, and the reconnect buttons take over. */
 function onRestarted(): void {
   restarting.value = true;
@@ -734,6 +746,7 @@ onBeforeUnmount(() => {
         :end="endAction"
         :operator="dashboard.chips.find((c) => c.key === 'operator')?.value"
         :speed-env="demo ? demoSpeedEnv : undefined"
+        :counter-read="counterRead"
         @changed="refreshAfterAction"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>

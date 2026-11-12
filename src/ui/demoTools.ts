@@ -53,6 +53,38 @@ export function createDemoTools(): DemoTools {
 
 export type Later = (lines: string[], ms: number) => void;
 
+/** One transfer of the demo, spread evenly over its time, with TCP's overhead and acknowledgements. */
+interface Flow {
+  start: number;
+  end: number;
+  down: number;
+  up: number;
+}
+
+/** The demo modem's data counter: a slow trickle plus what the demo's transfers move. Shared by the demo modem and the demo speed test. */
+const traffic = { sent: 344_962, received: 4_870_453, since: -1, flows: [] as Flow[] };
+
+export function demoTransfer(down: number, up: number, ms: number, now = performance.now()): void {
+  traffic.flows.push({ start: now, end: now + Math.max(1, ms), down: down * 1.04 + up * 0.02, up: up * 1.04 + down * 0.02 });
+}
+
+export function demoCounter(now = performance.now()): { sent: number; received: number } {
+  if (traffic.since < 0) traffic.since = now;
+  const idle = Math.max(0, now - traffic.since) / 1000;
+  let sent = traffic.sent + idle * 600;
+  let received = traffic.received + idle * 2400;
+  for (const f of traffic.flows) {
+    const k = Math.min(1, Math.max(0, (now - f.start) / (f.end - f.start)));
+    sent += f.up * k;
+    received += f.down * k;
+  }
+  return { sent: Math.round(sent), received: Math.round(received) };
+}
+
+function resetDemoCounter(now = performance.now()): void {
+  Object.assign(traffic, { sent: 0, received: 0, since: now, flows: [] });
+}
+
 /** Answers the commands of the tools, or undefined for every other command. */
 export function toolAnswer(cmd: string, t: DemoTools, later: Later): string[] | undefined {
   const c = cmd.trim();
@@ -164,6 +196,16 @@ export function toolAnswer(cmd: string, t: DemoTools, later: Later): string[] | 
     return [OK];
   }
 
+  if (/^AT\+QGDCNT=\?$/i.test(c)) return ['+QGDCNT: (0,1)', OK];
+  if (/^AT\+QGDCNT\?$/i.test(c)) {
+    const n = demoCounter();
+    return [`+QGDCNT: ${n.sent},${n.received}`, OK];
+  }
+  if (/^AT\+QGDCNT=0$/i.test(c)) {
+    resetDemoCounter();
+    return [OK];
+  }
+
   // The modem's own HTTP client: about 18 Mbit/s into a file, which is deleted afterwards.
   if (/^AT\+QHTTPURL=\?$/i.test(c)) return ['+QHTTPURL: (1-2048),(1-65535)', OK];
   if (/^AT\+QFLDS="UFS"$/i.test(c)) return ['+QFLDS: 6291456,12582912', OK];
@@ -176,7 +218,9 @@ export function toolAnswer(cmd: string, t: DemoTools, later: Later): string[] | 
   }
   if (/^AT\+QHTTPREADFILE="UFS:[a-z.]+",\d+$/i.test(c)) {
     const bytes = Number(/bytes=(\d+)/.exec(t.httpUrl ?? '')?.[1] ?? 0);
-    later(['+QHTTPREADFILE: 0'], 100 + (bytes * 8) / 18000);
+    const ms = 100 + (bytes * 8) / 18000;
+    demoTransfer(bytes, 0, ms);
+    later(['+QHTTPREADFILE: 0'], ms);
     return [OK];
   }
   if (/^AT\+QFDEL="UFS:[a-z.]+"$/i.test(c)) return [OK];
@@ -227,11 +271,15 @@ export function createDemoSpeedEnv(): { fetch: typeof fetch; now: () => number }
     }
     if (url.pathname === '/__up') {
       const size = init?.body instanceof Uint8Array ? init.body.byteLength : 0;
-      await sleep(28 + (size * 8) / 9000, signal);
+      const ms = 28 + (size * 8) / 9000;
+      demoTransfer(0, size, ms);
+      await sleep(ms, signal);
       return new Response('', { status: 200 });
     }
     const bytes = Math.min(Number(url.searchParams.get('bytes') ?? 0), 50_000_000);
-    await sleep(28 + 3 * Math.random() + (bytes * 8) / 24000, signal);
+    const ms = 28 + 3 * Math.random() + (bytes * 8) / 24000;
+    demoTransfer(bytes, 0, ms);
+    await sleep(ms, signal);
     return new Response(new Uint8Array(bytes), { headers: { 'cf-meta-ip': '192.0.2.10' } });
   };
   return { fetch: demoFetch as typeof fetch, now: () => performance.now() };

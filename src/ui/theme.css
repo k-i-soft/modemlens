@@ -25,6 +25,10 @@
   --f-fair: #e09a12;
   --f-poor: #dd3d2f;
 
+  /* Download and upload in the traffic chart, validated for colour vision deficiency on --surface. */
+  --series-down: #1c4fd8;
+  --series-up: #eb6834;
+
   --display-bg: #12161a;
   --display-edge: transparent;
 
@@ -56,6 +60,8 @@
     --f-fair: #f6bb42;
     --f-poor: #ff7468;
 
+    --series-down: #5f8cf0;
+    --series-up: #e06a35;
     --display-bg: #181d23;
     --display-edge: rgb(255 255 255 / 0.08);
   }

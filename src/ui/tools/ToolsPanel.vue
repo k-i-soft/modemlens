@@ -9,6 +9,8 @@ import SmsTool from './SmsTool.vue';
 import SpeedTool from './SpeedTool.vue';
 import type { SpeedEnv } from '../../tools/speed';
 import UssdTool from './UssdTool.vue';
+import TrafficTool from './TrafficTool.vue';
+import type { Counter } from '../../tools/traffic';
 import { holdWhenFree } from './props';
 
 const props = withDefaults(defineProps<{
@@ -24,17 +26,20 @@ const props = withDefaults(defineProps<{
   operator?: string;
   /** Where the browser speed test sends its requests: the real network, or the demo's stand-in. */
   speedEnv?: SpeedEnv;
+  /** Reads the modem's data counter without taking the modem. */
+  counterRead?: () => Promise<Counter | null>;
 }>(), {
   profileId: undefined,
   hideIdentifiers: false,
   operator: undefined,
+  counterRead: () => Promise.resolve(null),
   speedEnv: () => ({ fetch: (...a: Parameters<typeof fetch>) => fetch(...a), now: () => performance.now() }),
 });
 
 const emit = defineEmits<{ (e: 'changed'): void }>();
 
 /** The browser speed test needs no modem command, so it is always there. */
-const ORDER: Array<ToolId | 'speed'> = ['pin', 'ping', 'speed', 'ussd', 'operator', 'sms'];
+const ORDER: Array<ToolId | 'speed'> = ['pin', 'ping', 'speed', 'traffic', 'ussd', 'operator', 'sms'];
 const supported = shallowRef<Set<ToolId> | null>(null);
 const probing = ref(false);
 const block = computed(() => toolBlock(props));
@@ -75,7 +80,8 @@ const common = computed(() => ({
       <template v-for="t in shown" :key="t">
         <PinTool v-if="t === 'pin'" v-bind="common" :unverified="!toolVerified('pin', profileId)" @changed="emit('changed')" />
         <PingTool v-else-if="t === 'ping'" v-bind="common" :unverified="!toolVerified('ping', profileId)" />
-        <SpeedTool v-else-if="t === 'speed'" v-bind="common" :unverified="!toolVerified('modem-speed', profileId)" :modem-speed="supported.has('modem-speed')" :operator="operator" :env="speedEnv" />
+        <SpeedTool v-else-if="t === 'speed'" v-bind="common" :unverified="!toolVerified('modem-speed', profileId)" :modem-speed="supported.has('modem-speed')" :operator="operator" :env="speedEnv" :counter="supported.has('traffic') ? counterRead : undefined" />
+        <TrafficTool v-else-if="t === 'traffic'" v-bind="common" :unverified="!toolVerified('traffic', profileId)" :active="active" :read="counterRead" />
         <UssdTool v-else-if="t === 'ussd'" v-bind="common" :unverified="!toolVerified('ussd', profileId)" />
         <OperatorTool v-else-if="t === 'operator'" v-bind="common" :unverified="!toolVerified('operator', profileId)" @changed="emit('changed')" />
         <SmsTool v-else-if="t === 'sms'" v-bind="common" :unverified="!toolVerified('sms', profileId)" />

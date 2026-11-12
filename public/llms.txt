@@ -10,7 +10,7 @@ Model, firmware, SIM state, operator, registration, signal quality (RSRP, RSRQ, 
 
 - The automatic scan sends read commands only and changes nothing on the modem.
 - Settings such as APN, USB mode or NAT change only in the Actions tab, one at a time and after confirmation, on the Quectel EC200A, an ASR-based stick and the SIMCom SIM7000.
-- Tools in the Actions tab work on any modem that knows their commands: SIM PIN (unlock, change, PIN request on or off), USSD codes, manual network choice, reading, deleting and sending text messages, ping, and a speed test. Every change asks first.
+- Tools in the Actions tab work on any modem that knows their commands: SIM PIN (unlock, change, PIN request on or off), USSD codes, manual network choice, reading, deleting and sending text messages, ping, a speed test, and the data traffic the modem counted, with a live chart of its current speed. Every change asks first.
 - The speed test runs only when started. It exchanges test data with Cloudflare's speed test service and asks RIPEstat which network it went through. Nothing read from the modem is sent.
 - The shareable report masks identifiers such as IMEI, IMSI and ICCID. A full export needs a confirmation.
 - The page sets no cookies and loads no tracking or third-party scripts. Page downloads appear in the server logs, which K-I-Soft evaluates for visitor statistics.
