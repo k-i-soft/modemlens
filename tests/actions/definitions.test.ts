@@ -303,8 +303,7 @@ describe('SIM7000 definitions', () => {
 
 describe('never exposed', () => {
   const FORBIDDEN = ['band', 'usbid', 'usbmanufacturer', 'usbnetmac', 'imeilock', 'fota', 'poweroffdefault', 'qnwlock', 'prtpara', 'mbncfg', 'cbandcfg'];
-  const dir = 'src/actions';
-  const sources = readdirSync(dir).map((f) => readFileSync(join(dir, f), 'utf8'));
+  const sources = ['src/actions', 'src/tools'].flatMap((dir) => readdirSync(dir).map((f) => readFileSync(join(dir, f), 'utf8')));
   const texts = [
     ...[...ACTIONS, ...ASR_ACTIONS, ...SIM7000_ACTIONS].flatMap((a) => [a.label, a.summary, a.warning, a.read?.command ?? '', ...a.choices.flatMap((c) => [c.label, c.command, c.warning ?? ''])]),
     ...sources,

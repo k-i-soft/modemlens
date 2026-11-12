@@ -12,7 +12,7 @@ export interface AtResponse {
 
 const URC_PREFIXES = [
   'RDY', 'RING', '+CREG:', '+CGREG:', '+CEREG:', '+C5GREG:', '+CGEV:', '+CMTI:',
-  '+CUSD:', '+CLIP:', '+QIND:', '+QUSIM:', '+CPIN:', '+CFUN:',
+  '+CUSD:', '+CLIP:', '+QIND:', '+QUSIM:', '+CPIN:', '+CFUN:', '+QPING:',
   // SIMCom after a start and on network time: they land in the first answer otherwise (SIM7000E, 2026-11-12).
   'SMS Ready', 'Call Ready', 'PB DONE', 'DST:', '*PSUTTZ:', '*PSNWID:', '+CTZV:', '+CTZE:',
 ];
@@ -141,8 +141,12 @@ export class AtEngine {
     });
   }
 
-  onUrc(cb: (line: string) => void): void {
+  /** Returns the function that stops this listener. */
+  onUrc(cb: (line: string) => void): () => void {
     this.urcCbs.push(cb);
+    return () => {
+      this.urcCbs = this.urcCbs.filter((c) => c !== cb);
+    };
   }
 
   onDisconnect(cb: (reason: string) => void): void {
