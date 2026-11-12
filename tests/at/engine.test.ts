@@ -259,6 +259,34 @@ describe('AtEngine', () => {
     expect(t.written).toEqual(['AT+CMGS=5\r', 'hello\x1a']);
   });
 
+  test('a body after CONNECT goes out as it is, without Ctrl+Z', async () => {
+    const url = 'http://speed.cloudflare.com/__down?bytes=1000';
+    t.reply(`AT+QHTTPURL=${url.length},30`, ['\r\nCONNECT\r\n']);
+    t.reply(url, ['\r\nOK\r\n']);
+    const r = await engine.send(`AT+QHTTPURL=${url.length},30`, { body: url, bodyAfterConnect: true });
+    expect(r.status).toBe('ok');
+    expect(r.lines).toEqual([]);
+    expect(t.written).toEqual([`AT+QHTTPURL=${url.length},30\r`, url]);
+  });
+
+  test('a CONNECT is only an answer line when no body waits for it', async () => {
+    t.reply('ATD*99#', ['\r\nCONNECT\r\n\r\nNO CARRIER\r\n']);
+    const r = await engine.send('ATD*99#');
+    expect(r.lines).toEqual(['CONNECT']);
+    expect(t.written).toEqual(['ATD*99#\r']);
+  });
+
+  test('unsolicited listeners can be removed', async () => {
+    const seen: string[] = [];
+    const off = engine.onUrc((l) => seen.push(l));
+    t.emit('\r\n+QPING: 0,4,4,0,1,2,3\r\n');
+    await flush();
+    off();
+    t.emit('\r\n+QPING: 569\r\n');
+    await flush();
+    expect(seen).toEqual(['+QPING: 0,4,4,0,1,2,3']);
+  });
+
   test('never writes on its own', async () => {
     t.emit('\r\nRDY\r\n');
     await vi.advanceTimersByTimeAsync(10_000);

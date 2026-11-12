@@ -1,6 +1,6 @@
 /** Copy shared by the live landing page and the static copy built into index.html. */
 export const LEDE =
-  'See what your USB cellular modem is, whether it is on the network and how good the signal is. It runs in Chrome or Edge, and nothing leaves this page.';
+  'See what your USB cellular modem is, whether it is on the network and how good the signal is. It runs in Chrome or Edge, and what it reads stays on this page.';
 
 export interface FaqEntry {
   question: string;

@@ -208,3 +208,34 @@ describe('Tools in the Actions tab', () => {
     expect(sent()).toContain('AT+COPS=1,2,"00102",7');
   });
 });
+
+describe('Speed test in the demo', () => {
+  test('both tests run against stand-ins and never touch the network', async () => {
+    const realFetch = vi.spyOn(globalThis, 'fetch');
+    const w = mount(App, { props: { demo: true, demoDelayMs: 0, donateUrl: null }, attachTo: document.body });
+    wrappers.push(w);
+    await btn(w, 'Serial port')!.trigger('click');
+    await until(() => w.text().includes('Automatic scan finished'));
+    await btn(w.find('nav.tabs'), 'Actions')!.trigger('click');
+    await until(() => tool(w, 'speed').exists() && !!btn(tool(w, 'speed'), 'Test inside the modem'));
+    const s = tool(w, 'speed');
+
+    await btn(s, 'Test through this computer')!.trigger('click');
+    expect(s.text()).toContain('speed.cloudflare.com, stat.ripe.net');
+    expect(s.text()).toContain('switch off Wi-Fi');
+    await btn(s, 'Confirm')!.trigger('click');
+    await until(() => s.find('.speed-result').exists(), 15000);
+    const tiles = s.findAll('.speed-tile').map((t) => t.find('.speed-label').text());
+    expect(tiles).toEqual(['Download', 'Upload', 'Latency']);
+    expect(s.text()).toContain('DEMO-MOBILE Demo Mobile Ltd');
+    expect(s.text()).toContain("This matches the modem's operator, Demo Mobile.");
+
+    await btn(s, 'Test inside the modem')!.trigger('click');
+    await btn(s, 'Confirm')!.trigger('click');
+    await pastGuard();
+    await btn(s, 'Send anyway')!.trigger('click');
+    await until(() => s.text().includes('Inside the modem') && s.text().includes('MB in'), 8000);
+    // Only the page's own files: the speed test went to the stand-in.
+    for (const c of realFetch.mock.calls) expect(String(c[0])).not.toMatch(/cloudflare|ripe/);
+  }, 25000);
+});

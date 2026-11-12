@@ -84,7 +84,8 @@ const steps = [
       <section aria-labelledby="privacy-heading">
         <h2 id="privacy-heading">Your data stays with you</h2>
         <p>
-          ModemLens runs entirely in your browser. What it reads from your modem is not sent anywhere. Page downloads
+          ModemLens runs entirely in your browser. What it reads from your modem is not sent anywhere. Only the speed test, when you
+          start it, exchanges test data with Cloudflare and asks RIPE which network it went through; both see your IP address. Page downloads
           appear in the server logs, as on any website, and K-I-Soft evaluates those logs for visitor statistics.
         </p>
       </section>

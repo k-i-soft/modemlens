@@ -6,6 +6,8 @@ import OperatorTool from './OperatorTool.vue';
 import PinTool from './PinTool.vue';
 import PingTool from './PingTool.vue';
 import SmsTool from './SmsTool.vue';
+import SpeedTool from './SpeedTool.vue';
+import type { SpeedEnv } from '../../tools/speed';
 import UssdTool from './UssdTool.vue';
 import { holdWhenFree } from './props';
 
@@ -19,15 +21,24 @@ const props = withDefaults(defineProps<{
   io: ToolIo;
   begin: () => boolean;
   end: () => void;
-}>(), { profileId: undefined, hideIdentifiers: false });
+  operator?: string;
+  /** Where the browser speed test sends its requests: the real network, or the demo's stand-in. */
+  speedEnv?: SpeedEnv;
+}>(), {
+  profileId: undefined,
+  hideIdentifiers: false,
+  operator: undefined,
+  speedEnv: () => ({ fetch: (...a: Parameters<typeof fetch>) => fetch(...a), now: () => performance.now() }),
+});
 
 const emit = defineEmits<{ (e: 'changed'): void }>();
 
-const ORDER: ToolId[] = ['pin', 'ping', 'ussd', 'operator', 'sms'];
+/** The browser speed test needs no modem command, so it is always there. */
+const ORDER: Array<ToolId | 'speed'> = ['pin', 'ping', 'speed', 'ussd', 'operator', 'sms'];
 const supported = shallowRef<Set<ToolId> | null>(null);
 const probing = ref(false);
 const block = computed(() => toolBlock(props));
-const shown = computed(() => ORDER.filter((t) => supported.value?.has(t)));
+const shown = computed(() => ORDER.filter((t) => t === 'speed' ? supported.value !== null : supported.value?.has(t)));
 
 async function probe(): Promise<void> {
   if (probing.value) return;
@@ -59,11 +70,12 @@ const common = computed(() => ({
     <span class="label">Tools</span>
     <p v-if="block" class="reason">{{ block }}</p>
     <p v-else-if="probing && !supported" class="reason">Asking the modem which tools it knows...</p>
-    <p v-else-if="supported && shown.length === 0" class="reason">This modem answers none of the tool commands.</p>
+    <p v-else-if="supported && supported.size === 0" class="reason">This modem answers none of the tool commands. The speed test works anyway.</p>
     <ul v-if="supported" class="rows">
       <template v-for="t in shown" :key="t">
         <PinTool v-if="t === 'pin'" v-bind="common" :unverified="!toolVerified('pin', profileId)" @changed="emit('changed')" />
         <PingTool v-else-if="t === 'ping'" v-bind="common" :unverified="!toolVerified('ping', profileId)" />
+        <SpeedTool v-else-if="t === 'speed'" v-bind="common" :unverified="!toolVerified('modem-speed', profileId)" :modem-speed="supported.has('modem-speed')" :operator="operator" :env="speedEnv" />
         <UssdTool v-else-if="t === 'ussd'" v-bind="common" :unverified="!toolVerified('ussd', profileId)" />
         <OperatorTool v-else-if="t === 'operator'" v-bind="common" :unverified="!toolVerified('operator', profileId)" @changed="emit('changed')" />
         <SmsTool v-else-if="t === 'sms'" v-bind="common" :unverified="!toolVerified('sms', profileId)" />

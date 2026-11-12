@@ -28,6 +28,7 @@ import DonateLink from './ui/DonateLink.vue';
 import { connectSerial } from './transport/webSerial';
 import { connectUsb } from './transport/webUsb';
 import { createDemoSettings, createDemoTransport, demoHiLinkError, demoNoAtError, demoWebCapture, DEMO_USB } from './ui/demo';
+import { createDemoSpeedEnv } from './ui/demoTools';
 import ImportCapture from './ui/ImportCapture.vue';
 import { importWebCapture } from './web/importReport';
 import { downloadText } from './ui/download';
@@ -57,6 +58,8 @@ const props = withDefaults(
 
 /** One simulated modem per page, so that demo settings survive a simulated restart. */
 const demoSettings = createDemoSettings();
+/** The demo's speed test never leaves the page: a stand-in answers like the real server. */
+const demoSpeedEnv = createDemoSpeedEnv();
 
 const connectors = computed<Connectors>(() => {
   if (props.connectors) return props.connectors;
@@ -729,6 +732,8 @@ onBeforeUnmount(() => {
         :io="toolIo"
         :begin="beginAction"
         :end="endAction"
+        :operator="dashboard.chips.find((c) => c.key === 'operator')?.value"
+        :speed-env="demo ? demoSpeedEnv : undefined"
         @changed="refreshAfterAction"
       />
       <p v-if="donate && phase === 'finished' && autoDone" class="donate-row hint">Useful? <DonateLink :url="donate" /></p>

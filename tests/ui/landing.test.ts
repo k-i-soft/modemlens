@@ -20,7 +20,7 @@ const COPY = [
   'Which modems work',
   "Modems with an AT channel work directly. Tested on the Quectel EC200A and an ASR-based stick, and unknown modems get a best effort scan. Web-based sticks such as Huawei HiLink can be read with a small bookmark. A stick that first appears as a USB disk needs one switch into network mode, which a browser cannot do, so on macOS and Linux a small helper script does it. On Windows, USB direct needs a WinUSB driver on the modem's AT interface.",
   'Your data stays with you',
-  'ModemLens runs entirely in your browser. What it reads from your modem is not sent anywhere. Page downloads appear in the server logs, as on any website, and K-I-Soft evaluates those logs for visitor statistics.',
+  'ModemLens runs entirely in your browser. What it reads from your modem is not sent anywhere. Only the speed test, when you start it, exchanges test data with Cloudflare and asks RIPE which network it went through; both see your IP address. Page downloads appear in the server logs, as on any website, and K-I-Soft evaluates those logs for visitor statistics.',
   'Open source', 'ModemLens is free and MIT licensed.',
   'Built by K-I-Soft',
   'K-I-Soft is a small Swiss software company near Bern. We build and run customer portals for Swiss SMEs, hosted in Zurich, and we built ModemLens because we needed it ourselves.',

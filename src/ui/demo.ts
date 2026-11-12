@@ -1,7 +1,7 @@
 import type { Transport, UsbDeviceDescription } from '../transport/types';
 import { NoAtChannelError } from '../transport/webUsb';
 import { classifyUsbDevice } from '../profiles/known-devices';
-import { acceptSubmit, cmgsLength, createDemoTools, toolAnswer } from './demoTools';
+import { acceptSubmit, cmgsLength, createDemoTools, qhttpUrlLength, toolAnswer } from './demoTools';
 import type { DemoTools } from './demoTools';
 
 /** USB id the demo modem claims. */
@@ -187,9 +187,17 @@ export function createDemoTransport(opts: { delayMs?: number; settings?: DemoSet
   const later = (lines: string[], ms: number): void => void setTimeout(() => emit(`\r\n${lines.join('\r\n')}\r\n`), ms);
   /** Set while the demo waits for the PDU after AT+CMGS. */
   let bodyLength: number | undefined;
+  /** Set while the demo waits for the URL after AT+QHTTPURL. */
+  let urlExpected: number | undefined;
 
   const answer = (cmd: string): void => {
     const name = cmd.toUpperCase();
+    const urlLength = qhttpUrlLength(cmd);
+    if (urlLength !== undefined) {
+      urlExpected = urlLength;
+      emit('\r\nCONNECT\r\n');
+      return;
+    }
     const submit = cmgsLength(cmd);
     if (submit !== undefined) {
       bodyLength = submit;
@@ -208,6 +216,13 @@ export function createDemoTransport(opts: { delayMs?: number; settings?: DemoSet
     async write(data) {
       if (closed) throw new Error('transport closed');
       pending += String.fromCharCode(...data);
+      if (urlExpected !== undefined) {
+        if (pending.length < urlExpected) return;
+        settings.tools.httpUrl = pending.slice(0, urlExpected);
+        pending = pending.slice(urlExpected);
+        urlExpected = undefined;
+        setTimeout(() => emit('\r\nOK\r\n'), delayMs);
+      }
       if (bodyLength !== undefined) {
         const end = pending.search(/[\x1a\x1b]/);
         if (end < 0) return;

@@ -63,6 +63,8 @@ export interface SendOptions {
   timeoutMs?: number;
   /** Text sent after the modem's "> " prompt, followed by Ctrl+Z. */
   body?: string;
+  /** Send `body` as it is after a CONNECT line instead, as Quectel's HTTP commands ask for it. */
+  bodyAfterConnect?: boolean;
   /** Only for commands a user typed: on timeout, leave an open "> " prompt with ESC. */
   cancelPromptOnTimeout?: boolean;
 }
@@ -71,6 +73,7 @@ interface Active {
   command: string;
   prefix: string;
   body?: string;
+  bodyAfterConnect: boolean;
   bodySent: boolean;
   cancelPrompt: boolean;
   promptOpen: boolean;
@@ -184,6 +187,7 @@ export class AtEngine {
       command: q.command,
       prefix: ownPrefix(q.command),
       body: q.opts.body,
+      bodyAfterConnect: q.opts.bodyAfterConnect === true,
       bodySent: false,
       cancelPrompt: q.opts.cancelPromptOnTimeout === true,
       promptOpen: false,
@@ -320,7 +324,7 @@ export class AtEngine {
 
   private checkPrompt(): void {
     const a = this.active;
-    if (!a || a.bodySent || this.buffer.trim() !== '>') return;
+    if (!a || a.bodySent || a.bodyAfterConnect || this.buffer.trim() !== '>') return;
     if (a.body === undefined) {
       a.promptOpen = a.cancelPrompt;
       return;
@@ -347,6 +351,11 @@ export class AtEngine {
     if (this.lateAnswerPossible && this.modemEchoes && !a.echoSeen) {
       a.droppedAhead = true;
       if (this.isUrc(line)) this.emitUrc(line);
+      return;
+    }
+    if (line === 'CONNECT' && a.bodyAfterConnect && a.body !== undefined && !a.bodySent) {
+      a.bodySent = true;
+      this.write(a.body, a);
       return;
     }
     const t = terminal(line);

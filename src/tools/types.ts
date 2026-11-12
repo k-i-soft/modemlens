@@ -1,6 +1,6 @@
 import type { AtResponse, SendOptions } from '../at/engine';
 
-export type ToolId = 'pin' | 'ussd' | 'operator' | 'sms' | 'ping';
+export type ToolId = 'pin' | 'ussd' | 'operator' | 'sms' | 'ping' | 'modem-speed';
 
 /** Unsolicited lines that one tool waits for, collected from before its command is sent. */
 export interface Listener {

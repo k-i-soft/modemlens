@@ -1,3 +1,4 @@
+import { MODEM_SPEED_TEST, modemSpeedDialect } from './modemSpeed';
 import { PING_TEST, pingDialect } from './ping';
 import type { ToolId, ToolIo } from './types';
 
@@ -15,6 +16,8 @@ export async function probeTools(io: ToolIo, profileId: string | undefined): Pro
   ];
   const dialect = pingDialect(profileId);
   if (dialect) probes.push(['ping', PING_TEST[dialect]]);
+  const http = modemSpeedDialect(profileId);
+  if (http) probes.push(['modem-speed', MODEM_SPEED_TEST[http]]);
   for (const [tool, command] of probes) {
     const r = await io.send(command);
     if (r.status === 'disconnected') break;

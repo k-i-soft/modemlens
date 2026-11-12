@@ -15,6 +15,8 @@ export interface DemoTools {
   cmgf: string;
   sms: Map<number, { stat: number; pdu: string }>;
   ussdMenu: boolean;
+  /** The URL the demo's HTTP client was given after AT+QHTTPURL. */
+  httpUrl?: string;
 }
 
 /** Stored messages as received PDUs. Built from SUBMIT PDUs turned into DELIVER: same fake numbers and texts. */
@@ -162,6 +164,22 @@ export function toolAnswer(cmd: string, t: DemoTools, later: Later): string[] | 
     return [OK];
   }
 
+  // The modem's own HTTP client: about 18 Mbit/s into a file, which is deleted afterwards.
+  if (/^AT\+QHTTPURL=\?$/i.test(c)) return ['+QHTTPURL: (1-2048),(1-65535)', OK];
+  if (/^AT\+QFLDS="UFS"$/i.test(c)) return ['+QFLDS: 6291456,12582912', OK];
+  if (/^AT\+QHTTPCFG="(contextid|responseheader)",\d$/i.test(c)) return [OK];
+  const httpGet = /^AT\+QHTTPGET=\d+$/i.test(c);
+  if (httpGet) {
+    const bytes = Number(/bytes=(\d+)/.exec(t.httpUrl ?? '')?.[1] ?? 0);
+    later([`+QHTTPGET: 0,200,${bytes}`], 200);
+    return [OK];
+  }
+  if (/^AT\+QHTTPREADFILE="UFS:[a-z.]+",\d+$/i.test(c)) {
+    const bytes = Number(/bytes=(\d+)/.exec(t.httpUrl ?? '')?.[1] ?? 0);
+    later(['+QHTTPREADFILE: 0'], 100 + (bytes * 8) / 18000);
+    return [OK];
+  }
+  if (/^AT\+QFDEL="UFS:[a-z.]+"$/i.test(c)) return [OK];
   if (/^AT\+QPING=\?$/i.test(c)) return ['+QPING: (1-16),<host>,(1-255),(1-10)', OK];
   const ping = /^AT\+QPING=1,"([^"]+)",(\d+),(\d+)$/i.exec(c);
   if (ping) {
@@ -188,3 +206,35 @@ export function acceptSubmit(t: DemoTools, body: string, length: number): string
   return [`+CMGS: ${reference}`, OK];
 }
 
+
+/** A stand-in for the speed test servers: about 24 Mbit/s down, 9 up, 28 ms, from a documentation AS. */
+export function createDemoSpeedEnv(): { fetch: typeof fetch; now: () => number } {
+  const sleep = (ms: number, signal?: AbortSignal | null) =>
+    new Promise<void>((resolve, reject) => {
+      const t = setTimeout(resolve, ms);
+      signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); });
+    });
+  const demoFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = new URL(String(input));
+    const signal = init?.signal;
+    if (url.hostname === 'stat.ripe.net') {
+      await sleep(120, signal);
+      return new Response(JSON.stringify({ data: { holder: 'DEMO-MOBILE Demo Mobile Ltd' } }), { headers: { 'content-type': 'application/json' } });
+    }
+    if (url.pathname === '/__up') {
+      const size = init?.body instanceof Uint8Array ? init.body.byteLength : 0;
+      await sleep(28 + (size * 8) / 9000, signal);
+      return new Response('', { status: 200 });
+    }
+    const bytes = Math.min(Number(url.searchParams.get('bytes') ?? 0), 50_000_000);
+    await sleep(28 + 3 * Math.random() + (bytes * 8) / 24000, signal);
+    return new Response(new Uint8Array(bytes), { headers: { 'cf-meta-asn': '64496', 'cf-meta-country': 'XX' } });
+  };
+  return { fetch: demoFetch as typeof fetch, now: () => performance.now() };
+}
+
+/** After AT+QHTTPURL the demo modem answers CONNECT and takes the URL as it comes. */
+export function qhttpUrlLength(cmd: string): number | undefined {
+  const m = /^AT\+QHTTPURL=(\d+),\d+$/i.exec(cmd.trim());
+  return m ? Number(m[1]) : undefined;
+}
