@@ -69,6 +69,12 @@ describe.skipIf(!existsSync('dist/index.html'))('built output', () => {
     expect(sw).not.toMatch(/https?:\/\//);
     expect(sw).not.toMatch(/CacheFirst|StaleWhileRevalidate/);
   });
+  test('version.json names the build, and the worker leaves it to the network', () => {
+    const v = JSON.parse(readFileSync('dist/version.json', 'utf8'));
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+    expect(v.build).toMatch(new RegExp(`^${pkg.version.replace(/\./g, '\\.')} \\(([0-9a-f]{7,}|unknown)\\)$`));
+    expect(readFileSync('dist/sw.js', 'utf8')).not.toContain('version.json');
+  });
   // A page load from the cache kept people on an old build after a deploy (2026-11-12).
   test('the page itself loads network first, and the cached copy is only the offline fallback', () => {
     const sw = readFileSync('dist/sw.js', 'utf8');

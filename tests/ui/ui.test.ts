@@ -538,6 +538,53 @@ describe('new version notice', () => {
     expect(w.text()).toContain('ends the connection');
   });
 
+  describe('the build on the server', () => {
+    const BUILD = `${__APP_VERSION__} (${__GIT_COMMIT__})`;
+    /** Answers /version.json with the given build, or fails like an offline fetch. */
+    function serverBuild(build: string | null) {
+      const fetchMock = vi.fn((url: string) =>
+        build === null ? Promise.reject(new TypeError('offline')) : Promise.resolve(new Response(JSON.stringify({ build }), { status: 200 })));
+      vi.stubGlobal('fetch', fetchMock);
+      return fetchMock;
+    }
+    afterEach(() => vi.unstubAllGlobals());
+
+    // A slow network makes the worker fall back to the saved page, which can be an older build than the worker.
+    test('a newer build on the server shows the notice even when the worker itself is current', async () => {
+      const f = serverBuild('9.9.9 (abcdef0)');
+      const w = mountApp();
+      await until(() => w.text().includes('A new version of ModemLens'));
+      expect(f).toHaveBeenCalledWith('/version.json', { cache: 'no-store' });
+    });
+
+    test('the same build on the server shows nothing', async () => {
+      serverBuild(BUILD);
+      const w = mountApp();
+      await flushPromises();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(w.text()).not.toContain('A new version of ModemLens');
+    });
+
+    test('an offline check stays silent', async () => {
+      serverBuild(null);
+      const w = mountApp();
+      await flushPromises();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(w.text()).not.toContain('A new version of ModemLens');
+    });
+
+    test('coming back to the tab asks the server again', async () => {
+      const f = serverBuild(BUILD);
+      mountApp();
+      await flushPromises();
+      const before = f.mock.calls.length;
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushPromises();
+      expect(f.mock.calls.length).toBe(before + 1);
+    });
+  });
+
   test('coming back to the tab looks for a new version', async () => {
     const sw = fakeServiceWorker(true);
     mountApp();

@@ -15,6 +15,23 @@ function gitCommit(): string {
   }
 }
 
+/** The build as the page shows it; App.vue builds the same string from the two defines below. */
+const BUILD = `${pkg.version} (${gitCommit()})`;
+
+/**
+ * Writes version.json next to the page. The page asks for it past the worker and the HTTP cache, so it
+ * learns about a newer build even when a slow network made the worker serve the saved, older page.
+ */
+function versionFile(): Plugin {
+  return {
+    name: 'version-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: `${JSON.stringify({ build: BUILD })}\n` });
+    },
+  };
+}
+
 /** Puts the landing page and its structured data into index.html, see src/ui/prerender.ts. */
 function prerenderLanding(): Plugin {
   return {
@@ -52,6 +69,7 @@ export default defineConfig({
   plugins: [
     vue(),
     prerenderLanding(),
+    versionFile(),
     VitePWA({
       strategies: 'generateSW',
       registerType: 'autoUpdate',

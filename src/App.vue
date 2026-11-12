@@ -243,8 +243,23 @@ function onControllerChange(): void {
   if (hadWorker) updateReady.value = true;
 }
 
+/**
+ * Asks the server which build is current, past the worker and the HTTP cache. A slow network makes the
+ * worker serve the saved page, which can be older than the worker itself, and then no controllerchange comes.
+ */
+function checkServerBuild(): void {
+  if (typeof fetch !== 'function') return;
+  fetch('/version.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((v: { build?: unknown } | null) => {
+      if (typeof v?.build === 'string' && v.build !== BUILD) updateReady.value = true;
+    })
+    .catch(() => { /* offline: the saved page is the best there is */ });
+}
+
 /** A tab that stays open for days would otherwise never learn about a deploy. */
 function checkForUpdate(): void {
+  checkServerBuild();
   const sw = serviceWorker();
   if (!sw?.getRegistration) return;
   sw.getRegistration().then((r) => r?.update()).catch(() => { /* offline or no worker */ });
@@ -267,6 +282,7 @@ onMounted(() => {
     hadWorker = !!sw.controller;
     sw.addEventListener('controllerchange', onControllerChange);
   }
+  checkServerBuild();
 });
 
 function toggleLive(on: boolean): void {
@@ -553,6 +569,13 @@ onBeforeUnmount(() => {
   </header>
 
   <main class="page">
+    <!-- First on the page: before a connect is where it matters most. -->
+    <div v-if="updateReady" class="notice update" role="status">
+      <span>A new version of ModemLens is ready. This page still runs {{ BUILD }}.</span>
+      <span v-if="connected">Reloading ends the connection and clears the results on screen, so export them first if you need them.</span>
+      <button type="button" class="primary" @click="reloadForUpdate">Reload</button>
+    </div>
+
     <p v-if="demo && !started" class="demo">Demo mode: a made-up modem with fake identifiers. Nothing is connected.</p>
 
     <div v-if="!started" class="landing">
@@ -607,12 +630,6 @@ onBeforeUnmount(() => {
         <ImportCapture @imported="onImported" />
         <button v-if="demoWeb" type="button" @click="loadDemoCapture">Load the demo capture</button>
       </div>
-    </div>
-
-    <div v-if="updateReady" class="notice update" role="status">
-      <span>A new version of ModemLens is ready. This page still runs {{ BUILD }}.</span>
-      <span v-if="connected"> Reloading ends the connection and clears the results on screen, so export them first if you need them.</span>
-      <button type="button" class="primary" @click="reloadForUpdate">Reload</button>
     </div>
 
     <p v-if="lostReason" class="notice warn" role="alert">
