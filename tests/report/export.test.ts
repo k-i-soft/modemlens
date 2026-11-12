@@ -15,6 +15,14 @@ const full: ScanReport = {
 };
 
 describe('export', () => {
+  test('the build that made a report travels with it, also in the shared variant', () => {
+    const withApp: ScanReport = { ...full, app: '0.1.0 (6e4bf7b)' };
+    expect(redactReport(withApp).app).toBe('0.1.0 (6e4bf7b)');
+    expect(toMarkdown(withApp)).toContain('- ModemLens: 0.1.0 (6e4bf7b)');
+    expect(toMarkdown(redactReport(withApp))).toContain('- ModemLens: 0.1.0 (6e4bf7b)');
+    expect(toMarkdown(full)).not.toContain('- ModemLens:');
+  });
+
   test('markdown has no secrets or raw HTML in shared variant', () => {
     const md = toMarkdown(redactReport(full));
     expect(md).not.toContain('123456789012345');

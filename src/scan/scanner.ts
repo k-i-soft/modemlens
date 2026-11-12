@@ -19,6 +19,8 @@ export interface ScanItem {
 
 export interface ScanReport {
   startedAt: string;
+  /** The ModemLens build that made the report, "version (commit)". Tells an old cached page apart. */
+  app?: string;
   usb?: string;
   profile?: Profile;
   items: ScanItem[];

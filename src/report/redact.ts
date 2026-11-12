@@ -14,6 +14,7 @@ export interface SharedItem {
 export interface SharedReport {
   redacted: true;
   startedAt: string;
+  app?: string;
   usb?: string;
   profile?: string;
   items: SharedItem[];
@@ -155,6 +156,7 @@ export function redactReport(report: ScanReport): SharedReport {
   const shared: SharedReport = {
     redacted: true,
     startedAt: report.startedAt,
+    ...(report.app !== undefined ? { app: report.app } : {}),
     items,
     commandList: report.commandList.filter((c) => isCommandName(c, learned)),
   };

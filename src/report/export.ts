@@ -34,6 +34,7 @@ export function toMarkdown(report: SharedReport | ScanReport): string {
   const shared = isShared(report);
   out.push(shared ? '# ModemLens report (redacted)' : '# ModemLens report (full, unmasked)', '');
   out.push(`- Started: ${esc(report.startedAt)}`);
+  if (report.app !== undefined) out.push(`- ModemLens: ${esc(report.app)}`);
   if (report.usb !== undefined) out.push(`- USB: ${esc(report.usb)}`);
   if (report.profile) out.push(`- Profile: ${esc(typeof report.profile === 'string' ? report.profile : report.profile.id)}`);
   if (!shared && report.interrupted) out.push(`- Interrupted: ${esc(report.interrupted)}`);
