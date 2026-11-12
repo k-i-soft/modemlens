@@ -146,30 +146,21 @@ describe('Tools in the Actions tab', () => {
     await until(() => u.text().includes('Your balance is 12.50.'));
   });
 
-  test('data traffic: totals, a live chart that only reads, a reset with two clicks', async () => {
+  test('data traffic: always on the Overview, read only, and reset under Actions with two clicks', async () => {
     const w = await opened();
-    const t = tool(w, 'traffic');
-    await until(() => t.find('.traffic-totals').exists());
-    expect(t.find('.traffic-totals').text()).toMatch(/Received[\d.]+ MBSent[\d.]+ kBTogether[\d.]+ MB/);
-
-    const before = sent().length;
-    await btn(t, 'Watch live')!.trigger('click');
-    await until(() => t.findAll('.trace').length >= 2, 5000);
-    expect(t.find('.traffic-now').text()).toMatch(/Download[\d.]+ [km]?bit\/sUpload/);
-    expect(t.find('.traffic-plot').attributes('aria-label')).toContain('now');
-    // Other tools may read meanwhile; nothing is written.
-    expect(sent().slice(before)).toContain('AT+QGDCNT?');
-    for (const c of sent().slice(before)) expect(c, c).toMatch(/\?$/);
-
-    // Leaving the tab stops the reading.
+    // The Overview panel fills in by itself, with no button.
     await btn(w.find('nav.tabs'), 'Overview')!.trigger('click');
-    await flushPromises();
-    expect(btn(t, 'Watch live')).toBeDefined();
-    const stopped = sent().length;
-    await new Promise((r) => setTimeout(r, 1300));
-    expect(sent().length).toBe(stopped);
-    await btn(w.find('nav.tabs'), 'Actions')!.trigger('click');
+    const panel = () => w.find('section[aria-label="Data traffic"]');
+    await until(() => panel().exists() && panel().findAll('.trace').length >= 2, 6000);
+    expect(panel().find('.totals').text()).toMatch(/Received[\d.]+ MBSent[\d.]+ kBTogether[\d.]+ MB/);
+    expect(panel().find('.traffic-now').text()).toMatch(/Download[\d.]+ [km]?bit\/sUpload/);
+    expect(panel().find('.traffic-plot').attributes('aria-label')).toContain('now');
+    const reads = sent().filter((c) => c.startsWith('AT+QGDCNT'));
+    expect(new Set(reads)).toEqual(new Set(['AT+QGDCNT?']));
 
+    await btn(w.find('nav.tabs'), 'Actions')!.trigger('click');
+    const t = tool(w, 'traffic');
+    await until(() => /MB/.test(t.find('.value').exists() ? t.find('.value').text() : ''));
     await btn(t, 'Reset counter')!.trigger('click');
     expect(t.text()).toContain('AT+QGDCNT=0');
     await btn(t, 'Confirm')!.trigger('click');
@@ -177,9 +168,11 @@ describe('Tools in the Actions tab', () => {
     await pastGuard();
     await btn(t, 'Send anyway')!.trigger('click');
     await until(() => t.text().includes('starts again from zero'));
-    expect(t.find('.traffic-totals').text()).toMatch(/Received\d+ B/);
+    expect(t.find('.value').text()).toMatch(/^\d+ B$/);
     expect(sent().filter((c) => c.startsWith('AT+QGDCNT=') && c !== 'AT+QGDCNT=?')).toEqual(['AT+QGDCNT=0']);
-  }, 15000);
+    // After the reset the Overview counts from the new start, and no negative speed is drawn.
+    await until(() => /Received\d+(\.\d)? (B|kB)/.test(panel().find('.totals').text()), 4000);
+  }, 20000);
 
   test('ping: four answers, no confirmation, nothing written', async () => {
     const w = await opened();

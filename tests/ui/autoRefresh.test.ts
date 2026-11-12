@@ -24,7 +24,8 @@ const wrappers: VueWrapper[] = [];
 let lastTransport: DemoTransport;
 let settings: DemoSettings;
 let send: MockInstance<AtEngine['send']>;
-const sent = (): string[] => send.mock.calls.map((c) => c[0] as string);
+/** Commands sent, without the Overview's data counter, which reads in the background on its own. */
+const sent = (): string[] => send.mock.calls.map((c) => c[0] as string).filter((c) => c !== 'AT+QGDCNT?');
 const count = (command: string): number => sent().filter((c) => c === command).length;
 
 const tick = (ms: number) => vi.advanceTimersByTimeAsync(ms);

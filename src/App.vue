@@ -20,7 +20,7 @@ import ActionsPanel from './ui/ActionsPanel.vue';
 import ToolsPanel from './ui/tools/ToolsPanel.vue';
 import { createListener } from './tools/types';
 import type { ToolIo } from './tools/types';
-import { COUNTER_READ, parseCounter } from './tools/traffic';
+import { COUNTER_READ, counterDialect, parseCounter } from './tools/traffic';
 import type { Counter } from './tools/traffic';
 import AutoRefresh from './ui/AutoRefresh.vue';
 import HelpNoModem from './ui/HelpNoModem.vue';
@@ -37,6 +37,7 @@ import { downloadText } from './ui/download';
 import { buildDashboard } from './ui/dashboard';
 import { COMPANY_IMPRINT_URL, COMPANY_PRIVACY_URL, COMPANY_URL, DONATE_URL } from './config';
 import { LiveSignal } from './ui/liveSignal';
+import { TrafficMonitor } from './ui/trafficMonitor';
 import { StatusRefresher, mergeOverlay, refreshEntries } from './ui/statusRefresh';
 import type { Overlay, RefreshState } from './ui/statusRefresh';
 
@@ -224,6 +225,28 @@ const livePaused = live.paused;
 const liveSamples = live.samples;
 // Synchronous, so that no poll can be issued between the start of a scan and its first command.
 watch(modemBusy, (busy) => live.setPaused(busy), { flush: 'sync' });
+
+/** The data counter for the Overview: always on while a modem with the counter is connected. */
+const traffic = new TrafficMonitor((command) => {
+  if (!engine) return Promise.resolve({ command, status: 'disconnected', lines: [], durationMs: 0 });
+  return engine.send(command);
+});
+const trafficRunning = traffic.running;
+const trafficPaused = traffic.paused;
+const trafficTotals = traffic.totals;
+const trafficSamples = traffic.samples;
+const trafficAvailable = traffic.available;
+watch(running, (r) => traffic.setPaused(r), { flush: 'sync' });
+watch(
+  () => connected.value && imported.value === null && counterDialect(reportMeta.value.profile?.id) !== undefined,
+  (go) => (go ? traffic.start() : traffic.stop()),
+  { immediate: true },
+);
+const trafficView = computed(() =>
+  trafficAvailable.value && imported.value === null
+    ? { totals: trafficTotals.value, samples: trafficSamples.value, running: trafficRunning.value, paused: trafficPaused.value }
+    : undefined,
+);
 
 const refresher = new StatusRefresher(
   (command, opts) => (engine ? engine.send(command, opts ?? {}) : Promise.resolve({ command, status: 'disconnected', lines: [], durationMs: 0 })),
@@ -691,6 +714,7 @@ onBeforeUnmount(() => {
         :live-samples="liveSamples"
         :live-available="connected && !modemBusy"
         :live-unavailable-reason="imported ? IMPORTED_LIVE : undefined"
+        :traffic="trafficView"
         @live="toggleLive"
       />
       <Diagnostics

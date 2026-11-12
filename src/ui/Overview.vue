@@ -11,6 +11,8 @@ import DataPanel from './DataPanel.vue';
 import DevicePanel from './DevicePanel.vue';
 import NeighbourBars from './NeighbourBars.vue';
 import OperatorList from './OperatorList.vue';
+import TrafficPanel from './TrafficPanel.vue';
+import type { Counter, Sample } from '../tools/traffic';
 
 const props = defineProps<{
   dashboard: Dashboard;
@@ -20,6 +22,8 @@ const props = defineProps<{
   liveSamples: LiveSample[];
   liveAvailable: boolean;
   liveUnavailableReason?: string;
+  /** The modem's data counter, while the modem answers it. */
+  traffic?: { totals: Counter | null; samples: Array<Sample | null>; running: boolean; paused: boolean };
 }>();
 defineEmits<{ (e: 'live', on: boolean): void }>();
 
@@ -49,6 +53,7 @@ const hasDevice = computed(() => Object.keys(props.dashboard.device).length > 0)
       <div class="column wide">
         <NetworkPanel v-if="dashboard.cell.length" :rows="dashboard.cell" />
         <DataPanel v-if="dashboard.data.length || dashboard.hostConnection !== undefined" :contexts="dashboard.data" :host-connection="dashboard.hostConnection" />
+        <TrafficPanel v-if="traffic" v-bind="traffic" />
         <NeighbourBars v-if="dashboard.neighbours.length" :neighbours="dashboard.neighbours" />
       </div>
       <div class="column">

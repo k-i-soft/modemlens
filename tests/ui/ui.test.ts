@@ -608,7 +608,8 @@ describe('App session lifecycle', () => {
       const close = t.close.bind(t);
       t.writes = 0;
       t.closed = false;
-      t.write = (d) => { t.writes++; return write(d); };
+      // The Overview's data counter reads in the background once the scan is done; it is not a scan command.
+      t.write = (d) => { if (!String.fromCharCode(...d).includes('AT+QGDCNT?')) t.writes++; return write(d); };
       t.close = async () => {
         await new Promise((r) => setTimeout(r, closeMs));
         t.closed = true;

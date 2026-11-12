@@ -81,7 +81,7 @@ const common = computed(() => ({
         <PinTool v-if="t === 'pin'" v-bind="common" :unverified="!toolVerified('pin', profileId)" @changed="emit('changed')" />
         <PingTool v-else-if="t === 'ping'" v-bind="common" :unverified="!toolVerified('ping', profileId)" />
         <SpeedTool v-else-if="t === 'speed'" v-bind="common" :unverified="!toolVerified('modem-speed', profileId)" :modem-speed="supported.has('modem-speed')" :operator="operator" :env="speedEnv" :counter="supported.has('traffic') ? counterRead : undefined" />
-        <TrafficTool v-else-if="t === 'traffic'" v-bind="common" :unverified="!toolVerified('traffic', profileId)" :active="active" :read="counterRead" />
+        <TrafficTool v-else-if="t === 'traffic'" v-bind="common" :unverified="!toolVerified('traffic', profileId)" :read="counterRead" />
         <UssdTool v-else-if="t === 'ussd'" v-bind="common" :unverified="!toolVerified('ussd', profileId)" />
         <OperatorTool v-else-if="t === 'operator'" v-bind="common" :unverified="!toolVerified('operator', profileId)" @changed="emit('changed')" />
         <SmsTool v-else-if="t === 'sms'" v-bind="common" :unverified="!toolVerified('sms', profileId)" />

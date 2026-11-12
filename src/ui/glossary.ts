@@ -41,6 +41,7 @@ export const GLOSSARY = {
   Roaming: 'Whether the modem may use networks other than your home operator, usually abroad. It can cost extra, depending on the SIM contract.',
   Restart: 'Restarts the modem, which drops the connection for a short while. Settings that wait for a restart take effect then.',
   'Live signal': 'Measures the signal every two seconds and draws it over time. It only reads, and none of it goes into a report.',
+  'Data traffic': 'The modem counts every byte it sends and receives over the mobile network. Read once a second, the difference is the speed right now. It only reads, and none of it goes into a report.',
   'Auto refresh': 'Reads the modem\'s status every few seconds so that the Overview stays current. It only reads, and reports keep the values of the scan.',
   'Deep scan': 'Asks the modem about commands this tool has no description for. It only uses query forms, but unusual firmware can react unpredictably.',
   'Network scan': 'Asks the modem to list the operators it can see. It can take minutes and may interrupt the connection.',
