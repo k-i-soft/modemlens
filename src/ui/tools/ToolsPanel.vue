@@ -103,6 +103,8 @@ const common = computed(() => ({
 .tools-view dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.2rem 1rem; margin: 0; font-size: 0.9rem; }
 .tools-view dt { font-size: 0.8rem; color: var(--ink-3); align-self: center; }
 .tools-view dd { margin: 0; overflow-wrap: anywhere; }
+.tools-view details.raw summary { cursor: pointer; font-size: 0.8rem; color: var(--ink-3); width: max-content; }
+.tools-view details.raw[open] summary { margin-bottom: 0.4rem; }
 .tools-view pre { margin: 0; font-size: 0.82rem; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tools-view pre.answer { padding: 0.6rem 0.75rem; font-size: 0.9rem; color: var(--ink); background: var(--surface-2); border-radius: 6px; }
 .tools-view .networks, .tools-view .messages { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }

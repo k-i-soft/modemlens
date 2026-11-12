@@ -103,11 +103,18 @@ describe('ping', () => {
       },
     });
     const r = await runPing(io, 'quectel', '8.8.8.8');
-    expect(r).toMatchObject({ tone: 'bad', times: [45, 51], sent: 4, received: 2 });
+    expect(r).toMatchObject({ tone: 'warn', times: [45, 51], replies: [45, null, 51, null], sent: 4, received: 2, ttl: 255 });
+    expect(r.message).toContain('2 lost');
+  });
+
+  // A real EC200A, 2026-11-12: its summary line reports 0 as the shortest time, the replies say 10.
+  test('a real EC200A run', () => {
+    const p = parseQuectel(['+QPING: 0,"8.8.8.8",32,25,116', '+QPING: 0,"8.8.8.8",32,15,116', '+QPING: 0,"8.8.8.8",32,10,116', '+QPING: 0,"8.8.8.8",32,10,116', '+QPING: 0,4,4,0,0,25,15']);
+    expect(p).toEqual({ times: [25, 15, 10, 10], replies: [25, 15, 10, 10], sent: 4, ttl: 116, error: undefined });
   });
 
   test('a Quectel ping that cannot start', () => {
-    expect(parseQuectel(['+QPING: 561'])).toEqual({ times: [], sent: 4, error: '561' });
+    expect(parseQuectel(['+QPING: 561'])).toMatchObject({ times: [], replies: [null], sent: 4, error: '561' });
   });
 
   test('a full Quectel ping', async () => {
@@ -119,7 +126,7 @@ describe('ping', () => {
   });
 
   test('SIMCom answers inline, a time past the timeout is lost', () => {
-    expect(parseSimcom(['+SNPING4: 1,8.8.8.8,120', '+SNPING4: 2,8.8.8.8,60000', '+SNPING4: 3,8.8.8.8,98'])).toEqual([120, 98]);
+    expect(parseSimcom(['+SNPING4: 1,8.8.8.8,120', '+SNPING4: 2,8.8.8.8,60000', '+SNPING4: 3,8.8.8.8,98'])).toEqual([120, null, 98]);
   });
 
   test('a refused SIMCom ping points to Modem data', async () => {
@@ -190,8 +197,10 @@ describe('support', () => {
     expect(commands()).not.toContain('AT+QPING=?');
   });
 
-  test('nothing is verified yet', () => {
-    for (const t of ['pin', 'ussd', 'operator', 'sms', 'ping'] as const) expect(toolVerified(t, 'quectel-ec200a')).toBe(false);
+  test('only the ping on the EC200A has run on real hardware', () => {
+    expect(toolVerified('ping', 'quectel-ec200a')).toBe(true);
+    for (const t of ['pin', 'ussd', 'operator', 'sms'] as const) expect(toolVerified(t, 'quectel-ec200a')).toBe(false);
+    for (const t of ['pin', 'ussd', 'operator', 'sms', 'ping'] as const) expect(toolVerified(t, 'simcom-sim7000')).toBe(false);
   });
 
   test('blocks', () => {

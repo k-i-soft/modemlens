@@ -150,7 +150,11 @@ describe('Tools in the Actions tab', () => {
     const w = await opened();
     const p = tool(w, 'ping');
     await p.find('form').trigger('submit');
-    await until(() => p.text().includes('4 of 4 answered'), 5000);
+    await until(() => p.findAll('.ping-bars li').length === 4, 5000);
+    expect(p.find('.ping-head').text()).toContain('41 ms average');
+    expect(p.find('.ping-stats').text()).toContain('4 of 4');
+    expect(p.find('details.raw').exists()).toBe(true);
+    expect((p.find('details.raw').element as HTMLDetailsElement).open).toBe(false);
     expect(sent().filter((c) => /^AT\+QPING=1/.test(c))).toEqual(['AT+QPING=1,"8.8.8.8",4,4']);
   });
 

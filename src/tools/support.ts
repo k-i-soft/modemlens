@@ -24,8 +24,11 @@ export async function probeTools(io: ToolIo, profileId: string | undefined): Pro
   return found;
 }
 
-/** Tools that have been run on a real modem of this profile. None yet: each takes the second confirmation. */
-const VERIFIED: Partial<Record<string, ToolId[]>> = {};
+/** Tools that have been run on a real modem of this profile. The others take the second confirmation. */
+const VERIFIED: Partial<Record<string, ToolId[]>> = {
+  // Four of four answered through AT+QPING on 2026-11-12.
+  'quectel-ec200a': ['ping'],
+};
 
 export function toolVerified(tool: ToolId, profileId: string | undefined): boolean {
   return profileId !== undefined && (VERIFIED[profileId]?.includes(tool) ?? false);

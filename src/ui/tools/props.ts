@@ -17,22 +17,22 @@ export interface ToolProps {
 export const BUSY = 'Another action is using the modem. Try again when it is done.';
 export const HIDDEN = 'Hidden while "Hide identifiers" is on.';
 
-/** Runs `work` while holding the modem. Null when the modem was not free. */
-export async function hold<T>(p: Pick<ToolProps, 'begin' | 'end'>, work: () => Promise<T>): Promise<T | null> {
-  if (!p.begin()) return null;
-  try {
-    return await work();
-  } finally {
-    p.end();
-  }
-}
-
-/** For the first read of a tool: the other tools read at the same moment, so it waits its turn. */
-export async function holdWhenFree<T>(p: Pick<ToolProps, 'begin' | 'end'>, work: () => Promise<T>, tries = 40, delayMs = 250): Promise<T | null> {
+/** Runs `work` once the modem is free. Waits up to `tries` turns, because auto refresh or another tool may hold it for a moment. */
+export async function hold<T>(p: Pick<ToolProps, 'begin' | 'end'>, work: () => Promise<T>, tries = 24, delayMs = 250): Promise<T | null> {
   for (let i = 0; i < tries; i++) {
-    const r = await hold(p, work);
-    if (r !== null) return r;
+    if (p.begin()) {
+      try {
+        return await work();
+      } finally {
+        p.end();
+      }
+    }
     await new Promise((res) => setTimeout(res, delayMs));
   }
   return null;
+}
+
+/** For the first read of a tool, when every tool reads at the same moment: a longer wait. */
+export function holdWhenFree<T>(p: Pick<ToolProps, 'begin' | 'end'>, work: () => Promise<T>): Promise<T | null> {
+  return hold(p, work, 60);
 }

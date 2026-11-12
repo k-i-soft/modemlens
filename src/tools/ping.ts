@@ -31,6 +31,10 @@ export function buildPing(dialect: PingDialect, host: string): string | null {
 export interface PingResult extends ToolOutcome {
   /** Round trip in ms per answered ping. */
   times: number[];
+  /** One entry per ping sent, in order: the round trip in ms, or null when it got no answer. */
+  replies: Array<number | null>;
+  /** Time to live of the answers, when the modem reports it. */
+  ttl?: number;
   sent: number;
   received: number;
 }
@@ -59,14 +63,16 @@ export function quectelDone(lines: string[]): boolean {
   return lines.some((l) => /^\+QPING:\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+/.test(l) || /^\+QPING:\s*\d+\s*$/.test(l));
 }
 
-export function parseQuectel(lines: string[]): { times: number[]; sent: number; error?: string } {
-  const times: number[] = [];
+export function parseQuectel(lines: string[]): { times: number[]; replies: Array<number | null>; sent: number; ttl?: number; error?: string } {
+  const replies: Array<number | null> = [];
   let sent = COUNT;
+  let ttl: number | undefined;
   let error: string | undefined;
   for (const l of lines) {
-    const each = /^\+QPING:\s*(\d+)\s*,\s*"[^"]*"\s*,\s*\d+\s*,\s*(\d+)/.exec(l);
+    const each = /^\+QPING:\s*(\d+)\s*,\s*"[^"]*"\s*,\s*\d+\s*,\s*(\d+)\s*,\s*(\d+)/.exec(l);
     if (each) {
-      if (each[1] === '0') times.push(Number(each[2]));
+      replies.push(each[1] === '0' ? Number(each[2]) : null);
+      if (each[1] === '0') ttl = Number(each[3]);
       continue;
     }
     const fin = /^\+QPING:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(l);
@@ -75,45 +81,56 @@ export function parseQuectel(lines: string[]): { times: number[]; sent: number; 
       sent = Number(fin[2]);
       continue;
     }
+    // A single code is a ping that got no answer, or one that could not start at all.
     const only = /^\+QPING:\s*(\d+)\s*$/.exec(l);
-    if (only && only[1] !== '0') error = only[1];
+    if (only && only[1] !== '0') {
+      replies.push(null);
+      error = only[1];
+    }
   }
-  return { times, sent, error };
+  const times = replies.filter((r): r is number => r !== null);
+  // A lost ping is no reason to call the whole run failed while others came back.
+  if (times.length > 0 && error === '569') error = undefined;
+  while (replies.length < sent && times.length > 0) replies.push(null);
+  return { times, replies: replies.slice(0, Math.max(sent, replies.length)), sent, ttl, error };
 }
 
 /** +SNPING4: <n>,<ip>,<ms> per ping. A time beyond the timeout means no answer. */
-export function parseSimcom(lines: string[]): number[] {
-  const out: number[] = [];
+export function parseSimcom(lines: string[]): Array<number | null> {
+  const out: Array<number | null> = [];
   for (const l of lines) {
     const m = /^\+SNPING4:\s*\d+\s*,\s*[^,]*,\s*(\d+)/.exec(l.trim());
-    if (m && Number(m[1]) < PER_PING_S * 1000) out.push(Number(m[1]));
+    if (m) out.push(Number(m[1]) < PER_PING_S * 1000 ? Number(m[1]) : null);
   }
   return out;
 }
 
 export async function runPing(io: ToolIo, dialect: PingDialect, host: string): Promise<PingResult> {
   const command = buildPing(dialect, host);
-  if (command === null) return { tone: 'bad', message: 'Not a valid host. Nothing was sent.', answer: [], times: [], sent: 0, received: 0 };
+  if (command === null) return { tone: 'bad', message: 'Not a valid host. Nothing was sent.', answer: [], times: [], replies: [], sent: 0, received: 0 };
   if (dialect === 'simcom') {
     const r = await io.send(command, { timeoutMs: COUNT * PER_PING_S * 1000 + 10000 });
     if (r.status !== 'ok') {
-      return { tone: 'bad', message: `${refusal(r)} The ping needs Modem data switched on under Settings.`, shown: command, answer: literal(r), times: [], sent: 0, received: 0 };
+      return { tone: 'bad', message: `${refusal(r)} The ping needs Modem data switched on under Settings.`, shown: command, answer: literal(r), times: [], replies: [], sent: 0, received: 0 };
     }
-    const times = parseSimcom(r.lines);
-    return { tone: times.length ? 'ok' : 'bad', message: summary(times, COUNT), shown: command, answer: literal(r), times, sent: COUNT, received: times.length };
+    const replies = parseSimcom(r.lines);
+    while (replies.length < COUNT) replies.push(null);
+    const times = replies.filter((x): x is number => x !== null);
+    return { tone: times.length ? 'ok' : 'bad', message: summary(times, COUNT), shown: command, answer: literal(r), times, replies, sent: COUNT, received: times.length };
   }
   const listener = io.listen((l) => l.startsWith('+QPING:'));
   try {
     const r = await io.send(command, { timeoutMs: 15000 });
-    if (r.status !== 'ok') return { tone: 'bad', message: refusal(r), shown: command, answer: literal(r), times: [], sent: 0, received: 0 };
+    if (r.status !== 'ok') return { tone: 'bad', message: refusal(r), shown: command, answer: literal(r), times: [], replies: [], sent: 0, received: 0 };
     const finished = await listener.wait(quectelDone, COUNT * PER_PING_S * 1000 + 15000);
     const p = parseQuectel(listener.lines);
     const answer = [...literal(r), ...listener.lines];
     if (p.error) {
-      return { tone: 'bad', message: QUECTEL_ERRORS[p.error] ?? `The modem ended the ping with code ${p.error}.`, shown: command, answer, times: p.times, sent: p.sent, received: p.times.length };
+      return { tone: 'bad', message: QUECTEL_ERRORS[p.error] ?? `The modem ended the ping with code ${p.error}.`, shown: command, answer, times: p.times, replies: p.replies, sent: p.sent, received: p.times.length };
     }
     const note = finished ? '' : ' The modem did not finish the ping in time.';
-    return { tone: p.times.length ? 'ok' : 'bad', message: summary(p.times, p.sent) + note, shown: command, answer, times: p.times, sent: p.sent, received: p.times.length };
+    const tone = p.times.length === 0 ? 'bad' : p.times.length < p.sent ? 'warn' : 'ok';
+    return { tone, message: summary(p.times, p.sent) + note, shown: command, answer, times: p.times, replies: p.replies, ttl: p.ttl, sent: p.sent, received: p.times.length };
   } finally {
     listener.stop();
   }

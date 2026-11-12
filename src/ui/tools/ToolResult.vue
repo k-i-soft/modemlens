@@ -7,7 +7,10 @@ defineProps<{ outcome: ToolOutcome; hideIdentifiers: boolean }>();
 
 <template>
   <div class="result" :data-tone="outcome.tone" role="status">
-    <p>{{ outcome.message }}</p>
-    <pre v-if="outcome.answer.length">{{ hideIdentifiers ? HIDDEN : [outcome.shown, ...outcome.answer].filter(Boolean).join('\n') }}</pre>
+    <slot><p>{{ outcome.message }}</p></slot>
+    <details v-if="outcome.answer.length" class="raw">
+      <summary>Raw answer</summary>
+      <pre>{{ hideIdentifiers ? HIDDEN : [outcome.shown, ...outcome.answer].filter(Boolean).join('\n') }}</pre>
+    </details>
   </div>
 </template>
